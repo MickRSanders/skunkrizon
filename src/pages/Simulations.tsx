@@ -1,7 +1,9 @@
 import StatusBadge from "@/components/StatusBadge";
+import SimulationForm from "@/components/SimulationForm";
 import { Button } from "@/components/ui/button";
 import { Plus, Search, Filter, ArrowRight, Copy, Download, BarChart3 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
 const simulations = [
   { id: "SIM-2847", employee: "Sarah Chen", origin: "New York, US", destination: "London, UK", policy: "Gold Tier", totalCost: "$284,500", status: "completed" as const, date: "Feb 24, 2026", duration: "24 months", breakdown: { compensation: "$120,000", allowances: "$68,000", taxes: "$62,500", relocation: "$34,000" } },
@@ -23,6 +25,7 @@ const compareItems = [
 
 export default function Simulations() {
   const [view, setView] = useState<"list" | "compare">("list");
+  const [showForm, setShowForm] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -40,7 +43,7 @@ export default function Simulations() {
             <BarChart3 className="w-4 h-4 mr-1" />
             Compare
           </Button>
-          <Button size="sm">
+          <Button size="sm" onClick={() => setShowForm(true)}>
             <Plus className="w-4 h-4 mr-1" />
             New Simulation
           </Button>
@@ -148,6 +151,15 @@ export default function Simulations() {
             </div>
           </div>
         </>
+      )}
+      {showForm && (
+        <SimulationForm
+          onClose={() => setShowForm(false)}
+          onSubmit={(data) => {
+            setShowForm(false);
+            toast.success(`Simulation created for ${data.employeeName}`);
+          }}
+        />
       )}
     </div>
   );
