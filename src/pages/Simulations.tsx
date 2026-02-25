@@ -34,11 +34,7 @@ export default function Simulations() {
         (formData.includeRelocationLumpSum ? Number(formData.relocationLumpSum || 0) : 0);
 
       await createSimulation.mutateAsync({
-        employee_name: formData.employeeName,
-        employee_id: formData.employeeId || null,
-        job_title: formData.jobTitle || null,
-        department: formData.department || null,
-        grade: formData.grade || null,
+        employee_name: formData.scenarioName,
         base_salary: Number(formData.baseSalary),
         currency: formData.currency,
         origin_city: formData.originCity || null,
@@ -61,7 +57,7 @@ export default function Simulations() {
         status: "draft",
       });
       setShowForm(false);
-      toast.success(`Simulation created for ${formData.employeeName}`);
+      toast.success(`Simulation "${formData.scenarioName}" created`);
     } catch (err: any) {
       toast.error(err.message || "Failed to create simulation");
     }
@@ -141,7 +137,7 @@ export default function Simulations() {
                 <thead>
                   <tr className="border-b border-border bg-muted/30">
                     <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">ID</th>
-                    <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Employee</th>
+                    <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Scenario</th>
                     <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Route</th>
                     <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Duration</th>
                     <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Cost</th>
