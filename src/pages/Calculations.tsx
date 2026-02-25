@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import {
   useCalculations,
   useCreateCalculation,
@@ -44,6 +45,7 @@ import type { Json } from "@/integrations/supabase/types";
 
 export default function Calculations() {
   const { user } = useAuth();
+  const { data: currentTenant } = useCurrentTenant();
   const { data: calculations, isLoading } = useCalculations();
   const [editingCalc, setEditingCalc] = useState<Calculation | null>(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -68,6 +70,7 @@ export default function Calculations() {
     return (
       <CreateCalculation
         userId={user.id}
+        tenantId={currentTenant?.tenant_id ?? null}
         onBack={() => setShowCreate(false)}
         onCreated={(calc) => {
           setShowCreate(false);
@@ -177,10 +180,12 @@ function CalcCard({
 
 function CreateCalculation({
   userId,
+  tenantId,
   onBack,
   onCreated,
 }: {
   userId: string;
+  tenantId: string | null;
   onBack: () => void;
   onCreated: (calc: Calculation) => void;
 }) {
@@ -198,6 +203,7 @@ function CreateCalculation({
         description: description || null,
         formula: "",
         created_by: userId,
+        tenant_id: tenantId,
       });
       toast.success(`Calculation "${name}" created`);
       onCreated(calc);
