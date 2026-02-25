@@ -229,6 +229,152 @@ export type Database = {
           },
         ]
       }
+      sub_tenants: {
+        Row: {
+          contact_email: string | null
+          contact_name: string | null
+          created_at: string
+          domain: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          slug: string
+          sso_config: Json | null
+          sso_enabled: boolean | null
+          sso_provider: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          contact_email?: string | null
+          contact_name?: string | null
+          created_at?: string
+          domain?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          slug: string
+          sso_config?: Json | null
+          sso_enabled?: boolean | null
+          sso_provider?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          contact_email?: string | null
+          contact_name?: string | null
+          created_at?: string
+          domain?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          slug?: string
+          sso_config?: Json | null
+          sso_enabled?: boolean | null
+          sso_provider?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sub_tenants_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_users: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["tenant_role"]
+          sub_tenant_id: string | null
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["tenant_role"]
+          sub_tenant_id?: string | null
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["tenant_role"]
+          sub_tenant_id?: string | null
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_users_sub_tenant_id_fkey"
+            columns: ["sub_tenant_id"]
+            isOneToOne: false
+            referencedRelation: "sub_tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_users_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenants: {
+        Row: {
+          contact_email: string | null
+          contact_name: string | null
+          created_at: string
+          domain: string | null
+          id: string
+          is_active: boolean | null
+          logo_url: string | null
+          name: string
+          slug: string
+          sso_config: Json | null
+          sso_enabled: boolean | null
+          sso_provider: string | null
+          updated_at: string
+        }
+        Insert: {
+          contact_email?: string | null
+          contact_name?: string | null
+          created_at?: string
+          domain?: string | null
+          id?: string
+          is_active?: boolean | null
+          logo_url?: string | null
+          name: string
+          slug: string
+          sso_config?: Json | null
+          sso_enabled?: boolean | null
+          sso_provider?: string | null
+          updated_at?: string
+        }
+        Update: {
+          contact_email?: string | null
+          contact_name?: string | null
+          created_at?: string
+          domain?: string | null
+          id?: string
+          is_active?: boolean | null
+          logo_url?: string | null
+          name?: string
+          slug?: string
+          sso_config?: Json | null
+          sso_enabled?: boolean | null
+          sso_provider?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
@@ -259,10 +405,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_tenant_admin: {
+        Args: { _tenant_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "admin" | "analyst" | "viewer"
       simulation_status: "draft" | "running" | "completed" | "pending"
+      tenant_role: "tenant_admin" | "tenant_user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -392,6 +543,7 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "analyst", "viewer"],
       simulation_status: ["draft", "running", "completed", "pending"],
+      tenant_role: ["tenant_admin", "tenant_user"],
     },
   },
 } as const
