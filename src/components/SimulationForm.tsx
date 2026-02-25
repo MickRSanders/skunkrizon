@@ -14,7 +14,6 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import {
-  User,
   MapPin,
   FileText,
   Settings2,
@@ -22,6 +21,7 @@ import {
   ChevronLeft,
   Calculator,
   X,
+  Wallet,
 } from "lucide-react";
 
 interface SimulationFormProps {
@@ -30,11 +30,7 @@ interface SimulationFormProps {
 }
 
 export interface SimulationFormData {
-  employeeName: string;
-  employeeId: string;
-  jobTitle: string;
-  department: string;
-  grade: string;
+  scenarioName: string;
   baseSalary: string;
   currency: string;
   originCity: string;
@@ -57,18 +53,14 @@ export interface SimulationFormData {
 }
 
 const STEPS = [
-  { id: "employee", label: "Employee Info", icon: User },
+  { id: "scenario", label: "Scenario Setup", icon: Wallet },
   { id: "assignment", label: "Assignment Details", icon: MapPin },
   { id: "policy", label: "Policy & Benefits", icon: FileText },
   { id: "assumptions", label: "Assumptions", icon: Settings2 },
 ] as const;
 
 const initialData: SimulationFormData = {
-  employeeName: "",
-  employeeId: "",
-  jobTitle: "",
-  department: "",
-  grade: "",
+  scenarioName: "",
   baseSalary: "",
   currency: "USD",
   originCity: "",
@@ -99,7 +91,7 @@ export default function SimulationForm({ onClose, onSubmit }: SimulationFormProp
   };
 
   const canProceed = () => {
-    if (step === 0) return data.employeeName && data.baseSalary;
+    if (step === 0) return data.scenarioName && data.baseSalary;
     if (step === 1) return data.originCountry && data.destinationCountry && data.assignmentType;
     if (step === 2) return data.policy;
     return true;
@@ -154,40 +146,14 @@ export default function SimulationForm({ onClose, onSubmit }: SimulationFormProp
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
           {step === 0 && (
             <>
-              <SectionTitle>Employee Information</SectionTitle>
+              <SectionTitle>Scenario</SectionTitle>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Full Name *">
-                  <Input value={data.employeeName} onChange={(e) => update("employeeName", e.target.value)} placeholder="e.g. Sarah Chen" />
-                </Field>
-                <Field label="Employee ID">
-                  <Input value={data.employeeId} onChange={(e) => update("employeeId", e.target.value)} placeholder="e.g. EMP-10482" />
-                </Field>
-                <Field label="Job Title">
-                  <Input value={data.jobTitle} onChange={(e) => update("jobTitle", e.target.value)} placeholder="e.g. Senior Engineer" />
-                </Field>
-                <Field label="Department">
-                  <Select value={data.department} onValueChange={(v) => update("department", v)}>
-                    <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
-                    <SelectContent>
-                      {["Engineering", "Finance", "Marketing", "Operations", "Sales", "HR", "Legal"].map((d) => (
-                        <SelectItem key={d} value={d.toLowerCase()}>{d}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </Field>
-                <Field label="Grade / Level">
-                  <Select value={data.grade} onValueChange={(v) => update("grade", v)}>
-                    <SelectTrigger><SelectValue placeholder="Select grade" /></SelectTrigger>
-                    <SelectContent>
-                      {["L3 — Associate", "L4 — Mid-Level", "L5 — Senior", "L6 — Lead", "L7 — Director", "L8 — VP"].map((g) => (
-                        <SelectItem key={g} value={g}>{g}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <Field label="Scenario Name *">
+                  <Input value={data.scenarioName} onChange={(e) => update("scenarioName", e.target.value)} placeholder="e.g. US-to-UK Long-Term" />
                 </Field>
               </div>
               <Separator />
-              <SectionTitle>Compensation</SectionTitle>
+              <SectionTitle>Compensation Assumptions</SectionTitle>
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Base Salary *">
                   <Input type="number" value={data.baseSalary} onChange={(e) => update("baseSalary", e.target.value)} placeholder="e.g. 120000" />
