@@ -67,6 +67,7 @@ export type Database = {
           formula: string
           id: string
           name: string
+          tenant_id: string | null
           updated_at: string
         }
         Insert: {
@@ -77,6 +78,7 @@ export type Database = {
           formula: string
           id?: string
           name: string
+          tenant_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -87,9 +89,18 @@ export type Database = {
           formula?: string
           id?: string
           name?: string
+          tenant_id?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "calculations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       field_data_sources: {
         Row: {
@@ -222,6 +233,7 @@ export type Database = {
           id: string
           name: string
           tax_approach: string | null
+          tenant_id: string | null
           tier: string
           updated_at: string
         }
@@ -233,6 +245,7 @@ export type Database = {
           id?: string
           name: string
           tax_approach?: string | null
+          tenant_id?: string | null
           tier?: string
           updated_at?: string
         }
@@ -244,10 +257,19 @@ export type Database = {
           id?: string
           name?: string
           tax_approach?: string | null
+          tenant_id?: string | null
           tier?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "policies_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -571,7 +593,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_sub_tenant_member: {
+        Args: { _tenant_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_tenant_admin: {
+        Args: { _tenant_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_tenant_member: {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean
       }
