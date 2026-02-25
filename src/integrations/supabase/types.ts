@@ -14,16 +14,255 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      calculations: {
+        Row: {
+          category: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          formula: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          formula: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          formula?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      policies: {
+        Row: {
+          benefit_components: Json | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          name: string
+          tax_approach: string | null
+          tier: string
+          updated_at: string
+        }
+        Insert: {
+          benefit_components?: Json | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          name: string
+          tax_approach?: string | null
+          tier?: string
+          updated_at?: string
+        }
+        Update: {
+          benefit_components?: Json | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          name?: string
+          tax_approach?: string | null
+          tier?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          company: string | null
+          created_at: string
+          department: string | null
+          display_name: string | null
+          id: string
+          job_title: string | null
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          company?: string | null
+          created_at?: string
+          department?: string | null
+          display_name?: string | null
+          id: string
+          job_title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          company?: string | null
+          created_at?: string
+          department?: string | null
+          display_name?: string | null
+          id?: string
+          job_title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      simulations: {
+        Row: {
+          assignment_type: string
+          base_salary: number
+          cola_percent: number | null
+          cost_breakdown: Json | null
+          created_at: string
+          currency: string
+          department: string | null
+          destination_city: string | null
+          destination_country: string
+          duration_months: number
+          employee_id: string | null
+          employee_name: string
+          exchange_rate_buffer: number | null
+          grade: string | null
+          housing_cap: number | null
+          id: string
+          include_relocation_lump_sum: boolean | null
+          include_schooling: boolean | null
+          include_spouse_support: boolean | null
+          job_title: string | null
+          notes: string | null
+          origin_city: string | null
+          origin_country: string
+          owner_id: string
+          policy_id: string | null
+          relocation_lump_sum: number | null
+          sim_code: string
+          start_date: string | null
+          status: Database["public"]["Enums"]["simulation_status"]
+          tax_approach: string | null
+          total_cost: number | null
+          updated_at: string
+        }
+        Insert: {
+          assignment_type: string
+          base_salary?: number
+          cola_percent?: number | null
+          cost_breakdown?: Json | null
+          created_at?: string
+          currency?: string
+          department?: string | null
+          destination_city?: string | null
+          destination_country: string
+          duration_months?: number
+          employee_id?: string | null
+          employee_name: string
+          exchange_rate_buffer?: number | null
+          grade?: string | null
+          housing_cap?: number | null
+          id?: string
+          include_relocation_lump_sum?: boolean | null
+          include_schooling?: boolean | null
+          include_spouse_support?: boolean | null
+          job_title?: string | null
+          notes?: string | null
+          origin_city?: string | null
+          origin_country: string
+          owner_id: string
+          policy_id?: string | null
+          relocation_lump_sum?: number | null
+          sim_code?: string
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["simulation_status"]
+          tax_approach?: string | null
+          total_cost?: number | null
+          updated_at?: string
+        }
+        Update: {
+          assignment_type?: string
+          base_salary?: number
+          cola_percent?: number | null
+          cost_breakdown?: Json | null
+          created_at?: string
+          currency?: string
+          department?: string | null
+          destination_city?: string | null
+          destination_country?: string
+          duration_months?: number
+          employee_id?: string | null
+          employee_name?: string
+          exchange_rate_buffer?: number | null
+          grade?: string | null
+          housing_cap?: number | null
+          id?: string
+          include_relocation_lump_sum?: boolean | null
+          include_schooling?: boolean | null
+          include_spouse_support?: boolean | null
+          job_title?: string | null
+          notes?: string | null
+          origin_city?: string | null
+          origin_country?: string
+          owner_id?: string
+          policy_id?: string | null
+          relocation_lump_sum?: number | null
+          sim_code?: string
+          start_date?: string | null
+          status?: Database["public"]["Enums"]["simulation_status"]
+          tax_approach?: string | null
+          total_cost?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulations_policy_id_fkey"
+            columns: ["policy_id"]
+            isOneToOne: false
+            referencedRelation: "policies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "analyst" | "viewer"
+      simulation_status: "draft" | "running" | "completed" | "pending"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +389,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "analyst", "viewer"],
+      simulation_status: ["draft", "running", "completed", "pending"],
+    },
   },
 } as const
