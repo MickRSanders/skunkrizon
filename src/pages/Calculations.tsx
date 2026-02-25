@@ -1,68 +1,544 @@
-import StatusBadge from "@/components/StatusBadge";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Search, Play, Edit, Copy, History, FunctionSquare } from "lucide-react";
-
-const calculations = [
-  { id: "CALC-001", name: "Standard Tax Gross-Up", type: "Tax", status: "active" as const, version: "v2.1", usedBy: 18, lastTested: "Feb 22, 2026", formula: "grossAmount = netAmount / (1 - taxRate)" },
-  { id: "CALC-002", name: "COLA Index Differential", type: "Allowance", status: "active" as const, version: "v1.3", usedBy: 12, lastTested: "Feb 20, 2026", formula: "cola = baseSalary × (hostIndex / homeIndex - 1)" },
-  { id: "CALC-003", name: "Housing Allowance by City Tier", type: "Allowance", status: "active" as const, version: "v3.0", usedBy: 15, lastTested: "Feb 21, 2026", formula: "housing = lookup(cityTier, familySize)" },
-  { id: "CALC-004", name: "Hardship Premium Calculator", type: "Premium", status: "active" as const, version: "v1.1", usedBy: 6, lastTested: "Feb 19, 2026", formula: "premium = baseSalary × hardshipRate(country)" },
-  { id: "CALC-005", name: "Education Reimbursement", type: "Benefit", status: "draft" as const, version: "v0.2", usedBy: 0, lastTested: "Feb 24, 2026", formula: "edu = min(actualCost, cap(country)) × children" },
-  { id: "CALC-006", name: "Exchange Rate Conversion", type: "Utility", status: "active" as const, version: "v1.0", usedBy: 24, lastTested: "Feb 22, 2026", formula: "converted = amount × rate(from, to, date)" },
-  { id: "CALC-007", name: "Relocation Bonus (Regional)", type: "Bonus", status: "active" as const, version: "v1.2", usedBy: 8, lastTested: "Feb 18, 2026", formula: "if region=EU then 10% else 5% of base" },
-];
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import StatusBadge from "@/components/StatusBadge";
+import FormulaBuilder, { type FormulaBlock } from "@/components/FormulaBuilder";
+import FieldDataSourceEditor from "@/components/FieldDataSourceEditor";
+import {
+  Plus,
+  Search,
+  Edit,
+  FunctionSquare,
+  Loader2,
+  ArrowLeft,
+  Trash2,
+  Save,
+  Variable,
+  Database,
+} from "lucide-react";
+import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  useCalculations,
+  useCreateCalculation,
+  useUpdateCalculation,
+  useDeleteCalculation,
+  useCalculationFields,
+  useCreateField,
+  useUpdateField,
+  useDeleteField,
+  useUpsertDataSource,
+  type Calculation,
+  type CalculationField,
+} from "@/hooks/useCalculations";
+import type { Json } from "@/integrations/supabase/types";
 
 export default function Calculations() {
+  const { user } = useAuth();
+  const { data: calculations, isLoading } = useCalculations();
+  const [editingCalc, setEditingCalc] = useState<Calculation | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const filtered = calculations?.filter(
+    (c) =>
+      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (c.category || "").toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  if (editingCalc) {
+    return (
+      <CalculationEditor
+        calculation={editingCalc}
+        onBack={() => setEditingCalc(null)}
+      />
+    );
+  }
+
+  if (showCreate && user) {
+    return (
+      <CreateCalculation
+        userId={user.id}
+        onBack={() => setShowCreate(false)}
+        onCreated={(calc) => {
+          setShowCreate(false);
+          setEditingCalc(calc);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Calculations Engine</h1>
-          <p className="text-sm text-muted-foreground mt-1">Define, test, and manage calculation rules and formulas</p>
+          <h1 className="text-2xl font-bold text-foreground">
+            Calculations Engine
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Define, test, and manage calculation rules and formulas
+          </p>
         </div>
-        <Button size="sm">
+        <Button size="sm" onClick={() => setShowCreate(true)}>
           <Plus className="w-4 h-4 mr-1" /> New Calculation
         </Button>
       </div>
 
-      {/* Search */}
       <div className="flex items-center gap-2 max-w-sm bg-card border border-border rounded-md px-3 py-2">
         <Search className="w-4 h-4 text-muted-foreground" />
-        <input type="text" placeholder="Search calculations..." className="bg-transparent text-sm outline-none w-full text-foreground placeholder:text-muted-foreground" />
+        <input
+          type="text"
+          placeholder="Search calculations..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="bg-transparent text-sm outline-none w-full text-foreground placeholder:text-muted-foreground"
+        />
       </div>
 
-      {/* Calculations Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {calculations.map((calc) => (
-          <div key={calc.id} className="bg-card rounded-lg border border-border p-5 hover:shadow-md transition-shadow">
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <FunctionSquare className="w-4 h-4 text-accent" />
-                <span className="font-mono text-xs text-muted-foreground">{calc.id}</span>
-              </div>
-              <StatusBadge status={calc.status} />
-            </div>
-            <h3 className="font-semibold text-foreground text-sm mb-1">{calc.name}</h3>
-            <p className="text-xs text-muted-foreground mb-3">{calc.type} • {calc.version} • Used by {calc.usedBy} policies</p>
-            <div className="bg-muted/50 rounded px-3 py-2 mb-3">
-              <code className="text-xs font-mono text-foreground">{calc.formula}</code>
-            </div>
-            <div className="flex items-center gap-1 pt-2 border-t border-border">
-              <button className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Test">
-                <Play className="w-3.5 h-3.5" />
-              </button>
-              <button className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Edit">
-                <Edit className="w-3.5 h-3.5" />
-              </button>
-              <button className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Clone">
-                <Copy className="w-3.5 h-3.5" />
-              </button>
-              <button className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="History">
-                <History className="w-3.5 h-3.5" />
-              </button>
-            </div>
+      {isLoading ? (
+        <div className="py-12 flex justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-accent" />
+        </div>
+      ) : filtered && filtered.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {filtered.map((calc) => (
+            <CalcCard
+              key={calc.id}
+              calc={calc}
+              onEdit={() => setEditingCalc(calc)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="py-12 text-center">
+          <FunctionSquare className="w-10 h-10 mx-auto text-muted-foreground/30 mb-3" />
+          <p className="text-sm text-muted-foreground">
+            {searchTerm
+              ? "No calculations match your search"
+              : "No calculations yet. Create your first one!"}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Calculation Card ──────────────────────────────────────────
+
+function CalcCard({
+  calc,
+  onEdit,
+}: {
+  calc: Calculation;
+  onEdit: () => void;
+}) {
+  return (
+    <div className="bg-card rounded-lg border border-border p-5 hover:shadow-md transition-shadow">
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <FunctionSquare className="w-4 h-4 text-accent" />
+          <span className="text-xs text-muted-foreground font-medium">
+            {calc.category || "General"}
+          </span>
+        </div>
+      </div>
+      <h3 className="font-semibold text-foreground text-sm mb-1">
+        {calc.name}
+      </h3>
+      {calc.description && (
+        <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
+          {calc.description}
+        </p>
+      )}
+      <div className="bg-muted/50 rounded px-3 py-2 mb-3">
+        <code className="text-xs font-mono text-foreground break-all">
+          {calc.formula || "No formula defined"}
+        </code>
+      </div>
+      <div className="flex items-center gap-1 pt-2 border-t border-border">
+        <Button variant="ghost" size="sm" onClick={onEdit} className="text-xs gap-1">
+          <Edit className="w-3.5 h-3.5" /> Edit Formula
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Create Calculation ────────────────────────────────────────
+
+function CreateCalculation({
+  userId,
+  onBack,
+  onCreated,
+}: {
+  userId: string;
+  onBack: () => void;
+  onCreated: (calc: Calculation) => void;
+}) {
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState("");
+  const [description, setDescription] = useState("");
+  const createCalc = useCreateCalculation();
+
+  const handleCreate = async () => {
+    if (!name) return toast.error("Name is required");
+    try {
+      const calc = await createCalc.mutateAsync({
+        name,
+        category: category || null,
+        description: description || null,
+        formula: "",
+        created_by: userId,
+      });
+      toast.success(`Calculation "${name}" created`);
+      onCreated(calc);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create calculation");
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={onBack}>
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
+        <h1 className="text-2xl font-bold text-foreground">New Calculation</h1>
+      </div>
+
+      <div className="max-w-lg bg-card border border-border rounded-lg p-6 space-y-4">
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Name *</Label>
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Tax Gross-Up" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Category</Label>
+          <Select value={category} onValueChange={setCategory}>
+            <SelectTrigger><SelectValue placeholder="Choose category..." /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Tax">Tax</SelectItem>
+              <SelectItem value="Allowance">Allowance</SelectItem>
+              <SelectItem value="Premium">Premium</SelectItem>
+              <SelectItem value="Benefit">Benefit</SelectItem>
+              <SelectItem value="Utility">Utility</SelectItem>
+              <SelectItem value="Bonus">Bonus</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Description</Label>
+          <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What does this calculation do?" />
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" size="sm" onClick={onBack}>Cancel</Button>
+          <Button size="sm" onClick={handleCreate} disabled={createCalc.isPending}>
+            {createCalc.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
+            Create & Edit Formula
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Calculation Editor ────────────────────────────────────────
+
+function CalculationEditor({
+  calculation,
+  onBack,
+}: {
+  calculation: Calculation;
+  onBack: () => void;
+}) {
+  const { data: fieldsData, isLoading: loadingFields } = useCalculationFields(calculation.id);
+  const createField = useCreateField();
+  const deleteField = useDeleteField();
+  const updateCalc = useUpdateCalculation();
+  const upsertSource = useUpsertDataSource();
+
+  const [blocks, setBlocks] = useState<FormulaBlock[]>(() => {
+    // Parse existing formula into blocks if possible
+    if (!calculation.formula) return [];
+    return [];
+  });
+
+  const [showAddField, setShowAddField] = useState(false);
+  const [editingField, setEditingField] = useState<CalculationField | null>(null);
+  const [showDataSource, setShowDataSource] = useState<CalculationField | null>(null);
+
+  const fields = fieldsData || [];
+
+  const handleAddField = async (name: string, label: string, fieldType: string) => {
+    try {
+      await createField.mutateAsync({
+        calculation_id: calculation.id,
+        name: name.toLowerCase().replace(/\s+/g, "_"),
+        label,
+        field_type: fieldType,
+        position: fields.length,
+      });
+      setShowAddField(false);
+      toast.success(`Field "${label}" added`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to add field");
+    }
+  };
+
+  const handleDeleteField = async (fieldId: string) => {
+    try {
+      await deleteField.mutateAsync({ id: fieldId, calculationId: calculation.id });
+      setBlocks(blocks.filter((b) => b.fieldId !== fieldId));
+      toast.success("Field removed");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete field");
+    }
+  };
+
+  const handleSaveFormula = async () => {
+    const formula = blocks
+      .map((b) => (b.type === "field" ? b.value : b.value))
+      .join(" ");
+    try {
+      await updateCalc.mutateAsync({ id: calculation.id, formula });
+      toast.success("Formula saved");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save formula");
+    }
+  };
+
+  const handleSaveDataSource = async (source: any) => {
+    try {
+      await upsertSource.mutateAsync({
+        ...source,
+        calculationId: calculation.id,
+      });
+      setShowDataSource(null);
+      toast.success("Data source configured");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save data source");
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={onBack}>
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">
+              {calculation.name}
+            </h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {calculation.category || "General"}{" "}
+              {calculation.description && `· ${calculation.description}`}
+            </p>
           </div>
-        ))}
+        </div>
+        <Button size="sm" onClick={handleSaveFormula} disabled={updateCalc.isPending}>
+          {updateCalc.isPending ? (
+            <Loader2 className="w-4 h-4 animate-spin mr-1" />
+          ) : (
+            <Save className="w-4 h-4 mr-1" />
+          )}
+          Save Formula
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-12 gap-6">
+        {/* Formula Builder */}
+        <div className="col-span-8 bg-card border border-border rounded-lg p-5 space-y-4">
+          <h2 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+            <FunctionSquare className="w-4 h-4 text-accent" />
+            Formula Builder
+          </h2>
+
+          {loadingFields ? (
+            <div className="py-8 flex justify-center">
+              <Loader2 className="w-5 h-5 animate-spin text-accent" />
+            </div>
+          ) : (
+            <FormulaBuilder
+              blocks={blocks}
+              onChange={setBlocks}
+              fields={fields}
+              onAddField={() => setShowAddField(true)}
+              onEditField={(field) => setShowDataSource(field)}
+            />
+          )}
+        </div>
+
+        {/* Fields Panel */}
+        <div className="col-span-4 space-y-4">
+          <div className="bg-card border border-border rounded-lg p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                <Variable className="w-4 h-4 text-accent" />
+                Fields
+              </h2>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAddField(true)}
+                className="text-xs"
+              >
+                <Plus className="w-3 h-3 mr-1" /> Add
+              </Button>
+            </div>
+
+            {fields.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-4 text-center">
+                No fields yet. Add one to start building your formula.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {fields.map((f: any) => {
+                  const source = f.field_data_sources?.[0];
+                  return (
+                    <div
+                      key={f.id}
+                      className="flex items-center justify-between p-2.5 rounded-md border border-border bg-muted/10 group"
+                    >
+                      <div>
+                        <p className="text-xs font-medium text-foreground">
+                          {f.label}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                          <span className="font-mono">{f.name}</span>
+                          <span>·</span>
+                          <span>{f.field_type}</span>
+                          {source && (
+                            <>
+                              <span>·</span>
+                              <Database className="w-2.5 h-2.5" />
+                              <span className="capitalize">
+                                {source.source_type.replace("_", " ")}
+                              </span>
+                            </>
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => setShowDataSource(f)}
+                          className="p-1 rounded hover:bg-accent/10 text-muted-foreground hover:text-accent"
+                          title="Configure data source"
+                        >
+                          <Database className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteField(f.id)}
+                          className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                          title="Delete field"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Data Source Editor */}
+          {showDataSource && (
+            <div className="bg-card border border-border rounded-lg p-5">
+              <FieldDataSourceEditor
+                field={showDataSource}
+                currentSource={
+                  (showDataSource as any).field_data_sources?.[0] || null
+                }
+                onSave={handleSaveDataSource}
+                onClose={() => setShowDataSource(null)}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Add Field Dialog */}
+      {showAddField && (
+        <AddFieldDialog
+          onAdd={handleAddField}
+          onClose={() => setShowAddField(false)}
+          isPending={createField.isPending}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Add Field Dialog ──────────────────────────────────────────
+
+function AddFieldDialog({
+  onAdd,
+  onClose,
+  isPending,
+}: {
+  onAdd: (name: string, label: string, fieldType: string) => void;
+  onClose: () => void;
+  isPending: boolean;
+}) {
+  const [name, setName] = useState("");
+  const [label, setLabel] = useState("");
+  const [fieldType, setFieldType] = useState("number");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+      <div className="w-full max-w-sm bg-card rounded-xl border border-border shadow-xl p-6 space-y-4">
+        <h2 className="text-lg font-bold text-foreground">Add Field</h2>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Label *</Label>
+            <Input
+              value={label}
+              onChange={(e) => {
+                setLabel(e.target.value);
+                if (!name) setName(e.target.value.toLowerCase().replace(/\s+/g, "_"));
+              }}
+              placeholder="e.g. Base Salary"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Variable Name</Label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. base_salary"
+              className="font-mono text-sm"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Type</Label>
+            <Select value={fieldType} onValueChange={setFieldType}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="number">Number</SelectItem>
+                <SelectItem value="percentage">Percentage</SelectItem>
+                <SelectItem value="currency">Currency</SelectItem>
+                <SelectItem value="text">Text</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={() => onAdd(name, label, fieldType)} disabled={!label || !name || isPending}>
+            {isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
+            Add Field
+          </Button>
+        </div>
       </div>
     </div>
   );
