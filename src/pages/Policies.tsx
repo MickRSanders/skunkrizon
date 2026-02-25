@@ -1,80 +1,14 @@
-import { useState, useEffect, useCallback } from "react";
-import StatusBadge from "@/components/StatusBadge";
+import { useState, useEffect } from "react";
 import PolicyUploadDialog from "@/components/PolicyUploadDialog";
+import PolicyComponentEditor, { type BenefitComponent } from "@/components/PolicyComponentEditor";
 import { Button } from "@/components/ui/button";
-import { Plus, Upload, Search, FileText, Settings, Eye, Edit, Loader2, Save, X, Trash2, PlusCircle, Calculator } from "lucide-react";
+import { Plus, Upload, Search, FileText, Eye, Edit, Loader2, Calculator, Layers } from "lucide-react";
 import { toast } from "sonner";
 import { usePolicies, useCreatePolicy, useUpdatePolicy, type Policy } from "@/hooks/usePolicies";
 import { useCalculations } from "@/hooks/useCalculations";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { format } from "date-fns";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-
-// Also used for editing calculation in detail table
-
-type BenefitComponent = {
-  name: string;
-  type: string;
-  taxable: string;
-  calcMethod: string;
-  amount: string;
-  calculationId?: string | null;
-};
-
-const BENEFIT_TYPES = ["Allowance", "Benefit", "One-time", "Tax", "Deduction"];
-const TAXABILITY_OPTIONS = ["Host only", "Both", "Non-taxable", "Home only", "N/A"];
-
-function EditableCell({
-  value,
-  onChange,
-  placeholder,
-  className = "",
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  className?: string;
-}) {
-  return (
-    <Input
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className={`h-8 text-sm bg-background ${className}`}
-    />
-  );
-}
-
-function SelectCell({
-  value,
-  onChange,
-  options,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: string[];
-}) {
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="h-8 text-sm bg-background">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {options.map((o) => (
-          <SelectItem key={o} value={o}>{o}</SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
 
 export default function Policies() {
   const { user } = useAuth();
@@ -87,8 +21,7 @@ export default function Policies() {
   const [showUpload, setShowUpload] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPolicy, setSelectedPolicy] = useState<Policy | null>(null);
-  const [editingComponents, setEditingComponents] = useState<BenefitComponent[] | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
+  const [editingPolicy, setEditingPolicy] = useState<Policy | null>(null);
 
   const calcNameMap = new Map((calculations ?? []).map((c) => [c.id, c.name]));
 
@@ -100,61 +33,9 @@ export default function Policies() {
     }
   }, [policies]);
 
-  const isEditing = editingComponents !== null;
-
   const benefitComponents: BenefitComponent[] = selectedPolicy?.benefit_components
-    ? (Array.isArray(selectedPolicy.benefit_components)
-        ? selectedPolicy.benefit_components
-        : []) as BenefitComponent[]
+    ? (Array.isArray(selectedPolicy.benefit_components) ? selectedPolicy.benefit_components : []) as BenefitComponent[]
     : [];
-
-  const startEditing = () => {
-    setEditingComponents([...benefitComponents.map((c) => ({ ...c }))]);
-  };
-
-  const cancelEditing = () => setEditingComponents(null);
-
-  const updateComponent = (index: number, field: keyof BenefitComponent, value: string) => {
-    setEditingComponents((prev) => {
-      if (!prev) return prev;
-      const next = [...prev];
-      next[index] = { ...next[index], [field]: value };
-      return next;
-    });
-  };
-
-  const addComponent = () => {
-    setEditingComponents((prev) => [
-      ...(prev ?? []),
-      { name: "", type: "Allowance", taxable: "Non-taxable", calcMethod: "", amount: "" },
-    ]);
-  };
-
-  const removeComponent = (index: number) => {
-    setEditingComponents((prev) => prev ? prev.filter((_, i) => i !== index) : prev);
-  };
-
-  const saveComponents = async () => {
-    if (!selectedPolicy || !editingComponents) return;
-    // Validate: all must have a name
-    if (editingComponents.some((c) => !c.name.trim())) {
-      toast.error("All components must have a name");
-      return;
-    }
-    setIsSaving(true);
-    try {
-      await updatePolicy.mutateAsync({
-        id: selectedPolicy.id,
-        benefit_components: editingComponents as any,
-      });
-      setEditingComponents(null);
-      toast.success("Benefit components updated");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to save");
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   const filtered = (policies ?? []).filter(
     (p) =>
@@ -182,7 +63,14 @@ export default function Policies() {
     }
   };
 
-  const displayComponents = isEditing ? editingComponents! : benefitComponents;
+  const handleSaveComponents = async (components: BenefitComponent[]) => {
+    if (!editingPolicy) return;
+    await updatePolicy.mutateAsync({
+      id: editingPolicy.id,
+      benefit_components: components as any,
+    });
+    setEditingPolicy(null);
+  };
 
   return (
     <div className="space-y-6">
@@ -243,7 +131,7 @@ export default function Policies() {
                     <tr
                       key={p.id}
                       className={`data-table-row cursor-pointer ${selectedPolicy?.id === p.id ? "bg-accent/10" : ""}`}
-                      onClick={() => { setSelectedPolicy(p); setEditingComponents(null); }}
+                      onClick={() => setSelectedPolicy(p)}
                     >
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-2">
@@ -261,10 +149,21 @@ export default function Policies() {
                       <td className="px-5 py-3 text-muted-foreground text-xs">{p.tax_approach ?? "—"}</td>
                       <td className="px-5 py-3 text-muted-foreground">{format(new Date(p.updated_at), "MMM d, yyyy")}</td>
                       <td className="px-5 py-3">
-                        <div className="flex items-center gap-1">
-                          <button className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="View"><Eye className="w-3.5 h-3.5" /></button>
-                          <button className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Edit"><Edit className="w-3.5 h-3.5" /></button>
-                          <button className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Configure"><Settings className="w-3.5 h-3.5" /></button>
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => setSelectedPolicy(p)}
+                            className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                            title="View"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setEditingPolicy(p)}
+                            className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                            title="Edit Components"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -276,8 +175,8 @@ export default function Policies() {
         </div>
       </div>
 
-      {/* Policy Detail Preview */}
-      {selectedPolicy && (benefitComponents.length > 0 || isEditing) && (
+      {/* Policy Detail Preview (read-only) */}
+      {selectedPolicy && benefitComponents.length > 0 && (
         <div className="bg-card rounded-lg border border-border">
           <div className="p-5 border-b border-border flex items-center justify-between">
             <div>
@@ -288,26 +187,12 @@ export default function Policies() {
                 </h3>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {isEditing ? "Click cells to edit. Save when done." : "Benefit line items, taxability, and calculation methods"}
+                Benefit line items, taxability, and linked calculations
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              {isEditing ? (
-                <>
-                  <Button variant="ghost" size="sm" onClick={cancelEditing} disabled={isSaving}>
-                    <X className="w-4 h-4 mr-1" /> Cancel
-                  </Button>
-                  <Button size="sm" onClick={saveComponents} disabled={isSaving}>
-                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Save className="w-4 h-4 mr-1" />}
-                    Save
-                  </Button>
-                </>
-              ) : (
-                <Button variant="outline" size="sm" onClick={startEditing}>
-                  <Edit className="w-4 h-4 mr-1" /> Edit Components
-                </Button>
-              )}
-            </div>
+            <Button variant="outline" size="sm" onClick={() => setEditingPolicy(selectedPolicy)}>
+              <Edit className="w-4 h-4 mr-1" /> Edit Components
+            </Button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -318,82 +203,30 @@ export default function Policies() {
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Taxability</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Calculation</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Amount / Limit</th>
-                  {isEditing && <th className="w-10" />}
                 </tr>
               </thead>
               <tbody>
-                {displayComponents.map((c, i) => (
+                {benefitComponents.map((c, i) => (
                   <tr key={i} className="data-table-row">
-                    {isEditing ? (
-                      <>
-                        <td className="px-4 py-2">
-                          <EditableCell value={c.name} onChange={(v) => updateComponent(i, "name", v)} placeholder="Component name" />
-                        </td>
-                        <td className="px-4 py-2">
-                          <SelectCell value={c.type} onChange={(v) => updateComponent(i, "type", v)} options={BENEFIT_TYPES} />
-                        </td>
-                        <td className="px-4 py-2">
-                          <SelectCell value={c.taxable} onChange={(v) => updateComponent(i, "taxable", v)} options={TAXABILITY_OPTIONS} />
-                        </td>
-                        <td className="px-4 py-2">
-                          <Select
-                            value={c.calculationId || "none"}
-                            onValueChange={(v) => updateComponent(i, "calculationId" as any, v === "none" ? "" : v)}
-                          >
-                            <SelectTrigger className="h-8 text-sm bg-background">
-                              <SelectValue placeholder="None" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">No calculation</SelectItem>
-                              {(calculations ?? []).map((calc) => (
-                                <SelectItem key={calc.id} value={calc.id}>{calc.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </td>
-                        <td className="px-4 py-2">
-                          <EditableCell value={c.amount} onChange={(v) => updateComponent(i, "amount", v)} placeholder="Amount" />
-                        </td>
-                        <td className="px-2 py-2">
-                          <button
-                            onClick={() => removeComponent(i)}
-                            className="p-1.5 rounded hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
-                            title="Remove"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="px-5 py-3 font-medium text-foreground">{c.name}</td>
-                        <td className="px-5 py-3 text-muted-foreground">{c.type}</td>
-                        <td className="px-5 py-3 text-muted-foreground">{c.taxable}</td>
-                        <td className="px-5 py-3 text-xs text-muted-foreground">
-                          {c.calculationId ? (
-                            <span className="inline-flex items-center gap-1 text-accent">
-                              <Calculator className="w-3 h-3" />
-                              {calcNameMap.get(c.calculationId) || "Unknown"}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground italic">None</span>
-                          )}
-                        </td>
-                        <td className="px-5 py-3 font-medium text-foreground">{c.amount}</td>
-                      </>
-                    )}
+                    <td className="px-5 py-3 font-medium text-foreground">{c.name}</td>
+                    <td className="px-5 py-3 text-muted-foreground">{c.type}</td>
+                    <td className="px-5 py-3 text-muted-foreground">{c.taxable}</td>
+                    <td className="px-5 py-3 text-xs text-muted-foreground">
+                      {c.calculationId ? (
+                        <span className="inline-flex items-center gap-1 text-accent">
+                          <Calculator className="w-3 h-3" />
+                          {calcNameMap.get(c.calculationId) || "Unknown"}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground italic">None</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3 font-medium text-foreground">{c.amount}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          {isEditing && (
-            <div className="p-4 border-t border-border">
-              <Button variant="outline" size="sm" onClick={addComponent}>
-                <PlusCircle className="w-4 h-4 mr-1" /> Add Component
-              </Button>
-            </div>
-          )}
         </div>
       )}
 
@@ -401,6 +234,19 @@ export default function Policies() {
         <PolicyUploadDialog
           onClose={() => setShowUpload(false)}
           onSave={handleSaveParsed}
+        />
+      )}
+
+      {editingPolicy && (
+        <PolicyComponentEditor
+          policyName={editingPolicy.name}
+          components={
+            Array.isArray(editingPolicy.benefit_components)
+              ? (editingPolicy.benefit_components as BenefitComponent[])
+              : []
+          }
+          onSave={handleSaveComponents}
+          onClose={() => setEditingPolicy(null)}
         />
       )}
     </div>
