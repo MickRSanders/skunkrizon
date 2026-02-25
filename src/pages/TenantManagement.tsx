@@ -37,6 +37,10 @@ import {
   useUpdateTenant,
   useCreateSubTenant,
   useDeleteSubTenant,
+  useSearchProfiles,
+  useAssignTenantUser,
+  useRemoveTenantUser,
+  useUpdateTenantUserRole,
   type Tenant,
 } from "@/hooks/useTenants";
 import type { Json } from "@/integrations/supabase/types";
@@ -152,6 +156,9 @@ function TenantDetail({
   const { data: tenantUsers, isLoading: loadingUsers } = useTenantUsers(tenant.id);
   const updateTenant = useUpdateTenant();
   const deleteSubTenant = useDeleteSubTenant();
+  const removeTenantUser = useRemoveTenantUser();
+  const updateUserRole = useUpdateTenantUserRole();
+  const [showAssignUser, setShowAssignUser] = useState(false);
 
   return (
     <div className="bg-card rounded-lg border border-border">
@@ -236,7 +243,15 @@ function TenantDetail({
 
         {/* Users Tab */}
         <TabsContent value="users" className="p-5 space-y-4">
-          <p className="text-sm text-muted-foreground">Users assigned to {tenant.name}</p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">Users assigned to {tenant.name}</p>
+            <Button size="sm" variant="outline" onClick={() => setShowAssignUser(true)}>
+              <Plus className="w-4 h-4 mr-1" /> Assign User
+            </Button>
+          </div>
+          {showAssignUser && (
+            <AssignUserForm tenantId={tenant.id} existingUserIds={(tenantUsers || []).map((tu: any) => tu.user_id)} onClose={() => setShowAssignUser(false)} />
+          )}
           {loadingUsers ? (
             <div className="py-8 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-accent" /></div>
           ) : tenantUsers && tenantUsers.length > 0 ? (
@@ -244,28 +259,52 @@ function TenantDetail({
               <thead>
                 <tr className="border-b border-border">
                   <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground uppercase">User</th>
+                  <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground uppercase">Department</th>
                   <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground uppercase">Role</th>
                   <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground uppercase">Joined</th>
+                  <th className="text-right px-4 py-2 text-xs font-medium text-muted-foreground uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {tenantUsers.map((tu: any) => (
                   <tr key={tu.id} className="border-b border-border/50">
                     <td className="px-4 py-2 font-medium text-foreground">{tu.profiles?.display_name || tu.user_id}</td>
+                    <td className="px-4 py-2 text-xs text-muted-foreground">{tu.profiles?.department || "—"}</td>
                     <td className="px-4 py-2">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                        tu.role === "tenant_admin" ? "bg-accent/10 text-accent" : "bg-muted text-muted-foreground"
-                      }`}>
-                        {tu.role === "tenant_admin" ? "Admin" : "User"}
-                      </span>
+                      <Select
+                        value={tu.role}
+                        onValueChange={(val) => {
+                          updateUserRole.mutate({ id: tu.id, role: val as "tenant_admin" | "tenant_user", tenantId: tenant.id });
+                          toast.success("Role updated");
+                        }}
+                      >
+                        <SelectTrigger className="h-7 w-[130px] text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="tenant_admin">Admin</SelectItem>
+                          <SelectItem value="tenant_user">User</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </td>
                     <td className="px-4 py-2 text-xs text-muted-foreground">{new Date(tu.created_at).toLocaleDateString()}</td>
+                    <td className="px-4 py-2 text-right">
+                      <button
+                        onClick={() => {
+                          removeTenantUser.mutate({ id: tu.id, tenantId: tenant.id });
+                          toast.success("User removed from tenant");
+                        }}
+                        className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           ) : (
-            <div className="py-8 text-center text-sm text-muted-foreground">No users assigned yet.</div>
+            <div className="py-8 text-center text-sm text-muted-foreground">No users assigned yet. Click "Assign User" to add one.</div>
           )}
         </TabsContent>
 
@@ -499,6 +538,84 @@ function CreateSubTenantForm({ tenantId, onClose }: { tenantId: string; onClose:
         <Button size="sm" onClick={handleCreate} disabled={createSub.isPending}>
           {createSub.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />} Add
         </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Assign User Form ─────────────────────────────────────────
+
+function AssignUserForm({ tenantId, existingUserIds, onClose }: { tenantId: string; existingUserIds: string[]; onClose: () => void }) {
+  const [search, setSearch] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedName, setSelectedName] = useState("");
+  const [role, setRole] = useState<"tenant_admin" | "tenant_user">("tenant_user");
+  const { data: results, isLoading } = useSearchProfiles(search);
+  const assignUser = useAssignTenantUser();
+
+  const filtered = results?.filter((p) => !existingUserIds.includes(p.id)) || [];
+
+  const handleAssign = async () => {
+    if (!selectedUserId) return toast.error("Select a user first");
+    try {
+      await assignUser.mutateAsync({ tenant_id: tenantId, user_id: selectedUserId, role });
+      toast.success(`User assigned as ${role === "tenant_admin" ? "Admin" : "User"}`);
+      onClose();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to assign user");
+    }
+  };
+
+  return (
+    <div className="rounded-md border border-accent/30 bg-accent/5 p-4 space-y-3">
+      <h4 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+        <Users className="w-4 h-4 text-accent" /> Assign User to Tenant
+      </h4>
+      <div className="grid grid-cols-3 gap-3 items-end">
+        <div className="space-y-1.5 relative">
+          <Label className="text-xs text-muted-foreground">Search User</Label>
+          <Input
+            value={selectedUserId ? selectedName : search}
+            onChange={(e) => { setSearch(e.target.value); setSelectedUserId(null); setSelectedName(""); }}
+            placeholder="Type name to search..."
+          />
+          {!selectedUserId && search.length >= 2 && (
+            <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-popover border border-border rounded-md shadow-lg max-h-40 overflow-y-auto">
+              {isLoading ? (
+                <div className="p-3 text-center"><Loader2 className="w-4 h-4 animate-spin mx-auto text-accent" /></div>
+              ) : filtered.length > 0 ? (
+                filtered.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => { setSelectedUserId(p.id); setSelectedName(p.display_name || p.id); setSearch(""); }}
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-muted/50 transition-colors flex items-center justify-between"
+                  >
+                    <span className="font-medium text-foreground">{p.display_name || p.id}</span>
+                    {p.department && <span className="text-xs text-muted-foreground">{p.department}</span>}
+                  </button>
+                ))
+              ) : (
+                <div className="p-3 text-center text-xs text-muted-foreground">No matching users found</div>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Role</Label>
+          <Select value={role} onValueChange={(v) => setRole(v as "tenant_admin" | "tenant_user")}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tenant_admin">Admin</SelectItem>
+              <SelectItem value="tenant_user">User</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+          <Button size="sm" onClick={handleAssign} disabled={!selectedUserId || assignUser.isPending}>
+            {assignUser.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />} Assign
+          </Button>
+        </div>
       </div>
     </div>
   );

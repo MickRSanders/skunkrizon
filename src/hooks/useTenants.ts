@@ -99,3 +99,55 @@ export function useDeleteSubTenant() {
     onSuccess: (tenantId) => qc.invalidateQueries({ queryKey: ["sub_tenants", tenantId] }),
   });
 }
+
+export function useSearchProfiles(search: string) {
+  return useQuery({
+    queryKey: ["profiles_search", search],
+    enabled: search.length >= 2,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, display_name, department")
+        .ilike("display_name", `%${search}%`)
+        .limit(10);
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useAssignTenantUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { tenant_id: string; user_id: string; role: "tenant_admin" | "tenant_user"; sub_tenant_id?: string | null }) => {
+      const { data, error } = await supabase.from("tenant_users").insert(payload).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: ["tenant_users", vars.tenant_id] }),
+  });
+}
+
+export function useRemoveTenantUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, tenantId }: { id: string; tenantId: string }) => {
+      const { error } = await supabase.from("tenant_users").delete().eq("id", id);
+      if (error) throw error;
+      return tenantId;
+    },
+    onSuccess: (tenantId) => qc.invalidateQueries({ queryKey: ["tenant_users", tenantId] }),
+  });
+}
+
+export function useUpdateTenantUserRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, role, tenantId }: { id: string; role: "tenant_admin" | "tenant_user"; tenantId: string }) => {
+      const { data, error } = await supabase.from("tenant_users").update({ role }).eq("id", id).select().single();
+      if (error) throw error;
+      return { data, tenantId };
+    },
+    onSuccess: (result) => qc.invalidateQueries({ queryKey: ["tenant_users", result.tenantId] }),
+  });
+}
