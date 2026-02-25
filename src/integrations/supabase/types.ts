@@ -14,6 +14,50 @@ export type Database = {
   }
   public: {
     Tables: {
+      calculation_fields: {
+        Row: {
+          calculation_id: string
+          created_at: string
+          default_value: string | null
+          field_type: string
+          id: string
+          label: string
+          name: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          calculation_id: string
+          created_at?: string
+          default_value?: string | null
+          field_type?: string
+          id?: string
+          label: string
+          name: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          calculation_id?: string
+          created_at?: string
+          default_value?: string | null
+          field_type?: string
+          id?: string
+          label?: string
+          name?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calculation_fields_calculation_id_fkey"
+            columns: ["calculation_id"]
+            isOneToOne: false
+            referencedRelation: "calculations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       calculations: {
         Row: {
           category: string | null
@@ -41,6 +85,128 @@ export type Database = {
           created_by?: string
           description?: string | null
           formula?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      field_data_sources: {
+        Row: {
+          connector_config: Json | null
+          connector_name: string | null
+          created_at: string
+          field_id: string
+          id: string
+          lookup_key_column: string | null
+          lookup_table_id: string | null
+          lookup_value_column: string | null
+          rate_file_name: string | null
+          rate_file_path: string | null
+          source_type: Database["public"]["Enums"]["data_source_type"]
+          updated_at: string
+        }
+        Insert: {
+          connector_config?: Json | null
+          connector_name?: string | null
+          created_at?: string
+          field_id: string
+          id?: string
+          lookup_key_column?: string | null
+          lookup_table_id?: string | null
+          lookup_value_column?: string | null
+          rate_file_name?: string | null
+          rate_file_path?: string | null
+          source_type?: Database["public"]["Enums"]["data_source_type"]
+          updated_at?: string
+        }
+        Update: {
+          connector_config?: Json | null
+          connector_name?: string | null
+          created_at?: string
+          field_id?: string
+          id?: string
+          lookup_key_column?: string | null
+          lookup_table_id?: string | null
+          lookup_value_column?: string | null
+          rate_file_name?: string | null
+          rate_file_path?: string | null
+          source_type?: Database["public"]["Enums"]["data_source_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "field_data_sources_field_id_fkey"
+            columns: ["field_id"]
+            isOneToOne: true
+            referencedRelation: "calculation_fields"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "field_data_sources_lookup_table_id_fkey"
+            columns: ["lookup_table_id"]
+            isOneToOne: false
+            referencedRelation: "lookup_tables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lookup_table_rows: {
+        Row: {
+          created_at: string
+          id: string
+          lookup_table_id: string
+          row_data: Json
+          row_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lookup_table_id: string
+          row_data?: Json
+          row_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lookup_table_id?: string
+          row_data?: Json
+          row_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lookup_table_rows_lookup_table_id_fkey"
+            columns: ["lookup_table_id"]
+            isOneToOne: false
+            referencedRelation: "lookup_tables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lookup_tables: {
+        Row: {
+          columns: Json
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          columns?: Json
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          columns?: Json
+          created_at?: string
+          created_by?: string
+          description?: string | null
           id?: string
           name?: string
           updated_at?: string
@@ -412,6 +578,11 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "analyst" | "viewer"
+      data_source_type:
+        | "manual"
+        | "api_connector"
+        | "rate_file"
+        | "lookup_table"
       simulation_status: "draft" | "running" | "completed" | "pending"
       tenant_role: "tenant_admin" | "tenant_user"
     }
@@ -542,6 +713,12 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "analyst", "viewer"],
+      data_source_type: [
+        "manual",
+        "api_connector",
+        "rate_file",
+        "lookup_table",
+      ],
       simulation_status: ["draft", "running", "completed", "pending"],
       tenant_role: ["tenant_admin", "tenant_user"],
     },
