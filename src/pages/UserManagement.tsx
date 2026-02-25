@@ -1,50 +1,155 @@
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import StatusBadge from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
-import { Plus, Search, Shield, Mail, MoreHorizontal } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Plus,
+  Search,
+  Shield,
+  MoreHorizontal,
+  Loader2,
+  X,
+  Mail,
+  UserPlus,
+} from "lucide-react";
+import { toast } from "sonner";
 
-const users = [
-  { name: "Jennifer Adams", email: "j.adams@cartus.com", role: "Global Admin", org: "Cartus", status: "active" as const, lastLogin: "Feb 25, 2026" },
-  { name: "Michael Torres", email: "m.torres@cartus.com", role: "Implementation Consultant", org: "Cartus", status: "active" as const, lastLogin: "Feb 25, 2026" },
-  { name: "Sarah Chen", email: "s.chen@acme.com", role: "Client Manager", org: "Acme Corp", status: "active" as const, lastLogin: "Feb 24, 2026" },
-  { name: "David Kim", email: "d.kim@globex.com", role: "Client Manager", org: "Globex Inc", status: "active" as const, lastLogin: "Feb 22, 2026" },
-  { name: "Lisa Wong", email: "l.wong@cartus.com", role: "Tax Specialist", org: "Cartus", status: "active" as const, lastLogin: "Feb 24, 2026" },
-  { name: "Robert Smith", email: "r.smith@wayne.com", role: "Employee User", org: "Wayne Enterprises", status: "active" as const, lastLogin: "Feb 20, 2026" },
-  { name: "Anna Petrov", email: "a.petrov@initech.com", role: "Client Manager", org: "Initech Global", status: "draft" as const, lastLogin: "Never" },
-  { name: "Tom Bradley", email: "t.bradley@cartus.com", role: "Account Manager", org: "Cartus", status: "active" as const, lastLogin: "Feb 21, 2026" },
-];
+// ─── Hooks ──────────────────────────────────────────────────────
 
-const roles = [
-  { name: "Global Admin", permissions: "Full access to all features and tenant management", count: 3 },
-  { name: "Implementation Consultant", permissions: "Policy config, calculations, simulations across clients", count: 8 },
-  { name: "Client Manager", permissions: "Simulations, reports, users within own organization", count: 24 },
-  { name: "Tax Specialist", permissions: "Tax engine, simulation review, rate management", count: 5 },
-  { name: "Account Manager", permissions: "Usage reports, billing, client overview", count: 4 },
-  { name: "Employee User", permissions: "View assigned simulations only", count: 112 },
-];
+interface UserWithRole {
+  id: string;
+  display_name: string | null;
+  company: string | null;
+  department: string | null;
+  job_title: string | null;
+  created_at: string;
+  role: string;
+  user_id: string;
+  email?: string;
+  last_sign_in_at?: string | null;
+}
+
+function useAllUsers() {
+  return useQuery({
+    queryKey: ["all-users"],
+    queryFn: async () => {
+      // Fetch profiles with their roles
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (profilesError) throw profilesError;
+
+      const { data: roles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("*");
+      if (rolesError) throw rolesError;
+
+      const roleMap = new Map<string, string>();
+      roles?.forEach((r) => roleMap.set(r.user_id, r.role));
+
+      return (profiles || []).map((p) => ({
+        id: p.id,
+        display_name: p.display_name,
+        company: p.company,
+        department: p.department,
+        job_title: p.job_title,
+        created_at: p.created_at,
+        role: roleMap.get(p.id) || "viewer",
+        user_id: p.id,
+      })) as UserWithRole[];
+    },
+  });
+}
+
+function useInviteUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      email,
+      displayName,
+      role,
+    }: {
+      email: string;
+      displayName: string;
+      role: string;
+    }) => {
+      const { data, error } = await supabase.functions.invoke("invite-user", {
+        body: { email, displayName, role },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["all-users"] }),
+  });
+}
+
+// ─── Role summary (derived from real data) ──────────────────────
+
+const ROLE_DESCRIPTIONS: Record<string, string> = {
+  admin: "Full access to all features, user and tenant management",
+  analyst: "Calculations, simulations, policy config, and reporting",
+  viewer: "View assigned simulations and reports only",
+};
+
+// ─── Page ───────────────────────────────────────────────────────
 
 export default function UserManagement() {
+  const { data: users, isLoading } = useAllUsers();
+  const [search, setSearch] = useState("");
+  const [showInvite, setShowInvite] = useState(false);
+
+  const filteredUsers = (users || []).filter(
+    (u) =>
+      !search ||
+      u.display_name?.toLowerCase().includes(search.toLowerCase()) ||
+      u.role.toLowerCase().includes(search.toLowerCase()) ||
+      u.company?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  // Compute role counts from real data
+  const roleCounts = (users || []).reduce<Record<string, number>>((acc, u) => {
+    acc[u.role] = (acc[u.role] || 0) + 1;
+    return acc;
+  }, {});
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">User Management</h1>
-          <p className="text-sm text-muted-foreground mt-1">RBAC, SSO, and user activity monitoring</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            RBAC, user invitations, and activity monitoring
+          </p>
         </div>
-        <Button size="sm">
-          <Plus className="w-4 h-4 mr-1" /> Add User
+        <Button size="sm" onClick={() => setShowInvite(true)}>
+          <UserPlus className="w-4 h-4 mr-1" /> Invite User
         </Button>
       </div>
 
       {/* Roles Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {roles.map((role) => (
-          <div key={role.name} className="bg-card rounded-lg border border-border p-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {Object.entries(ROLE_DESCRIPTIONS).map(([role, desc]) => (
+          <div key={role} className="bg-card rounded-lg border border-border p-4">
             <div className="flex items-center gap-2 mb-2">
               <Shield className="w-4 h-4 text-accent" />
-              <h4 className="text-sm font-semibold text-foreground">{role.name}</h4>
+              <h4 className="text-sm font-semibold text-foreground capitalize">{role}</h4>
             </div>
-            <p className="text-xs text-muted-foreground mb-2">{role.permissions}</p>
-            <p className="text-xs font-medium text-foreground">{role.count} users</p>
+            <p className="text-xs text-muted-foreground mb-2">{desc}</p>
+            <p className="text-xs font-medium text-foreground">
+              {roleCounts[role] || 0} user{(roleCounts[role] || 0) !== 1 ? "s" : ""}
+            </p>
           </div>
         ))}
       </div>
@@ -54,42 +159,159 @@ export default function UserManagement() {
         <div className="p-4 border-b border-border flex items-center gap-3">
           <div className="flex items-center gap-2 flex-1 max-w-sm bg-background border border-border rounded-md px-3 py-2">
             <Search className="w-4 h-4 text-muted-foreground" />
-            <input type="text" placeholder="Search users..." className="bg-transparent text-sm outline-none w-full text-foreground placeholder:text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search users..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="bg-transparent text-sm outline-none w-full text-foreground placeholder:text-muted-foreground"
+            />
           </div>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
-                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">User</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Role</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Organization</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Last Login</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => (
-                <tr key={u.email} className="data-table-row">
-                  <td className="px-5 py-3">
-                    <p className="font-medium text-foreground">{u.name}</p>
-                    <p className="text-xs text-muted-foreground">{u.email}</p>
-                  </td>
-                  <td className="px-5 py-3 text-muted-foreground">{u.role}</td>
-                  <td className="px-5 py-3 text-muted-foreground">{u.org}</td>
-                  <td className="px-5 py-3"><StatusBadge status={u.status} /></td>
-                  <td className="px-5 py-3 text-muted-foreground">{u.lastLogin}</td>
-                  <td className="px-5 py-3">
-                    <button className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground">
-                      <MoreHorizontal className="w-4 h-4" />
-                    </button>
-                  </td>
+          {isLoading ? (
+            <div className="py-12 flex justify-center">
+              <Loader2 className="w-5 h-5 animate-spin text-accent" />
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/30">
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    User
+                  </th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Role
+                  </th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Company
+                  </th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Department
+                  </th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Joined
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-8 text-center text-sm text-muted-foreground">
+                      {search ? "No users match your search." : "No users yet. Invite someone to get started."}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredUsers.map((u) => (
+                    <tr key={u.id} className="data-table-row">
+                      <td className="px-5 py-3">
+                        <p className="font-medium text-foreground">
+                          {u.display_name || "Unnamed"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{u.job_title || "—"}</p>
+                      </td>
+                      <td className="px-5 py-3">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-accent/10 text-accent capitalize">
+                          <Shield className="w-3 h-3" />
+                          {u.role}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-muted-foreground">{u.company || "—"}</td>
+                      <td className="px-5 py-3 text-muted-foreground">{u.department || "—"}</td>
+                      <td className="px-5 py-3 text-muted-foreground">
+                        {new Date(u.created_at).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
+      </div>
+
+      {/* Invite Dialog */}
+      {showInvite && <InviteUserDialog onClose={() => setShowInvite(false)} />}
+    </div>
+  );
+}
+
+// ─── Invite Dialog ──────────────────────────────────────────────
+
+function InviteUserDialog({ onClose }: { onClose: () => void }) {
+  const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [role, setRole] = useState("viewer");
+  const invite = useInviteUser();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await invite.mutateAsync({ email, displayName, role });
+      toast.success(`Invitation sent to ${email}`);
+      onClose();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to invite user");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="bg-card border border-border rounded-xl shadow-lg w-full max-w-md mx-4">
+        <div className="flex items-center justify-between p-5 border-b border-border">
+          <div className="flex items-center gap-2">
+            <Mail className="w-5 h-5 text-accent" />
+            <h3 className="text-lg font-bold text-foreground">Invite User</h3>
+          </div>
+          <button onClick={onClose} className="p-1 rounded hover:bg-muted text-muted-foreground">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Email Address *</Label>
+            <Input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="user@company.com"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Display Name</Label>
+            <Input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Jane Smith"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Role</Label>
+            <Select value={role} onValueChange={setRole}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="viewer">Viewer</SelectItem>
+                <SelectItem value="analyst">Analyst</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            An email invitation will be sent to this address with a link to set up their account.
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" size="sm" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" disabled={invite.isPending}>
+              {invite.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
+              Send Invitation
+            </Button>
+          </div>
+        </form>
       </div>
     </div>
   );
