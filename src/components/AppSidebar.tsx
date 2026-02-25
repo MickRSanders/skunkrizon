@@ -11,9 +11,12 @@ import {
   Globe,
   Shield,
   FunctionSquare,
+  LogOut,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
@@ -29,6 +32,12 @@ const navItems = [
 export default function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+  const { signOut, profile } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+    toast.success("Signed out");
+  };
 
   return (
     <aside
@@ -78,8 +87,20 @@ export default function AppSidebar() {
         })}
       </nav>
 
-      {/* Collapse Toggle */}
-      <div className="p-2 border-t border-sidebar-border">
+      {/* User & Sign Out */}
+      <div className="p-2 border-t border-sidebar-border space-y-1">
+        {!collapsed && profile && (
+          <div className="px-3 py-2 text-xs text-sidebar-foreground/60 truncate">
+            {profile.display_name}
+          </div>
+        )}
+        <button
+          onClick={handleSignOut}
+          className="flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm text-sidebar-foreground/60 hover:text-destructive hover:bg-sidebar-accent/50 transition-colors"
+        >
+          <LogOut className="w-4 h-4 shrink-0" />
+          {!collapsed && <span>Sign Out</span>}
+        </button>
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="flex items-center justify-center w-full py-2 rounded-md text-sidebar-foreground/60 hover:text-sidebar-accent-foreground hover:bg-sidebar-accent/50 transition-colors"
