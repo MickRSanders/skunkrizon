@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import StatusBadge from "@/components/StatusBadge";
 import PolicyUploadDialog from "@/components/PolicyUploadDialog";
 import { Button } from "@/components/ui/button";
-import { Plus, Upload, Search, FileText, Settings, Eye, Edit, Loader2, Save, X, Trash2, PlusCircle } from "lucide-react";
+import { Plus, Upload, Search, FileText, Settings, Eye, Edit, Loader2, Save, X, Trash2, PlusCircle, Calculator } from "lucide-react";
 import { toast } from "sonner";
 import { usePolicies, useCreatePolicy, useUpdatePolicy, type Policy } from "@/hooks/usePolicies";
+import { useCalculations } from "@/hooks/useCalculations";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { format } from "date-fns";
@@ -17,12 +18,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+// Also used for editing calculation in detail table
+
 type BenefitComponent = {
   name: string;
   type: string;
   taxable: string;
   calcMethod: string;
   amount: string;
+  calculationId?: string | null;
 };
 
 const BENEFIT_TYPES = ["Allowance", "Benefit", "One-time", "Tax", "Deduction"];
@@ -77,6 +81,7 @@ export default function Policies() {
   const currentTenant = useCurrentTenant();
   const tenantId = currentTenant.data?.tenant_id ?? null;
   const { data: policies, isLoading } = usePolicies();
+  const { data: calculations } = useCalculations();
   const createPolicy = useCreatePolicy();
   const updatePolicy = useUpdatePolicy();
   const [showUpload, setShowUpload] = useState(false);
@@ -84,6 +89,8 @@ export default function Policies() {
   const [selectedPolicy, setSelectedPolicy] = useState<Policy | null>(null);
   const [editingComponents, setEditingComponents] = useState<BenefitComponent[] | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  const calcNameMap = new Map((calculations ?? []).map((c) => [c.id, c.name]));
 
   // Sync selectedPolicy with latest data from query
   useEffect(() => {
@@ -329,7 +336,20 @@ export default function Policies() {
                           <SelectCell value={c.taxable} onChange={(v) => updateComponent(i, "taxable", v)} options={TAXABILITY_OPTIONS} />
                         </td>
                         <td className="px-4 py-2">
-                          <EditableCell value={c.calcMethod} onChange={(v) => updateComponent(i, "calcMethod", v)} placeholder="Calc method" />
+                          <Select
+                            value={c.calculationId || "none"}
+                            onValueChange={(v) => updateComponent(i, "calculationId" as any, v === "none" ? "" : v)}
+                          >
+                            <SelectTrigger className="h-8 text-sm bg-background">
+                              <SelectValue placeholder="None" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">No calculation</SelectItem>
+                              {(calculations ?? []).map((calc) => (
+                                <SelectItem key={calc.id} value={calc.id}>{calc.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </td>
                         <td className="px-4 py-2">
                           <EditableCell value={c.amount} onChange={(v) => updateComponent(i, "amount", v)} placeholder="Amount" />
@@ -349,7 +369,16 @@ export default function Policies() {
                         <td className="px-5 py-3 font-medium text-foreground">{c.name}</td>
                         <td className="px-5 py-3 text-muted-foreground">{c.type}</td>
                         <td className="px-5 py-3 text-muted-foreground">{c.taxable}</td>
-                        <td className="px-5 py-3 text-xs text-muted-foreground">{c.calcMethod}</td>
+                        <td className="px-5 py-3 text-xs text-muted-foreground">
+                          {c.calculationId ? (
+                            <span className="inline-flex items-center gap-1 text-accent">
+                              <Calculator className="w-3 h-3" />
+                              {calcNameMap.get(c.calculationId) || "Unknown"}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground italic">None</span>
+                          )}
+                        </td>
                         <td className="px-5 py-3 font-medium text-foreground">{c.amount}</td>
                       </>
                     )}
