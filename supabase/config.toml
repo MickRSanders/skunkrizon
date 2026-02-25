@@ -2,3 +2,6 @@ project_id = "nxcvgziltgvkzfownswf"
 
 [functions.parse-policy]
 verify_jwt = false
+
+[functions.invite-user]
+verify_jwt = false
