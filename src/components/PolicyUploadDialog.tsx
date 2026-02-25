@@ -6,6 +6,13 @@ import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Upload,
   FileText,
   X,
@@ -13,8 +20,12 @@ import {
   Sparkles,
   CheckCircle2,
   AlertTriangle,
+  Calculator,
+  PlusCircle,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useCalculations, type Calculation } from "@/hooks/useCalculations";
 
 interface ParsedPolicy {
   policyName: string | null;
@@ -27,6 +38,7 @@ interface ParsedPolicy {
     taxable: string;
     calcMethod: string;
     amount: string;
+    calculationId?: string | null;
   }[] | null;
   eligibility: string | null;
   duration: string | null;
@@ -42,12 +54,14 @@ interface PolicyUploadDialogProps {
 
 export default function PolicyUploadDialog({ onClose, onSave }: PolicyUploadDialogProps) {
   const { user } = useAuth();
+  const { data: calculations } = useCalculations();
   const [file, setFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [parsing, setParsing] = useState(false);
   const [parsed, setParsed] = useState<ParsedPolicy | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [componentCalcs, setComponentCalcs] = useState<Record<number, string>>({});
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -261,7 +275,13 @@ export default function PolicyUploadDialog({ onClose, onSave }: PolicyUploadDial
               {parsed.benefitComponents && parsed.benefitComponents.length > 0 && (
                 <>
                   <Separator />
-                  <h4 className="text-sm font-semibold text-foreground">Extracted Benefit Components ({parsed.benefitComponents.length})</h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-foreground">Extracted Benefit Components ({parsed.benefitComponents.length})</h4>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Calculator className="w-3.5 h-3.5" />
+                      <span>Link calculations to components below</span>
+                    </div>
+                  </div>
                   <div className="bg-muted/30 rounded-lg border border-border overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
@@ -269,8 +289,8 @@ export default function PolicyUploadDialog({ onClose, onSave }: PolicyUploadDial
                           <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground uppercase">Component</th>
                           <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground uppercase">Type</th>
                           <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground uppercase">Taxable</th>
-                          <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground uppercase">Calc Method</th>
                           <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground uppercase">Amount</th>
+                          <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground uppercase">Calculation</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -279,8 +299,27 @@ export default function PolicyUploadDialog({ onClose, onSave }: PolicyUploadDial
                             <td className="px-4 py-2 font-medium text-foreground">{c.name}</td>
                             <td className="px-4 py-2 text-muted-foreground">{c.type}</td>
                             <td className="px-4 py-2 text-muted-foreground">{c.taxable}</td>
-                            <td className="px-4 py-2 text-xs text-muted-foreground">{c.calcMethod}</td>
                             <td className="px-4 py-2 font-medium text-foreground">{c.amount}</td>
+                            <td className="px-4 py-2">
+                              <Select
+                                value={componentCalcs[i] || "none"}
+                                onValueChange={(v) =>
+                                  setComponentCalcs((prev) => ({ ...prev, [i]: v === "none" ? "" : v }))
+                                }
+                              >
+                                <SelectTrigger className="h-8 text-xs bg-background w-[180px]">
+                                  <SelectValue placeholder="No calculation" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">No calculation</SelectItem>
+                                  {(calculations ?? []).map((calc) => (
+                                    <SelectItem key={calc.id} value={calc.id}>
+                                      {calc.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -304,10 +343,19 @@ export default function PolicyUploadDialog({ onClose, onSave }: PolicyUploadDial
           <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
           {parsed && !parsed.parseError && (
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => { setParsed(null); setFile(null); }}>
+              <Button variant="outline" size="sm" onClick={() => { setParsed(null); setFile(null); setComponentCalcs({}); }}>
                 Upload Another
               </Button>
-              <Button size="sm" onClick={() => onSave(parsed, file?.name || "document")}>
+              <Button size="sm" onClick={() => {
+                const enriched = {
+                  ...parsed,
+                  benefitComponents: parsed.benefitComponents?.map((c, i) => ({
+                    ...c,
+                    calculationId: componentCalcs[i] || null,
+                  })) ?? null,
+                };
+                onSave(enriched, file?.name || "document");
+              }}>
                 <CheckCircle2 className="w-4 h-4 mr-1" /> Save as Policy
               </Button>
             </div>
