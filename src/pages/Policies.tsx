@@ -1,6 +1,9 @@
+import { useState } from "react";
 import StatusBadge from "@/components/StatusBadge";
+import PolicyUploadDialog from "@/components/PolicyUploadDialog";
 import { Button } from "@/components/ui/button";
 import { Plus, Upload, Search, FileText, Settings, Eye, Edit, ChevronRight } from "lucide-react";
+import { toast } from "sonner";
 
 const policies = [
   { id: "POL-001", name: "Global Executive Transfer – Gold", client: "Acme Corp", status: "active" as const, benefits: 24, lastUpdated: "Feb 20, 2026", version: "v3.2" },
@@ -22,6 +25,8 @@ const policyComponents = [
 ];
 
 export default function Policies() {
+  const [showUpload, setShowUpload] = useState(false);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -30,7 +35,7 @@ export default function Policies() {
           <p className="text-sm text-muted-foreground mt-1">AI-powered policy ingestion, configuration, and management</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={() => setShowUpload(true)}>
             <Upload className="w-4 h-4 mr-1" /> Upload Policy Doc
           </Button>
           <Button size="sm">
@@ -125,6 +130,15 @@ export default function Policies() {
           </table>
         </div>
       </div>
+      {showUpload && (
+        <PolicyUploadDialog
+          onClose={() => setShowUpload(false)}
+          onSave={(data, fileName) => {
+            setShowUpload(false);
+            toast.success(`Policy "${data.policyName || fileName}" parsed and ready to save`);
+          }}
+        />
+      )}
     </div>
   );
 }
