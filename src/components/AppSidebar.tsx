@@ -59,7 +59,7 @@ export default function AppSidebar() {
               HORIZON
             </h1>
             <p className="text-[10px] text-sidebar-foreground/60 tracking-widest uppercase">
-              by Cartus
+              by Topia
             </p>
           </div>
         )}
