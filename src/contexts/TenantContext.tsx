@@ -149,15 +149,34 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const activeSubTenant = subTenants.find((s) => s.id === activeSubTenantId) ?? null;
 
   const switchTenant = useCallback(
-    (tenantId: string) => {
+    async (tenantId: string) => {
+      const previousTenantId = activeTenantId;
       setActiveTenantId(tenantId);
       localStorage.setItem(ACTIVE_TENANT_KEY, tenantId);
       // Clear sub-tenant when switching tenant
       setActiveSubTenantId(null);
       localStorage.removeItem(ACTIVE_SUB_TENANT_KEY);
       queryClient.invalidateQueries();
+
+      // Log audit entry for superadmin org switch
+      if (isSuperadmin && user && previousTenantId !== tenantId) {
+        const fromTenant = tenants.find((t) => t.tenant_id === previousTenantId);
+        const toTenant = tenants.find((t) => t.tenant_id === tenantId);
+        supabase.from("superadmin_audit_log").insert({
+          user_id: user.id,
+          action: "org_switch",
+          details: {
+            from_tenant_id: previousTenantId,
+            from_tenant_name: fromTenant?.tenant_name ?? null,
+            to_tenant_id: tenantId,
+            to_tenant_name: toTenant?.tenant_name ?? null,
+          },
+        }).then(({ error }) => {
+          if (error) console.error("Audit log insert failed:", error);
+        });
+      }
     },
-    [queryClient]
+    [queryClient, isSuperadmin, user, activeTenantId, tenants]
   );
 
   const switchSubTenant = useCallback(
