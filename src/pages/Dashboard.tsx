@@ -301,20 +301,36 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="space-y-1">
-              {recentActivity.map((n) => (
-                <div key={n.id} className="flex items-start gap-3 p-2 rounded-md hover:bg-muted/30 transition-colors">
-                  <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
-                    n.type === "success" ? "bg-accent" : n.type === "error" ? "bg-destructive" : "bg-muted-foreground/40"
-                  }`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-foreground truncate">{n.title}</p>
-                    <p className="text-[10px] text-muted-foreground truncate">{n.message}</p>
+              {recentActivity.map((n) => {
+                const linkMap: Record<string, string> = {
+                  simulation: `/simulations?sim=${n.entity_id}`,
+                  trip: `/pre-travel/${n.entity_id}`,
+                  policy: "/policies",
+                };
+                const href = n.entity_type && n.entity_id ? linkMap[n.entity_type] : undefined;
+                const Wrapper = href ? "a" : "div";
+                return (
+                  <div
+                    key={n.id}
+                    className={`flex items-start gap-3 p-2 rounded-md hover:bg-muted/30 transition-colors ${href ? "cursor-pointer" : ""}`}
+                    onClick={href ? () => navigate(href) : undefined}
+                  >
+                    <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
+                      n.type === "success" ? "bg-accent" : n.type === "error" ? "bg-destructive" : "bg-muted-foreground/40"
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-foreground truncate">{n.title}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">{n.message}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                        {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
+                      </span>
+                      {href && <ArrowRight className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100" />}
+                    </div>
                   </div>
-                  <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
-                    {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
