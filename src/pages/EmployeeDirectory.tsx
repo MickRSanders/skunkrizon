@@ -40,6 +40,10 @@ import {
   DollarSign,
   UserCircle,
   Heart,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -59,6 +63,9 @@ export default function EmployeeDirectory() {
   const [divisionFilter, setDivisionFilter] = useState("__all__");
   const [gradeFilter, setGradeFilter] = useState("__all__");
   const [locationFilter, setLocationFilter] = useState("__all__");
+
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
 
@@ -90,6 +97,11 @@ export default function EmployeeDirectory() {
 
   const hasFilters = divisionFilter !== "__all__" || gradeFilter !== "__all__" || locationFilter !== "__all__" || search.trim();
 
+  // Reset page when filters change
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  if (safePage !== page) setPage(safePage);
+  const paged = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
   return (
     <PageTransition>
       <div className="space-y-6">
@@ -167,7 +179,7 @@ export default function EmployeeDirectory() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => { setSearch(""); setDivisionFilter("__all__"); setGradeFilter("__all__"); setLocationFilter("__all__"); }}
+                  onClick={() => { setSearch(""); setDivisionFilter("__all__"); setGradeFilter("__all__"); setLocationFilter("__all__"); setPage(1); }}
                   className="gap-1 text-xs"
                 >
                   <X className="h-3 w-3" /> Clear
@@ -202,7 +214,7 @@ export default function EmployeeDirectory() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filtered.map((emp) => (
+                    {paged.map((emp) => (
                       <TableRow
                         key={emp.id}
                         className="cursor-pointer hover:bg-accent/50"
@@ -232,6 +244,43 @@ export default function EmployeeDirectory() {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+            )}
+
+            {/* Pagination Footer */}
+            {!isLoading && filtered.length > 0 && (
+              <div className="flex items-center justify-between border-t px-4 py-3">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>Rows per page</span>
+                  <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1); }}>
+                    <SelectTrigger className="h-8 w-[70px] text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[10, 25, 50, 100].map((n) => (
+                        <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                  <span>
+                    {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, filtered.length)} of {filtered.length}
+                  </span>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" disabled={safePage <= 1} onClick={() => setPage(1)}>
+                    <ChevronsLeft className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" disabled={safePage >= totalPages} onClick={() => setPage(safePage + 1)}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" disabled={safePage >= totalPages} onClick={() => setPage(totalPages)}>
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>
