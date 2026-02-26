@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { MessageCircle, X, Send, Loader2, Bot, User, Sparkles } from "lucide-react";
+import { MessageCircle, X, Send, Loader2, Bot, User, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
@@ -7,6 +7,7 @@ import ReactMarkdown from "react-markdown";
 type Msg = { role: "user" | "assistant"; content: string };
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`;
+const STORAGE_KEY = "ai-chat-history";
 
 const SUGGESTIONS = [
   "What policies do I have?",
@@ -17,7 +18,14 @@ const SUGGESTIONS = [
 
 export default function AIChatWidget() {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<Msg[]>([]);
+  const [messages, setMessages] = useState<Msg[]>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -32,6 +40,18 @@ export default function AIChatWidget() {
   useEffect(() => {
     if (open && inputRef.current) inputRef.current.focus();
   }, [open]);
+
+  // Persist messages to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    } catch { /* storage full or unavailable */ }
+  }, [messages]);
+
+  const clearChat = useCallback(() => {
+    setMessages([]);
+    localStorage.removeItem(STORAGE_KEY);
+  }, []);
 
   const send = useCallback(
     async (text: string) => {
@@ -176,9 +196,16 @@ export default function AIChatWidget() {
               <p className="text-xs text-muted-foreground">Ask about policies, tax & simulations</p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={() => setOpen(false)} className="h-8 w-8">
-            <X className="w-4 h-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            {messages.length > 0 && (
+              <Button variant="ghost" size="icon" onClick={clearChat} className="h-8 w-8" title="Clear chat">
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
+            <Button variant="ghost" size="icon" onClick={() => setOpen(false)} className="h-8 w-8">
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
 
         {/* Messages */}
