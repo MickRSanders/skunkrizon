@@ -35,17 +35,26 @@ import {
   Calculator,
   Database,
   X,
+  TableIcon,
 } from "lucide-react";
-import type { CalculationField } from "@/hooks/useCalculations";
+import type { CalculationField, LookupTable } from "@/hooks/useCalculations";
 
 // ─── Types ────────────────────────────────────────────────────
 
 export interface FormulaBlock {
   id: string;
-  type: "field" | "operator" | "constant" | "paren";
+  type: "field" | "operator" | "constant" | "paren" | "lookup";
   value: string;
-  fieldId?: string; // links to calculation_field
+  fieldId?: string;
   label?: string;
+  /** For lookup blocks: serialized metadata */
+  lookupMeta?: {
+    tableId: string;
+    tableName: string;
+    keyColumn: string;
+    valueColumn: string;
+    keyFieldName: string; // the field name used as key input
+  };
 }
 
 const OPERATORS = [
@@ -61,6 +70,8 @@ interface FormulaBuilderProps {
   blocks: FormulaBlock[];
   onChange: (blocks: FormulaBlock[]) => void;
   fields: CalculationField[];
+  allFields?: CalculationField[];
+  lookupTables?: LookupTable[];
   onAddField: () => void;
   onEditField: (field: CalculationField) => void;
 }
@@ -69,10 +80,13 @@ export default function FormulaBuilder({
   blocks,
   onChange,
   fields,
+  allFields,
+  lookupTables,
   onAddField,
   onEditField,
 }: FormulaBuilderProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [showLookupBuilder, setShowLookupBuilder] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -98,10 +112,10 @@ export default function FormulaBuilder({
     onChange(updated);
   };
 
-  const addBlock = (type: FormulaBlock["type"], value: string, fieldId?: string, label?: string) => {
+  const addBlock = (type: FormulaBlock["type"], value: string, fieldId?: string, label?: string, lookupMeta?: FormulaBlock["lookupMeta"]) => {
     onChange([
       ...blocks,
-      { id: crypto.randomUUID(), type, value, fieldId, label },
+      { id: crypto.randomUUID(), type, value, fieldId, label, lookupMeta },
     ]);
   };
 
@@ -111,9 +125,17 @@ export default function FormulaBuilder({
 
   const activeBlock = blocks.find((b) => b.id === activeId);
 
+  // Combine fields for lookup key selection
+  const availableFields = allFields && allFields.length > 0 ? allFields : fields;
+
   // Build formula string preview
   const formulaPreview = blocks
-    .map((b) => (b.type === "field" ? b.label || b.value : b.value))
+    .map((b) => {
+      if (b.type === "lookup" && b.lookupMeta) {
+        return `LOOKUP("${b.lookupMeta.tableName}", "${b.lookupMeta.keyColumn}", "${b.lookupMeta.valueColumn}", ${b.lookupMeta.keyFieldName})`;
+      }
+      return b.type === "field" ? b.label || b.value : b.value;
+    })
     .join(" ");
 
   return (
@@ -143,8 +165,8 @@ export default function FormulaBuilder({
 
       {/* Operator Palette */}
       <div className="space-y-2">
-        <Label className="text-xs text-muted-foreground uppercase tracking-wide">Operators</Label>
-        <div className="flex gap-2">
+        <Label className="text-xs text-muted-foreground uppercase tracking-wide">Operators & Functions</Label>
+        <div className="flex flex-wrap gap-2">
           {OPERATORS.map((op) => (
             <button
               key={op.value}
@@ -170,8 +192,30 @@ export default function FormulaBuilder({
             />
             <span className="text-xs text-muted-foreground">↵</span>
           </div>
+          {lookupTables && lookupTables.length > 0 && (
+            <button
+              onClick={() => setShowLookupBuilder(!showLookupBuilder)}
+              className="flex items-center gap-1.5 px-3 h-9 rounded-md border border-primary/30 bg-primary/5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors ml-1"
+            >
+              <TableIcon className="w-3.5 h-3.5" />
+              LOOKUP()
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Lookup Builder */}
+      {showLookupBuilder && lookupTables && (
+        <LookupBlockBuilder
+          lookupTables={lookupTables}
+          fields={availableFields}
+          onAdd={(block) => {
+            addBlock("lookup", block.value, undefined, block.label, block.lookupMeta);
+            setShowLookupBuilder(false);
+          }}
+          onClose={() => setShowLookupBuilder(false)}
+        />
+      )}
 
       {/* Formula Canvas */}
       <div className="space-y-2">
@@ -216,6 +260,125 @@ export default function FormulaBuilder({
           <code className="block text-sm font-mono text-foreground mt-1">{formulaPreview}</code>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Lookup Block Builder ──────────────────────────────────────
+
+function LookupBlockBuilder({
+  lookupTables,
+  fields,
+  onAdd,
+  onClose,
+}: {
+  lookupTables: LookupTable[];
+  fields: CalculationField[];
+  onAdd: (block: Pick<FormulaBlock, "value" | "label" | "lookupMeta">) => void;
+  onClose: () => void;
+}) {
+  const [selectedTableId, setSelectedTableId] = useState("");
+  const [keyColumn, setKeyColumn] = useState("");
+  const [valueColumn, setValueColumn] = useState("");
+  const [keyFieldId, setKeyFieldId] = useState("");
+
+  const selectedTable = lookupTables.find((t) => t.id === selectedTableId);
+  const columns = selectedTable
+    ? (selectedTable.columns as Array<{ name: string; type: string }>) || []
+    : [];
+
+  const selectedField = fields.find((f) => f.id === keyFieldId);
+
+  const canAdd = selectedTableId && keyColumn && valueColumn && keyFieldId && selectedField;
+
+  const handleAdd = () => {
+    if (!canAdd || !selectedTable || !selectedField) return;
+    const formulaStr = `LOOKUP("${selectedTable.name}", "${keyColumn}", "${valueColumn}", ${selectedField.name})`;
+    onAdd({
+      value: formulaStr,
+      label: `LOOKUP(${selectedTable.name}.${valueColumn})`,
+      lookupMeta: {
+        tableId: selectedTable.id,
+        tableName: selectedTable.name,
+        keyColumn,
+        valueColumn,
+        keyFieldName: selectedField.name,
+      },
+    });
+  };
+
+  return (
+    <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5">
+          <TableIcon className="w-3.5 h-3.5 text-primary" />
+          Build LOOKUP() Expression
+        </h3>
+        <button onClick={onClose} className="p-1 text-muted-foreground hover:text-foreground">
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        LOOKUP(table, key_column, value_column, key_field) — Returns the value from a lookup table row where key_column matches the key_field value.
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label className="text-[10px] text-muted-foreground">Lookup Table</Label>
+          <Select value={selectedTableId} onValueChange={(v) => { setSelectedTableId(v); setKeyColumn(""); setValueColumn(""); }}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select table..." /></SelectTrigger>
+            <SelectContent>
+              {lookupTables.map((t) => (
+                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[10px] text-muted-foreground">Key Field (input)</Label>
+          <Select value={keyFieldId} onValueChange={setKeyFieldId}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select field..." /></SelectTrigger>
+            <SelectContent>
+              {fields.map((f) => (
+                <SelectItem key={f.id} value={f.id}>{f.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[10px] text-muted-foreground">Match Column (key)</Label>
+          <Select value={keyColumn} onValueChange={setKeyColumn} disabled={columns.length === 0}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select column..." /></SelectTrigger>
+            <SelectContent>
+              {columns.map((c) => (
+                <SelectItem key={c.name} value={c.name}>{c.name} <span className="text-muted-foreground ml-1">({c.type})</span></SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[10px] text-muted-foreground">Return Column (value)</Label>
+          <Select value={valueColumn} onValueChange={setValueColumn} disabled={columns.length === 0}>
+            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select column..." /></SelectTrigger>
+            <SelectContent>
+              {columns.map((c) => (
+                <SelectItem key={c.name} value={c.name}>{c.name} <span className="text-muted-foreground ml-1">({c.type})</span></SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className="flex items-center justify-between pt-1">
+        {canAdd && selectedTable ? (
+          <code className="text-[10px] font-mono text-muted-foreground">
+            LOOKUP("{selectedTable.name}", "{keyColumn}", "{valueColumn}", {selectedField?.name})
+          </code>
+        ) : (
+          <span className="text-[10px] text-muted-foreground italic">Fill all fields to preview</span>
+        )}
+        <Button size="sm" onClick={handleAdd} disabled={!canAdd} className="text-xs h-7">
+          <Plus className="w-3 h-3 mr-1" /> Add to Formula
+        </Button>
+      </div>
     </div>
   );
 }
@@ -281,6 +444,18 @@ function BlockChip({
         } ${isDragging ? "shadow-lg ring-2 ring-accent/30" : ""}`}
       >
         <Variable className="w-3 h-3" />
+        {block.label || block.value}
+      </span>
+    );
+  }
+
+  if (block.type === "lookup") {
+    return (
+      <span
+        className={`${base} bg-primary/10 text-primary border border-primary/20 ${isDragging ? "shadow-lg ring-2 ring-primary/30" : ""}`}
+        title={block.value}
+      >
+        <TableIcon className="w-3 h-3" />
         {block.label || block.value}
       </span>
     );
