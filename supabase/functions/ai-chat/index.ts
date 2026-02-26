@@ -763,7 +763,7 @@ ${contextBlock}`;
       const simEvents: string[] = [];
       for (const tr of toolResults) {
         const parsed = JSON.parse(tr.content);
-        if (parsed.success) {
+        if (parsed.success && parsed.simulation_id) {
           simEvents.push(
             `event: simulation_created\ndata: ${JSON.stringify({
               id: parsed.simulation_id,
