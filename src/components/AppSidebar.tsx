@@ -18,6 +18,7 @@ import {
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import { toast } from "sonner";
 
 const navItems = [
@@ -37,6 +38,8 @@ export default function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const { signOut, profile } = useAuth();
+  const currentTenant = useCurrentTenant();
+  const tenantName = currentTenant.data?.tenant_name;
 
   const handleSignOut = async () => {
     await signOut();
@@ -74,6 +77,23 @@ export default function AppSidebar() {
           {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </button>
       </div>
+
+      {/* Tenant indicator */}
+      {tenantName && !collapsed && (
+        <div className="px-4 py-2 border-b border-sidebar-border">
+          <div className="flex items-center gap-2 px-1">
+            <Building2 className="w-3.5 h-3.5 text-sidebar-foreground/50 shrink-0" />
+            <span className="text-[11px] font-medium text-sidebar-foreground/70 truncate">
+              {tenantName}
+            </span>
+          </div>
+        </div>
+      )}
+      {tenantName && collapsed && (
+        <div className="flex justify-center py-2 border-b border-sidebar-border" title={tenantName}>
+          <Building2 className="w-3.5 h-3.5 text-sidebar-foreground/50" />
+        </div>
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
