@@ -172,6 +172,85 @@ export type Database = {
           },
         ]
       }
+      field_library: {
+        Row: {
+          created_at: string
+          created_by: string
+          db_column: string | null
+          db_table: string | null
+          description: string | null
+          field_type: string
+          id: string
+          label: string
+          lookup_key_column: string | null
+          lookup_table_id: string | null
+          lookup_value_column: string | null
+          name: string
+          source_type: string
+          sub_tenant_id: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          db_column?: string | null
+          db_table?: string | null
+          description?: string | null
+          field_type?: string
+          id?: string
+          label: string
+          lookup_key_column?: string | null
+          lookup_table_id?: string | null
+          lookup_value_column?: string | null
+          name: string
+          source_type?: string
+          sub_tenant_id?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          db_column?: string | null
+          db_table?: string | null
+          description?: string | null
+          field_type?: string
+          id?: string
+          label?: string
+          lookup_key_column?: string | null
+          lookup_table_id?: string | null
+          lookup_value_column?: string | null
+          name?: string
+          source_type?: string
+          sub_tenant_id?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "field_library_lookup_table_id_fkey"
+            columns: ["lookup_table_id"]
+            isOneToOne: false
+            referencedRelation: "lookup_tables"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "field_library_sub_tenant_id_fkey"
+            columns: ["sub_tenant_id"]
+            isOneToOne: false
+            referencedRelation: "sub_tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "field_library_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lookup_table_rows: {
         Row: {
           created_at: string
