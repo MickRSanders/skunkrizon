@@ -6,9 +6,9 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Upload, Search, FileText, Eye, Edit, Loader2, Calculator, Layers, Send, FilePenLine } from "lucide-react";
+import { Plus, Upload, Search, FileText, Eye, Edit, Loader2, Calculator, Layers, Send, FilePenLine, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { usePolicies, useCreatePolicy, useUpdatePolicy, type Policy } from "@/hooks/usePolicies";
+import { usePolicies, useCreatePolicy, useUpdatePolicy, useDeletePolicy, type Policy } from "@/hooks/usePolicies";
 import { useCalculations } from "@/hooks/useCalculations";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
@@ -22,12 +22,14 @@ export default function Policies() {
   const { data: calculations } = useCalculations();
   const createPolicy = useCreatePolicy();
   const updatePolicy = useUpdatePolicy();
+  const deletePolicy = useDeletePolicy();
   const [showUpload, setShowUpload] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPolicy, setSelectedPolicy] = useState<Policy | null>(null);
   const [editingPolicy, setEditingPolicy] = useState<Policy | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | "draft" | "published">("all");
   const [confirmPolicy, setConfirmPolicy] = useState<Policy | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Policy | null>(null);
 
   const calcNameMap = new Map((calculations ?? []).map((c) => [c.id, c.name]));
 
@@ -242,6 +244,15 @@ export default function Policies() {
                           >
                             <Edit className="w-3.5 h-3.5" />
                           </button>
+                          {status !== "published" && (
+                            <button
+                              onClick={() => setDeleteTarget(p)}
+                              className="p-1.5 rounded hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
+                              title="Delete Policy"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -348,6 +359,37 @@ export default function Policies() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => confirmPolicy && handleToggleStatus(confirmPolicy)}>
               {((confirmPolicy as any)?.status ?? "draft") === "published" ? "Revert to Draft" : "Publish"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Policy?</AlertDialogTitle>
+            <AlertDialogDescription>
+              "{deleteTarget?.name}" will be permanently deleted. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                if (!deleteTarget) return;
+                try {
+                  await deletePolicy.mutateAsync(deleteTarget.id);
+                  if (selectedPolicy?.id === deleteTarget.id) setSelectedPolicy(null);
+                  toast.success(`"${deleteTarget.name}" deleted`);
+                } catch (err: any) {
+                  toast.error(err.message || "Failed to delete policy");
+                }
+                setDeleteTarget(null);
+              }}
+            >
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
