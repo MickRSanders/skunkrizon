@@ -1,12 +1,68 @@
 import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useTenantContext } from "@/contexts/TenantContext";
 import KPICard from "@/components/KPICard";
-import { BarChart3, Users, TrendingUp, DollarSign, Loader2 } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts";
+import { BarChart3, Users, TrendingUp, DollarSign, Loader2, Activity } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, Legend } from "recharts";
 import { useSimulations } from "@/hooks/useSimulations";
 import { format, subMonths, startOfMonth } from "date-fns";
 
 export default function Analytics() {
+  const { activeTenant } = useTenantContext();
+  const tenantId = activeTenant?.tenant_id;
   const { data: simulations, isLoading } = useSimulations();
+
+  // Fetch user activity: simulations + trips per user
+  const { data: userActivity = [] } = useQuery({
+    queryKey: ["user-activity", tenantId],
+    queryFn: async () => {
+      if (!tenantId) return [];
+
+      // Get simulations grouped by owner
+      const { data: sims } = await supabase
+        .from("simulations")
+        .select("owner_id")
+        .eq("tenant_id", tenantId);
+
+      // Get trips grouped by creator
+      const { data: trips } = await supabase
+        .from("trips")
+        .select("created_by")
+        .eq("tenant_id", tenantId);
+
+      // Get profiles for display names
+      const userIds = new Set([
+        ...(sims ?? []).map((s) => s.owner_id),
+        ...(trips ?? []).map((t) => t.created_by),
+      ]);
+      if (userIds.size === 0) return [];
+
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, display_name")
+        .in("id", Array.from(userIds));
+
+      const profileMap = new Map((profiles ?? []).map((p) => [p.id, p.display_name ?? "Unknown"]));
+
+      // Aggregate
+      const counts: Record<string, { name: string; simulations: number; trips: number }> = {};
+      for (const s of sims ?? []) {
+        if (!counts[s.owner_id]) counts[s.owner_id] = { name: profileMap.get(s.owner_id) ?? "Unknown", simulations: 0, trips: 0 };
+        counts[s.owner_id].simulations++;
+      }
+      for (const t of trips ?? []) {
+        if (!counts[t.created_by]) counts[t.created_by] = { name: profileMap.get(t.created_by) ?? "Unknown", simulations: 0, trips: 0 };
+        counts[t.created_by].trips++;
+      }
+
+      return Object.values(counts)
+        .map((u) => ({ ...u, total: u.simulations + u.trips }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 10);
+    },
+    enabled: !!tenantId,
+  });
 
   const stats = useMemo(() => {
     if (!simulations) return null;
@@ -140,6 +196,43 @@ export default function Analytics() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Usage by User */}
+      <div className="bg-card rounded-lg border border-border p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Activity className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-semibold text-foreground">System Usage by User</h3>
+        </div>
+        {userActivity.length > 0 ? (
+          <ResponsiveContainer width="100%" height={320}>
+            <BarChart data={userActivity} layout="vertical" margin={{ left: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis type="number" tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} allowDecimals={false} />
+              <YAxis
+                dataKey="name"
+                type="category"
+                tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                width={120}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "hsl(var(--card))",
+                  border: "1px solid hsl(var(--border))",
+                  borderRadius: "6px",
+                  fontSize: 12,
+                }}
+              />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Bar dataKey="simulations" name="Simulations" stackId="a" fill="hsl(var(--primary))" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="trips" name="Trips" stackId="a" fill="hsl(var(--accent))" radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="flex items-center justify-center h-[260px] text-sm text-muted-foreground">
+            No user activity data yet
+          </div>
+        )}
       </div>
     </div>
   );
