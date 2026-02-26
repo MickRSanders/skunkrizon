@@ -31,6 +31,7 @@ import {
   FileText,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   useFieldLibrary,
@@ -218,16 +219,16 @@ function FieldRow({
         {hasUsage ? (
           <div className="flex flex-wrap gap-1">
             {usage!.calculations.map((c) => (
-              <span key={c.id} className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-accent/10 text-accent font-medium">
+              <Link key={c.id} to="/calculations" className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-accent/10 text-accent font-medium hover:bg-accent/20 transition-colors cursor-pointer">
                 <FunctionSquare className="w-2.5 h-2.5" />
                 {c.name}
-              </span>
+              </Link>
             ))}
             {usage!.policyBenefits.map((p, i) => (
-              <span key={`${p.id}-${i}`} className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-primary/10 text-primary font-medium">
+              <Link key={`${p.id}-${i}`} to="/policies" className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-primary/10 text-primary font-medium hover:bg-primary/20 transition-colors cursor-pointer">
                 <FileText className="w-2.5 h-2.5" />
                 {p.policyName}
-              </span>
+              </Link>
             ))}
           </div>
         ) : (

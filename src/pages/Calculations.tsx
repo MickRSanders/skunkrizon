@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { FileText } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -189,10 +190,10 @@ function CalcCard({
       {uniquePolicies.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-3">
           {uniquePolicies.map((p) => (
-            <span key={p.id} className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-primary/10 text-primary font-medium">
+            <Link key={p.id} to="/policies" className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-primary/10 text-primary font-medium hover:bg-primary/20 transition-colors cursor-pointer">
               <FileText className="w-2.5 h-2.5" />
               {p.policyName}
-            </span>
+            </Link>
           ))}
         </div>
       )}
