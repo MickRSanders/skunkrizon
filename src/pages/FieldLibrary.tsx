@@ -229,7 +229,7 @@ function FieldRow({
                 </TooltipTrigger>
                 <TooltipContent side="top" className="text-xs">
                   <p className="font-semibold">Calculation: {c.name}</p>
-                  <p className="text-muted-foreground">Click to view in Calculations Engine</p>
+                  <p className="text-muted-foreground">Click to view in Calculations</p>
                 </TooltipContent>
               </Tooltip>
             ))}

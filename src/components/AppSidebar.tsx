@@ -39,7 +39,7 @@ const navItems = [
 ];
 
 const dataMenuItems = [
-  { to: "/calculations", icon: FunctionSquare, label: "Calculations Engine" },
+  { to: "/calculations", icon: FunctionSquare, label: "Calculations" },
   { to: "/lookup-tables", icon: Table2, label: "Lookup Tables" },
   { to: "/field-library", icon: BookOpen, label: "Field Library" },
   { to: "/data-sources", icon: Cable, label: "Data Sources" },

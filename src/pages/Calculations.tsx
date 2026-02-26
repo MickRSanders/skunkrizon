@@ -99,7 +99,7 @@ export default function Calculations() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">
-            Calculations Engine
+            Calculations
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Define, test, and manage calculation rules and formulas
