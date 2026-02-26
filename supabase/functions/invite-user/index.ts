@@ -57,7 +57,47 @@ serve(async (req) => {
       });
     }
 
-    const { email, displayName, role } = await req.json();
+    const { action, email, displayName, role, userId: targetUserId } = await req.json();
+
+    // ─── Admin Password Reset ────────────────────────────────────
+    if (action === "reset-password") {
+      if (!targetUserId || typeof targetUserId !== "string") {
+        return new Response(JSON.stringify({ error: "A valid user ID is required" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+
+      // Look up user email from auth
+      const { data: targetUser, error: userError } = await adminClient.auth.admin.getUserById(targetUserId);
+      if (userError || !targetUser?.user?.email) {
+        return new Response(JSON.stringify({ error: "User not found" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+
+      // Generate a password reset link
+      const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
+        type: "recovery",
+        email: targetUser.user.email,
+      });
+
+      if (linkError) {
+        console.error("Reset link error:", linkError);
+        return new Response(JSON.stringify({ error: "Failed to generate reset link" }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, email: targetUser.user.email }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // ─── Invite User (default action) ────────────────────────────
     if (!email || typeof email !== "string") {
       return new Response(JSON.stringify({ error: "A valid email is required" }), {
         status: 400,

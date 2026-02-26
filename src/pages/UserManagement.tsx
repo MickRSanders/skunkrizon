@@ -19,6 +19,7 @@ import {
   Mail,
   UserPlus,
   Pencil,
+  KeyRound,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -94,7 +95,6 @@ function useUpdateUser() {
       profile: { display_name: string; company: string; department: string; job_title: string };
       role: string;
     }) => {
-      // Update profile
       const { error: profileError } = await supabase
         .from("profiles")
         .update({
@@ -106,7 +106,6 @@ function useUpdateUser() {
         .eq("id", userId);
       if (profileError) throw profileError;
 
-      // Update role
       const { error: roleError } = await supabase
         .from("user_roles")
         .update({ role: role as any })
@@ -114,6 +113,19 @@ function useUpdateUser() {
       if (roleError) throw roleError;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["all-users"] }),
+  });
+}
+
+function useResetPassword() {
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      const { data, error } = await supabase.functions.invoke("invite-user", {
+        body: { action: "reset-password", userId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
   });
 }
 
@@ -133,6 +145,16 @@ export default function UserManagement() {
   const [search, setSearch] = useState("");
   const [showInvite, setShowInvite] = useState(false);
   const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
+  const resetPassword = useResetPassword();
+
+  const handleResetPassword = async (user: UserWithRole) => {
+    try {
+      await resetPassword.mutateAsync(user.id);
+      toast.success(`Password reset email sent to ${user.display_name || "user"}`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to send reset email");
+    }
+  };
 
   const filteredUsers = (users || []).filter(
     (u) =>
@@ -230,12 +252,22 @@ export default function UserManagement() {
                       <td className="px-5 py-3 text-muted-foreground">{u.department || "—"}</td>
                       <td className="px-5 py-3 text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</td>
                       <td className="px-5 py-3">
-                        <button
-                          onClick={() => setEditingUser(u)}
-                          className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleResetPassword(u)}
+                            className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                            title="Send password reset email"
+                          >
+                            <KeyRound className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setEditingUser(u)}
+                            className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                            title="Edit user"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))

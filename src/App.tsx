@@ -27,6 +27,7 @@ import ProfilePage from "./pages/ProfilePage";
 import AuditLog from "./pages/AuditLog";
 import PreTravel from "./pages/PreTravel";
 import PreTravelDetail from "./pages/PreTravelDetail";
+import ResetPassword from "./pages/ResetPassword";
 
 const queryClient = new QueryClient();
 
@@ -41,6 +42,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/simulations" element={<Simulations />} />
