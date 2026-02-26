@@ -112,6 +112,149 @@ export type Database = {
           },
         ]
       }
+      employee_dependents: {
+        Row: {
+          created_at: string
+          date_of_birth: string | null
+          employee_id: string
+          first_name: string
+          id: string
+          last_name: string
+          relationship: string
+        }
+        Insert: {
+          created_at?: string
+          date_of_birth?: string | null
+          employee_id: string
+          first_name: string
+          id?: string
+          last_name: string
+          relationship: string
+        }
+        Update: {
+          created_at?: string
+          date_of_birth?: string | null
+          employee_id?: string
+          first_name?: string
+          id?: string
+          last_name?: string
+          relationship?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_dependents_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employees: {
+        Row: {
+          address_line1: string | null
+          address_line2: string | null
+          base_salary: number
+          bonus_amount: number | null
+          bonus_percent: number | null
+          city: string | null
+          country: string | null
+          created_at: string
+          created_by: string
+          currency: string
+          date_of_birth: string | null
+          division: string | null
+          email: string
+          employee_code: string
+          first_name: string
+          hire_date: string | null
+          id: string
+          job_grade: string | null
+          job_title: string | null
+          last_name: string
+          phone: string | null
+          postal_code: string | null
+          state_province: string | null
+          status: string
+          sub_tenant_id: string | null
+          tenant_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          address_line1?: string | null
+          address_line2?: string | null
+          base_salary?: number
+          bonus_amount?: number | null
+          bonus_percent?: number | null
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          created_by: string
+          currency?: string
+          date_of_birth?: string | null
+          division?: string | null
+          email: string
+          employee_code?: string
+          first_name: string
+          hire_date?: string | null
+          id?: string
+          job_grade?: string | null
+          job_title?: string | null
+          last_name: string
+          phone?: string | null
+          postal_code?: string | null
+          state_province?: string | null
+          status?: string
+          sub_tenant_id?: string | null
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address_line1?: string | null
+          address_line2?: string | null
+          base_salary?: number
+          bonus_amount?: number | null
+          bonus_percent?: number | null
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          created_by?: string
+          currency?: string
+          date_of_birth?: string | null
+          division?: string | null
+          email?: string
+          employee_code?: string
+          first_name?: string
+          hire_date?: string | null
+          id?: string
+          job_grade?: string | null
+          job_title?: string | null
+          last_name?: string
+          phone?: string | null
+          postal_code?: string | null
+          state_province?: string | null
+          status?: string
+          sub_tenant_id?: string | null
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employees_sub_tenant_id_fkey"
+            columns: ["sub_tenant_id"]
+            isOneToOne: false
+            referencedRelation: "sub_tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employees_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       field_data_sources: {
         Row: {
           connector_config: Json | null
