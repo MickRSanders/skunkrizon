@@ -22,6 +22,7 @@ import FieldLibrary from "./pages/FieldLibrary";
 import DataSources from "./pages/DataSources";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import RolesPermissions from "./pages/RolesPermissions";
 
 const queryClient = new QueryClient();
 
@@ -49,6 +50,7 @@ const App = () => (
               <Route path="/field-library" element={<FieldLibrary />} />
               <Route path="/data-sources" element={<DataSources />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/settings/roles" element={<RolesPermissions />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
