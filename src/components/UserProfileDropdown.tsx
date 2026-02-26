@@ -42,6 +42,7 @@ export default function UserProfileDropdown() {
   };
 
   const menuItems = [
+    { label: "My Profile", icon: User, onClick: () => handleNavigate("/profile") },
     { label: "General Settings", icon: Settings, onClick: () => handleNavigate("/settings") },
     { label: "Roles & Permissions", icon: Shield, onClick: () => handleNavigate("/settings/roles") },
   ];
