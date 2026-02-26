@@ -202,6 +202,7 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          tenant_id: string | null
           updated_at: string
         }
         Insert: {
@@ -211,6 +212,7 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          tenant_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -220,9 +222,18 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          tenant_id?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "lookup_tables_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       policies: {
         Row: {

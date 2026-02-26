@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import {
   useLookupTables,
   useCreateLookupTable,
@@ -173,6 +174,8 @@ export default function LookupTablesPage() {
   const [editingTable, setEditingTable] = useState<LookupTable | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const { user } = useAuth();
+  const currentTenant = useCurrentTenant();
+  const tenantId = currentTenant.data?.tenant_id ?? null;
   const deleteLookup = useDeleteLookupTable();
 
   const filtered = tables?.filter(
@@ -199,6 +202,7 @@ export default function LookupTablesPage() {
     return (
       <CreateLookupTable
         userId={user.id}
+        tenantId={tenantId}
         onBack={() => setShowCreate(false)}
         onCreated={(table) => {
           setShowCreate(false);
@@ -301,10 +305,12 @@ export default function LookupTablesPage() {
 
 function CreateLookupTable({
   userId,
+  tenantId,
   onBack,
   onCreated,
 }: {
   userId: string;
+  tenantId: string | null;
   onBack: () => void;
   onCreated: (table: LookupTable) => void;
 }) {
@@ -336,7 +342,8 @@ function CreateLookupTable({
         description: description || null,
         columns: colDefs as unknown as Json,
         created_by: userId,
-      });
+        tenant_id: tenantId,
+      } as any);
 
       if (csvData.trim()) {
         const { rows: parsed } = parseDelimitedText(csvData);
