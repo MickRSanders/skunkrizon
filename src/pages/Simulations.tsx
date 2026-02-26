@@ -1,11 +1,17 @@
 import StatusBadge from "@/components/StatusBadge";
 import SimulationForm from "@/components/SimulationForm";
 import SimulationDetail from "@/components/SimulationDetail";
+import GroupSimulationForm from "@/components/GroupSimulationForm";
+import type { GroupSimulationFormData } from "@/components/GroupSimulationForm";
+import GroupSimulationDetail from "@/components/GroupSimulationDetail";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Plus,
   Search,
@@ -19,13 +25,18 @@ import {
   List,
   Trash2,
   Play,
+  Users,
+  ChevronDown,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useSimulations, useCreateSimulation, useUpdateSimulation, useDeleteSimulation } from "@/hooks/useSimulations";
+import { useSimulationGroups, useCreateSimulationGroup, useDeleteSimulationGroup } from "@/hooks/useSimulationGroups";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import type { SimulationFormData } from "@/components/SimulationForm";
 import { format } from "date-fns";
+import { useAuth } from "@/contexts/AuthContext";
+import { useTenantContext } from "@/contexts/TenantContext";
 
 const formatCurrency = (amount: number | null, currency = "USD") => {
   if (amount == null) return "—";
@@ -41,15 +52,22 @@ const getSimTitle = (sim: { origin_city?: string | null; origin_country: string;
 
 export default function Simulations() {
   const [showForm, setShowForm] = useState(false);
+  const [showGroupForm, setShowGroupForm] = useState(false);
   const [selectedSimId, setSelectedSimId] = useState<string | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const { data: simulations, isLoading } = useSimulations();
+  const { data: groups, isLoading: groupsLoading } = useSimulationGroups();
   const createSimulation = useCreateSimulation();
   const updateSimulation = useUpdateSimulation();
   const deleteSimulation = useDeleteSimulation();
+  const createGroup = useCreateSimulationGroup();
+  const deleteGroup = useDeleteSimulationGroup();
   const currentTenant = useCurrentTenant();
   const tenantId = currentTenant.data?.tenant_id ?? null;
+  const { user } = useAuth();
+  const { activeTenant, activeSubTenant } = useTenantContext();
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   const selectedSim = simulations?.find((s) => s.id === selectedSimId) ?? null;
@@ -103,6 +121,55 @@ export default function Simulations() {
     }
   };
 
+  const handleGroupCreate = async (formData: GroupSimulationFormData) => {
+    try {
+      if (!user) throw new Error("Not authenticated");
+      // 1. Create the group
+      const group = await createGroup.mutateAsync({
+        name: formData.name,
+        description: formData.description || undefined,
+        origin_country: formData.originCountry,
+        origin_city: formData.originCity || undefined,
+        destination_country: formData.destinationCountry,
+        destination_city: formData.destinationCity || undefined,
+      });
+
+      // 2. Create individual simulations for each member * count
+      for (const member of formData.members) {
+        for (let i = 0; i < member.count; i++) {
+          const label = member.count > 1 ? `${member.role} ${i + 1}` : member.role;
+          const baseSalary = Number(member.baseSalary);
+          const totalCost = Math.round(baseSalary * 1.18); // rough estimate
+
+          await createSimulation.mutateAsync({
+            employee_name: label,
+            base_salary: baseSalary,
+            currency: member.currency,
+            origin_city: formData.originCity || null,
+            origin_country: formData.originCountry,
+            destination_city: formData.destinationCity || null,
+            destination_country: formData.destinationCountry,
+            assignment_type: "long-term",
+            duration_months: 24,
+            total_cost: totalCost,
+            status: "draft",
+            tenant_id: tenantId,
+            group_id: group.id,
+          } as any);
+        }
+      }
+
+      setShowGroupForm(false);
+      toast.success(`Group "${formData.name}" created with ${formData.members.reduce((s, m) => s + m.count, 0)} simulations`);
+      setSelectedGroupId(group.id);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to create group simulation");
+    }
+  };
+
+  if (selectedGroupId) {
+    return <GroupSimulationDetail groupId={selectedGroupId} onBack={() => setSelectedGroupId(null)} />;
+  }
 
   if (selectedSim) {
     return <SimulationDetail simulation={selectedSim} onBack={() => setSelectedSimId(null)} />;
@@ -153,14 +220,23 @@ export default function Simulations() {
               </div>
             </div>
           </div>
-          <Button
-            size="lg"
-            onClick={() => setShowForm(true)}
-            className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 shadow-lg"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            New Simulation
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="lg" className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 shadow-lg">
+                <Plus className="w-4 h-4 mr-2" />
+                New Simulation
+                <ChevronDown className="w-3.5 h-3.5 ml-1.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setShowForm(true)}>
+                <Plus className="w-4 h-4 mr-2" /> Individual Simulation
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowGroupForm(true)}>
+                <Users className="w-4 h-4 mr-2" /> Group Simulation
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -191,6 +267,52 @@ export default function Simulations() {
           </button>
         </div>
       </div>
+
+      {/* Group Simulations */}
+      {groups && groups.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+            <Users className="w-4 h-4 text-accent" /> Group Simulations
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
+            {groups.map((g: any) => (
+              <div
+                key={g.id}
+                onClick={() => setSelectedGroupId(g.id)}
+                className="group bg-card rounded-xl border border-accent/20 p-5 cursor-pointer transition-all hover:shadow-lg hover:border-accent/40 hover:-translate-y-0.5"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
+                      <Users className="w-4 h-4 text-accent" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-semibold text-foreground">{g.name}</h3>
+                      {g.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{g.description}</p>}
+                    </div>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent font-medium uppercase tracking-wider">{g.status}</span>
+                </div>
+                {(g.origin_country || g.destination_country) && (
+                  <p className="text-xs text-muted-foreground mb-2">
+                    {g.origin_city || g.origin_country} → {g.destination_city || g.destination_country}
+                  </p>
+                )}
+                <div className="flex items-center justify-between pt-3 border-t border-border">
+                  {g.total_cost != null && (
+                    <p className="text-lg font-bold text-foreground">
+                      {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(g.total_cost)}
+                    </p>
+                  )}
+                  <span className="text-[10px] text-muted-foreground ml-auto">
+                    {format(new Date(g.created_at), "MMM d, yyyy")}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       {isLoading ? (
@@ -367,6 +489,13 @@ export default function Simulations() {
         <SimulationForm
           onClose={() => setShowForm(false)}
           onSubmit={handleCreate}
+        />
+      )}
+
+      {showGroupForm && (
+        <GroupSimulationForm
+          onClose={() => setShowGroupForm(false)}
+          onSubmit={handleGroupCreate}
         />
       )}
 
