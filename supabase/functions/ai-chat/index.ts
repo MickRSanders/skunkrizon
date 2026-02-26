@@ -158,6 +158,82 @@ const UPDATE_LOOKUP_ROW_TOOL = {
   },
 };
 
+const UPDATE_CALCULATION_TOOL = {
+  type: "function",
+  function: {
+    name: "update_calculation",
+    description:
+      "Update an existing calculation's metadata (name, description, category, or formula). Use this when an admin user wants to rename, re-describe, re-categorize, or change the formula of a calculation. Requires the calculation id from context.",
+    parameters: {
+      type: "object",
+      properties: {
+        calculation_id: {
+          type: "string",
+          description: "UUID of the calculation to update",
+        },
+        name: {
+          type: "string",
+          description: "New name for the calculation (optional)",
+        },
+        description: {
+          type: "string",
+          description: "New description (optional)",
+        },
+        category: {
+          type: "string",
+          description: "New category (optional)",
+        },
+        formula: {
+          type: "string",
+          description: "New formula expression (optional)",
+        },
+      },
+      required: ["calculation_id"],
+      additionalProperties: false,
+    },
+  },
+};
+
+const UPDATE_CALCULATION_FIELD_TOOL = {
+  type: "function",
+  function: {
+    name: "update_calculation_field",
+    description:
+      "Update an existing calculation field's properties (label, name, field_type, default_value, position). Use this when an admin user wants to modify a field on a calculation. Requires the field id from context.",
+    parameters: {
+      type: "object",
+      properties: {
+        field_id: {
+          type: "string",
+          description: "UUID of the calculation_field to update",
+        },
+        label: {
+          type: "string",
+          description: "New display label (optional)",
+        },
+        name: {
+          type: "string",
+          description: "New field name / key (optional)",
+        },
+        field_type: {
+          type: "string",
+          description: "New field type e.g. number, text, percentage (optional)",
+        },
+        default_value: {
+          type: "string",
+          description: "New default value (optional)",
+        },
+        position: {
+          type: "number",
+          description: "New sort position (optional)",
+        },
+      },
+      required: ["field_id"],
+      additionalProperties: false,
+    },
+  },
+};
+
 function handleAIError(status: number) {
   if (status === 429) {
     return new Response(
@@ -223,12 +299,28 @@ serve(async (req) => {
           .from("lookup_tables")
           .select("id, name, description, columns")
           .limit(50),
+        supabase
+          .from("calculation_fields")
+          .select("id, calculation_id, name, label, field_type, default_value, position")
+          .order("position"),
       ]);
 
       policiesData = policiesRes.data ?? [];
       const simulations = simulationsRes.data ?? [];
       const calculations = calculationsRes.data ?? [];
       const lookupTables = lookupTablesRes.data ?? [];
+      const calcFields = (calculationsRes as any).__calcFieldsRes?.data ?? [];
+
+      // Build a separate request for calculation fields since we need to join
+      const { data: allCalcFields } = await supabase
+        .from("calculation_fields")
+        .select("id, calculation_id, name, label, field_type, default_value, position")
+        .order("position");
+      const calcFieldsByCalc = (allCalcFields ?? []).reduce((acc: Record<string, any[]>, f: any) => {
+        if (!acc[f.calculation_id]) acc[f.calculation_id] = [];
+        acc[f.calculation_id].push(f);
+        return acc;
+      }, {});
 
       // Fetch rows for each lookup table (limit per table to keep context manageable)
       let lookupDetails = "";
@@ -273,7 +365,13 @@ ${policiesData.length ? policiesData.map((p) => `- "${p.name}" (id=${p.id}) [${p
 ${simulations.length ? simulations.map((s) => `- ${s.sim_code}: ${s.employee_name} [${s.status}] ${s.origin_country}→${s.destination_country}, ${s.assignment_type}, salary=${s.base_salary} ${s.currency}${s.total_cost ? `, total=${s.total_cost}` : ""}`).join("\n") : "No simulations found."}
 
 ### Calculations (${calculations.length})
-${calculations.length ? calculations.map((c) => `- "${c.name}" [${c.category || "uncategorized"}]${c.description ? ` — ${c.description}` : ""}`).join("\n") : "No calculations found."}
+${calculations.length ? calculations.map((c) => {
+  const fields = calcFieldsByCalc[c.id] ?? [];
+  const fieldsStr = fields.length
+    ? "\n  Fields:\n" + fields.map((f: any) => `    - [field_id=${f.id}] "${f.label}" (name=${f.name}, type=${f.field_type}${f.default_value ? `, default=${f.default_value}` : ""}, pos=${f.position})`).join("\n")
+    : "";
+  return `- "${c.name}" (id=${c.id}) [${c.category || "uncategorized"}] formula=\`${c.formula}\`${c.description ? ` — ${c.description}` : ""}${fieldsStr}`;
+}).join("\n") : "No calculations found."}
 
 ### Lookup Tables (${lookupTables.length})
 ${lookupTables.length ? lookupDetails : "No lookup tables found."}
@@ -295,11 +393,15 @@ You have a tool called \`create_draft_simulation\` to create draft simulations. 
 3. Once you have enough info (at least the 4 required fields), call the tool immediately.
 4. If the user says something like "use defaults for the rest", go ahead and create with what you have.
 
-You also have tools to manage lookup table data:
+You also have tools to manage lookup table data (admin only):
 - \`add_lookup_table_row\`: Add a new row to a lookup table. Requires the lookup_table_id (from context) and row_data matching the table's columns.
 - \`update_lookup_table_row\`: Update an existing row. Requires the row_id (shown as [row_id=...] in context) and the fields to change. Only provided fields are updated; others are preserved.
 
-When adding or updating lookup data, confirm the action with the user before calling the tool. Each row in the context includes its row_id for reference.
+You also have tools to manage calculations and their fields (admin only):
+- \`update_calculation\`: Update a calculation's name, description, category, or formula. Requires the calculation id from context.
+- \`update_calculation_field\`: Update a calculation field's label, name, field_type, default_value, or position. Requires the field_id (shown as [field_id=...] in context).
+
+When modifying data (lookup tables, calculations, fields), confirm the action with the user before calling the tool. Each item in the context includes its id for reference.
 
 Be concise, professional, and helpful. Use bullet points and formatting for clarity.
 ${contextBlock}`;
@@ -316,7 +418,7 @@ ${contextBlock}`;
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: [{ role: "system", content: systemPrompt }, ...messages],
-        tools: [CREATE_SIMULATION_TOOL, ADD_LOOKUP_ROW_TOOL, UPDATE_LOOKUP_ROW_TOOL],
+        tools: [CREATE_SIMULATION_TOOL, ADD_LOOKUP_ROW_TOOL, UPDATE_LOOKUP_ROW_TOOL, UPDATE_CALCULATION_TOOL, UPDATE_CALCULATION_FIELD_TOOL],
         stream: false,
       }),
     });
@@ -407,12 +509,12 @@ ${contextBlock}`;
               }),
             });
           }
-        } else if (tc.function.name === "add_lookup_table_row" || tc.function.name === "update_lookup_table_row") {
-          // Admin-level check: only admin or superadmin can mutate lookup data
+        } else if (tc.function.name === "add_lookup_table_row" || tc.function.name === "update_lookup_table_row" || tc.function.name === "update_calculation" || tc.function.name === "update_calculation_field") {
+          // Admin-level check: only admin or superadmin can mutate data via chat
           const { data: userRoles, error: roleErr } = await supabase
             .from("user_roles")
             .select("role")
-            .eq("user_id", userId);
+            .eq("user_id", user.id);
 
           const roles = (userRoles ?? []).map((r: any) => r.role as string);
           const isAdmin = roles.includes("admin") || roles.includes("superadmin");
@@ -423,7 +525,7 @@ ${contextBlock}`;
               role: "tool",
               content: JSON.stringify({
                 success: false,
-                error: "Permission denied. Only admin-level users can create or update lookup table data via chat.",
+                error: "Permission denied. Only admin-level users can modify data via chat.",
               }),
             });
             continue;
@@ -547,8 +649,84 @@ ${contextBlock}`;
               }),
             });
           }
-          } // end inner if add/update
-        } // end admin-checked lookup tools
+          } else if (tc.function.name === "update_calculation") {
+            const args = JSON.parse(tc.function.arguments);
+
+            const updateData: Record<string, any> = {};
+            if (args.name) updateData.name = String(args.name).slice(0, 200);
+            if (args.description !== undefined) updateData.description = args.description ? String(args.description).slice(0, 1000) : null;
+            if (args.category !== undefined) updateData.category = args.category ? String(args.category).slice(0, 100) : null;
+            if (args.formula) updateData.formula = String(args.formula).slice(0, 5000);
+
+            if (Object.keys(updateData).length === 0) {
+              toolResults.push({
+                tool_call_id: tc.id,
+                role: "tool",
+                content: JSON.stringify({ success: false, error: "No fields to update. Provide at least one of: name, description, category, formula." }),
+              });
+              continue;
+            }
+
+            const { error: calcErr } = await supabase
+              .from("calculations")
+              .update(updateData)
+              .eq("id", args.calculation_id);
+
+            if (calcErr) {
+              console.error("Calculation update error:", calcErr);
+              toolResults.push({
+                tool_call_id: tc.id,
+                role: "tool",
+                content: JSON.stringify({ success: false, error: calcErr.message }),
+              });
+            } else {
+              toolResults.push({
+                tool_call_id: tc.id,
+                role: "tool",
+                content: JSON.stringify({ success: true, calculation_id: args.calculation_id, updated_fields: updateData }),
+              });
+            }
+
+          } else if (tc.function.name === "update_calculation_field") {
+            const args = JSON.parse(tc.function.arguments);
+
+            const updateData: Record<string, any> = {};
+            if (args.label) updateData.label = String(args.label).slice(0, 200);
+            if (args.name) updateData.name = String(args.name).slice(0, 200);
+            if (args.field_type) updateData.field_type = String(args.field_type).slice(0, 50);
+            if (args.default_value !== undefined) updateData.default_value = args.default_value !== null ? String(args.default_value).slice(0, 500) : null;
+            if (args.position !== undefined) updateData.position = Number(args.position);
+
+            if (Object.keys(updateData).length === 0) {
+              toolResults.push({
+                tool_call_id: tc.id,
+                role: "tool",
+                content: JSON.stringify({ success: false, error: "No fields to update. Provide at least one of: label, name, field_type, default_value, position." }),
+              });
+              continue;
+            }
+
+            const { error: fieldErr } = await supabase
+              .from("calculation_fields")
+              .update(updateData)
+              .eq("id", args.field_id);
+
+            if (fieldErr) {
+              console.error("Calculation field update error:", fieldErr);
+              toolResults.push({
+                tool_call_id: tc.id,
+                role: "tool",
+                content: JSON.stringify({ success: false, error: fieldErr.message }),
+              });
+            } else {
+              toolResults.push({
+                tool_call_id: tc.id,
+                role: "tool",
+                content: JSON.stringify({ success: true, field_id: args.field_id, updated_fields: updateData }),
+              });
+            }
+          } // end inner tool dispatch
+        } // end admin-checked tools
       }
 
       // Step 3: Stream the follow-up response with tool results
