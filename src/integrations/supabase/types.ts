@@ -350,6 +350,7 @@ export type Database = {
           start_date: string | null
           status: Database["public"]["Enums"]["simulation_status"]
           tax_approach: string | null
+          tenant_id: string | null
           total_cost: number | null
           updated_at: string
         }
@@ -384,6 +385,7 @@ export type Database = {
           start_date?: string | null
           status?: Database["public"]["Enums"]["simulation_status"]
           tax_approach?: string | null
+          tenant_id?: string | null
           total_cost?: number | null
           updated_at?: string
         }
@@ -418,6 +420,7 @@ export type Database = {
           start_date?: string | null
           status?: Database["public"]["Enums"]["simulation_status"]
           tax_approach?: string | null
+          tenant_id?: string | null
           total_cost?: number | null
           updated_at?: string
         }
@@ -427,6 +430,13 @@ export type Database = {
             columns: ["policy_id"]
             isOneToOne: false
             referencedRelation: "policies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
