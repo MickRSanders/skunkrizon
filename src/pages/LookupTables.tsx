@@ -265,6 +265,11 @@ export default function LookupTablesPage() {
                   </button>
                 </div>
                 <h3 className="font-semibold text-foreground text-sm mb-1">{t.name}</h3>
+                {(t as any).effective_date && (
+                  <p className="text-[10px] text-muted-foreground mb-1">
+                    Effective: {(t as any).effective_date}
+                  </p>
+                )}
                 {t.description && (
                   <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{t.description}</p>
                 )}
@@ -316,6 +321,7 @@ function CreateLookupTable({
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [effectiveDate, setEffectiveDate] = useState(new Date().toISOString().slice(0, 10));
   const [colDefs, setColDefs] = useState([
     { name: "key", type: "text" },
     { name: "value", type: "number" },
@@ -343,6 +349,7 @@ function CreateLookupTable({
         columns: colDefs as unknown as Json,
         created_by: userId,
         tenant_id: tenantId,
+        effective_date: effectiveDate,
       } as any);
 
       if (csvData.trim()) {
@@ -397,7 +404,7 @@ function CreateLookupTable({
       </div>
 
       <div className="max-w-2xl bg-card border border-border rounded-lg p-6 space-y-5">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Table Name *</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. City Tier Rates" />
@@ -405,6 +412,10 @@ function CreateLookupTable({
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Description</Label>
             <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What is this table for?" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Effective Date *</Label>
+            <Input type="date" value={effectiveDate} onChange={(e) => setEffectiveDate(e.target.value)} />
           </div>
         </div>
 
