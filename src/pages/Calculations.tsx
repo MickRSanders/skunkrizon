@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +24,10 @@ import {
   Save,
   Variable,
   Database,
+  Play,
+  CheckCircle2,
+  AlertCircle,
+  TableIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -44,6 +48,7 @@ import {
   type CalculationField,
 } from "@/hooks/useCalculations";
 import type { Json } from "@/integrations/supabase/types";
+import { evaluateFormula, type EvalResult } from "@/lib/formulaEngine";
 
 export default function Calculations() {
   const { user } = useAuth();
@@ -258,6 +263,135 @@ function CreateCalculation({
   );
 }
 
+// ─── Formula Test Runner ───────────────────────────────────────
+
+function FormulaTestRunner({
+  blocks,
+  fields,
+  allFields,
+}: {
+  blocks: FormulaBlock[];
+  fields: CalculationField[];
+  allFields: CalculationField[];
+}) {
+  const [testInputs, setTestInputs] = useState<Record<string, string>>({});
+  const [result, setResult] = useState<EvalResult | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
+
+  const referencedFieldNames = blocks
+    .filter((b) => b.type === "field")
+    .map((b) => b.value);
+
+  const lookupKeyFields = blocks
+    .filter((b) => b.type === "lookup" && b.lookupMeta)
+    .map((b) => b.lookupMeta!.keyFieldName);
+
+  const allReferencedNames = [...new Set([...referencedFieldNames, ...lookupKeyFields])];
+
+  const allFieldsList = allFields.length > 0 ? allFields : fields;
+  const fieldLabelMap = new Map(allFieldsList.map((f) => [f.name, f.label]));
+
+  const buildFormula = () =>
+    blocks
+      .map((b) => {
+        if (b.type === "lookup" && b.lookupMeta) {
+          return `LOOKUP("${b.lookupMeta.tableName}", "${b.lookupMeta.keyColumn}", "${b.lookupMeta.valueColumn}", ${b.lookupMeta.keyFieldName})`;
+        }
+        return b.value;
+      })
+      .join(" ");
+
+  const handleRun = async () => {
+    const formula = buildFormula();
+    if (!formula.trim()) return;
+    setIsRunning(true);
+    const variables: Record<string, number> = {};
+    allReferencedNames.forEach((name) => {
+      variables[name] = parseFloat(testInputs[name] || "0") || 0;
+    });
+    const evalResult = await evaluateFormula(formula, variables);
+    setResult(evalResult);
+    setIsRunning(false);
+  };
+
+  if (blocks.length === 0) return null;
+
+  return (
+    <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+      <h2 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+        <Play className="w-4 h-4 text-accent" />
+        Test Formula
+      </h2>
+
+      {allReferencedNames.length > 0 && (
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground uppercase tracking-wide">Input Values</Label>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {allReferencedNames.map((name) => (
+              <div key={name} className="space-y-1">
+                <label className="text-[10px] text-muted-foreground font-medium">
+                  {fieldLabelMap.get(name) || name}
+                </label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={testInputs[name] || ""}
+                  onChange={(e) => setTestInputs({ ...testInputs, [name]: e.target.value })}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center gap-3">
+        <Button size="sm" onClick={handleRun} disabled={isRunning} className="gap-1.5">
+          {isRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+          Run
+        </Button>
+
+        {result && !result.error && (
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-accent/10 border border-accent/20">
+            <CheckCircle2 className="w-4 h-4 text-accent" />
+            <span className="text-sm font-bold font-mono text-accent">
+              {typeof result.value === "number" ? result.value.toLocaleString(undefined, { maximumFractionDigits: 4 }) : result.value}
+            </span>
+          </div>
+        )}
+
+        {result?.error && (
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-destructive/10 border border-destructive/20">
+            <AlertCircle className="w-4 h-4 text-destructive" />
+            <span className="text-xs text-destructive">{result.error}</span>
+          </div>
+        )}
+      </div>
+
+      {result && result.lookupCalls.length > 0 && (
+        <div className="space-y-1.5">
+          <Label className="text-[10px] text-muted-foreground uppercase tracking-wide">Lookup Results</Label>
+          {result.lookupCalls.map((lc, i) => (
+            <div key={i} className="flex items-center gap-2 text-[10px] font-mono bg-muted/30 rounded px-2.5 py-1.5">
+              <TableIcon className="w-3 h-3 text-primary shrink-0" />
+              <span className="text-muted-foreground">
+                {lc.tableName}.{lc.valueColumn} where {lc.keyColumn}="{lc.keyValue}"
+              </span>
+              <span className="ml-auto font-bold">
+                {lc.error ? (
+                  <span className="text-destructive">{lc.error}</span>
+                ) : (
+                  <span className="text-accent">→ {lc.result}</span>
+                )}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Calculation Editor ────────────────────────────────────────
 
 function CalculationEditor({
@@ -399,6 +533,11 @@ function CalculationEditor({
               onEditField={(field) => setShowDataSource(field)}
             />
           )}
+        </div>
+
+        {/* Formula Test Runner */}
+        <div className="col-span-8">
+          <FormulaTestRunner blocks={blocks} fields={fields} allFields={allFields} />
         </div>
 
         {/* Fields Panel */}
