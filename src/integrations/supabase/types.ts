@@ -67,6 +67,10 @@ export type Database = {
           formula: string
           id: string
           name: string
+          proration_enabled: boolean
+          proration_method: string
+          step_down_enabled: boolean
+          step_down_schedule: Json
           sub_tenant_id: string | null
           tenant_id: string | null
           updated_at: string
@@ -79,6 +83,10 @@ export type Database = {
           formula: string
           id?: string
           name: string
+          proration_enabled?: boolean
+          proration_method?: string
+          step_down_enabled?: boolean
+          step_down_schedule?: Json
           sub_tenant_id?: string | null
           tenant_id?: string | null
           updated_at?: string
@@ -91,6 +99,10 @@ export type Database = {
           formula?: string
           id?: string
           name?: string
+          proration_enabled?: boolean
+          proration_method?: string
+          step_down_enabled?: boolean
+          step_down_schedule?: Json
           sub_tenant_id?: string | null
           tenant_id?: string | null
           updated_at?: string

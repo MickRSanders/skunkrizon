@@ -1,5 +1,7 @@
 import { useState, useCallback } from "react";
 import { FileText } from "lucide-react";
+import StepDownProrationPanel, { type StepDownProrationConfig, type StepDownEntry } from "@/components/StepDownProrationPanel";
+import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -625,6 +627,42 @@ function CalculationEditor({
   const [showAddField, setShowAddField] = useState(false);
   const [editingField, setEditingField] = useState<CalculationField | null>(null);
   const [showDataSource, setShowDataSource] = useState<CalculationField | null>(null);
+  const [sdpSaving, setSdpSaving] = useState(false);
+
+  // Step-down / proration config from raw calculation row
+  const calcAny = calculation as any;
+  const sdpConfig: StepDownProrationConfig = {
+    step_down_enabled: calcAny.step_down_enabled ?? false,
+    step_down_schedule: (calcAny.step_down_schedule as StepDownEntry[]) ?? [],
+    proration_enabled: calcAny.proration_enabled ?? false,
+    proration_method: calcAny.proration_method ?? "daily",
+  };
+
+  const handleSaveSDP = async (cfg: StepDownProrationConfig) => {
+    setSdpSaving(true);
+    try {
+      const { error } = await supabase
+        .from("calculations")
+        .update({
+          step_down_enabled: cfg.step_down_enabled,
+          step_down_schedule: cfg.step_down_schedule,
+          proration_enabled: cfg.proration_enabled,
+          proration_method: cfg.proration_method,
+        } as any)
+        .eq("id", calculation.id);
+      if (error) throw error;
+      // Update local reference
+      (calculation as any).step_down_enabled = cfg.step_down_enabled;
+      (calculation as any).step_down_schedule = cfg.step_down_schedule;
+      (calculation as any).proration_enabled = cfg.proration_enabled;
+      (calculation as any).proration_method = cfg.proration_method;
+      toast.success("Step-down & proration settings saved");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save settings");
+    } finally {
+      setSdpSaving(false);
+    }
+  };
 
   const fields = fieldsData || [];
   const allFields = allFieldsData || [];
@@ -858,6 +896,15 @@ function CalculationEditor({
               />
             </div>
           )}
+
+          {/* Step-Down & Proration */}
+          <div className="bg-card border border-border rounded-lg p-5">
+            <StepDownProrationPanel
+              config={sdpConfig}
+              onSave={handleSaveSDP}
+              isSaving={sdpSaving}
+            />
+          </div>
         </div>
       </div>
 
