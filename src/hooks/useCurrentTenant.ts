@@ -3,8 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
 /**
- * Returns the current user's tenant membership.
- * If the user belongs to a tenant directly → returns that tenant_id.
+ * Returns the current user's tenant membership along with tenant details.
+ * If the user belongs to a tenant directly → returns that tenant_id + tenant name.
  * If the user belongs via a sub-tenant → returns the parent tenant_id + sub_tenant_id.
  */
 export function useCurrentTenant() {
@@ -14,7 +14,7 @@ export function useCurrentTenant() {
     queryKey: ["current_tenant", user?.id],
     enabled: !!user,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: membership, error } = await supabase
         .from("tenant_users")
         .select("tenant_id, sub_tenant_id, role")
         .eq("user_id", user!.id)
@@ -22,7 +22,21 @@ export function useCurrentTenant() {
         .maybeSingle();
 
       if (error) throw error;
-      return data; // null if user has no tenant
+      if (!membership) return null;
+
+      // Fetch tenant name
+      const { data: tenant } = await supabase
+        .from("tenants")
+        .select("name, slug, logo_url")
+        .eq("id", membership.tenant_id)
+        .single();
+
+      return {
+        ...membership,
+        tenant_name: tenant?.name ?? null,
+        tenant_slug: tenant?.slug ?? null,
+        tenant_logo_url: tenant?.logo_url ?? null,
+      };
     },
   });
 }
