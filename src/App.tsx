@@ -23,6 +23,7 @@ import DataSources from "./pages/DataSources";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import RolesPermissions from "./pages/RolesPermissions";
+import ProfilePage from "./pages/ProfilePage";
 
 const queryClient = new QueryClient();
 
@@ -51,6 +52,7 @@ const App = () => (
               <Route path="/data-sources" element={<DataSources />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/settings/roles" element={<RolesPermissions />} />
+              <Route path="/profile" element={<ProfilePage />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
