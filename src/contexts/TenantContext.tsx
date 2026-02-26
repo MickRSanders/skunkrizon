@@ -24,6 +24,7 @@ type TenantContextValue = {
   activeSubTenant: SubTenant | null;
   subTenants: SubTenant[];
   isLoading: boolean;
+  isSuperadmin: boolean;
   switchTenant: (tenantId: string) => void;
   switchSubTenant: (subTenantId: string | null) => void;
 };
@@ -43,10 +44,44 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     localStorage.getItem(ACTIVE_SUB_TENANT_KEY)
   );
 
-  const { data: tenants = [], isLoading } = useQuery({
-    queryKey: ["user_tenants", user?.id],
+  // Check if user is superadmin
+  const { data: isSuperadmin = false } = useQuery({
+    queryKey: ["is_superadmin", user?.id],
     enabled: !!user,
     queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user!.id)
+        .eq("role", "superadmin");
+      if (error) throw error;
+      return (data?.length ?? 0) > 0;
+    },
+  });
+
+  const { data: tenants = [], isLoading } = useQuery({
+    queryKey: ["user_tenants", user?.id, isSuperadmin],
+    enabled: !!user,
+    queryFn: async () => {
+      if (isSuperadmin) {
+        // Superadmins can see ALL organizations
+        const { data: allTenants, error } = await supabase
+          .from("tenants")
+          .select("id, name, slug, logo_url")
+          .eq("is_active", true)
+          .order("name");
+        if (error) throw error;
+        return (allTenants ?? []).map((t) => ({
+          tenant_id: t.id,
+          sub_tenant_id: null,
+          role: "superadmin",
+          tenant_name: t.name,
+          tenant_slug: t.slug,
+          tenant_logo_url: t.logo_url,
+        })) as TenantMembership[];
+      }
+
+      // Regular users: only their memberships
       const { data: memberships, error } = await supabase
         .from("tenant_users")
         .select("tenant_id, sub_tenant_id, role")
@@ -139,7 +174,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <TenantContext.Provider value={{ tenants, activeTenant, activeSubTenant, subTenants, isLoading, switchTenant, switchSubTenant }}>
+    <TenantContext.Provider value={{ tenants, activeTenant, activeSubTenant, subTenants, isLoading, isSuperadmin, switchTenant, switchSubTenant }}>
       {children}
     </TenantContext.Provider>
   );
