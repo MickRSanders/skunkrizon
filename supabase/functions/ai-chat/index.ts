@@ -234,6 +234,108 @@ const UPDATE_CALCULATION_FIELD_TOOL = {
   },
 };
 
+const CREATE_POLICY_TOOL = {
+  type: "function",
+  function: {
+    name: "create_policy",
+    description:
+      "Create a new draft policy for international assignments. Call this when an admin user wants to create/upload a policy. Gather at minimum the policy name. Optional: tier, description, tax approach, and benefit components. The policy is created in draft status and can be configured further.",
+    parameters: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "Name of the policy (required)",
+        },
+        tier: {
+          type: "string",
+          enum: ["gold", "silver", "bronze", "custom"],
+          description: "Policy tier level. Defaults to custom.",
+        },
+        description: {
+          type: "string",
+          description: "Brief description of the policy (optional)",
+        },
+        tax_approach: {
+          type: "string",
+          enum: ["tax-equalization", "tax-protection", "laissez-faire"],
+          description: "Tax approach. Defaults to tax-equalization.",
+        },
+        benefit_components: {
+          type: "array",
+          description: "Array of benefit components to include in the policy",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "Component name (e.g. Housing Allowance)" },
+              type: { type: "string", description: "Type: Allowance, Benefit, One-time, Tax" },
+              taxable: { type: "string", description: "Taxability: Host only, Both, Non-taxable, N/A" },
+              calcMethod: { type: "string", description: "How it's calculated" },
+              amount: { type: "string", description: "Amount or limit" },
+            },
+            required: ["name"],
+          },
+        },
+      },
+      required: ["name"],
+      additionalProperties: false,
+    },
+  },
+};
+
+const UPDATE_POLICY_TOOL = {
+  type: "function",
+  function: {
+    name: "update_policy",
+    description:
+      "Update an existing policy's metadata (name, description, tier, tax_approach, status, or benefit_components). Use this when an admin user wants to modify a policy. Requires the policy id from context. To publish a policy, set status to 'published'.",
+    parameters: {
+      type: "object",
+      properties: {
+        policy_id: {
+          type: "string",
+          description: "UUID of the policy to update",
+        },
+        name: { type: "string", description: "New policy name (optional)" },
+        description: { type: "string", description: "New description (optional)" },
+        tier: {
+          type: "string",
+          enum: ["gold", "silver", "bronze", "custom"],
+          description: "New tier (optional)",
+        },
+        tax_approach: {
+          type: "string",
+          enum: ["tax-equalization", "tax-protection", "laissez-faire"],
+          description: "New tax approach (optional)",
+        },
+        status: {
+          type: "string",
+          enum: ["draft", "published"],
+          description: "New status (optional). Set to 'published' to activate.",
+        },
+        benefit_components: {
+          type: "array",
+          description: "Replacement benefit components array (replaces existing). Optional.",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              type: { type: "string" },
+              taxable: { type: "string" },
+              calcMethod: { type: "string" },
+              amount: { type: "string" },
+              calculationId: { type: "string", description: "UUID of linked calculation (optional)" },
+            },
+            required: ["name"],
+          },
+        },
+      },
+      required: ["policy_id"],
+      additionalProperties: false,
+    },
+  },
+};
+
 function handleAIError(status: number) {
   if (status === 429) {
     return new Response(
@@ -401,7 +503,17 @@ You also have tools to manage calculations and their fields (admin only):
 - \`update_calculation\`: Update a calculation's name, description, category, or formula. Requires the calculation id from context.
 - \`update_calculation_field\`: Update a calculation field's label, name, field_type, default_value, or position. Requires the field_id (shown as [field_id=...] in context).
 
-When modifying data (lookup tables, calculations, fields), confirm the action with the user before calling the tool. Each item in the context includes its id for reference.
+You also have tools to manage policies (admin only):
+- \`create_policy\`: Create a new draft policy. At minimum requires a name. You can optionally include tier, description, tax_approach, and benefit_components. When the user wants to upload or create a policy, gather details conversationally and create it. After creation, offer to add benefit components or publish.
+- \`update_policy\`: Update an existing policy. Can change name, description, tier, tax_approach, status, or benefit_components. Use this to configure/publish a policy. Requires the policy_id from context.
+
+When creating a policy, guide the user through configuration:
+1. Create the draft policy with basic info (name, tier, description, tax approach)
+2. Offer to add benefit components (housing, COLA, tax, relocation, etc.)
+3. Ask if they want to link calculations to components
+4. Offer to publish when configuration is complete
+
+When modifying data (lookup tables, calculations, fields, policies), confirm the action with the user before calling the tool. Each item in the context includes its id for reference.
 
 Be concise, professional, and helpful. Use bullet points and formatting for clarity.
 ${contextBlock}`;
@@ -418,7 +530,7 @@ ${contextBlock}`;
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: [{ role: "system", content: systemPrompt }, ...messages],
-        tools: [CREATE_SIMULATION_TOOL, ADD_LOOKUP_ROW_TOOL, UPDATE_LOOKUP_ROW_TOOL, UPDATE_CALCULATION_TOOL, UPDATE_CALCULATION_FIELD_TOOL],
+        tools: [CREATE_SIMULATION_TOOL, ADD_LOOKUP_ROW_TOOL, UPDATE_LOOKUP_ROW_TOOL, UPDATE_CALCULATION_TOOL, UPDATE_CALCULATION_FIELD_TOOL, CREATE_POLICY_TOOL, UPDATE_POLICY_TOOL],
         stream: false,
       }),
     });
@@ -509,7 +621,7 @@ ${contextBlock}`;
               }),
             });
           }
-        } else if (tc.function.name === "add_lookup_table_row" || tc.function.name === "update_lookup_table_row" || tc.function.name === "update_calculation" || tc.function.name === "update_calculation_field") {
+        } else if (tc.function.name === "add_lookup_table_row" || tc.function.name === "update_lookup_table_row" || tc.function.name === "update_calculation" || tc.function.name === "update_calculation_field" || tc.function.name === "create_policy" || tc.function.name === "update_policy") {
           // Admin-level check: only admin or superadmin can mutate data via chat
           const { data: userRoles, error: roleErr } = await supabase
             .from("user_roles")
@@ -725,6 +837,116 @@ ${contextBlock}`;
                 content: JSON.stringify({ success: true, field_id: args.field_id, updated_fields: updateData }),
               });
             }
+          } else if (tc.function.name === "create_policy") {
+            const args = JSON.parse(tc.function.arguments);
+
+            // Get user's tenant_id
+            const { data: tenantUser } = await supabase
+              .from("tenant_users")
+              .select("tenant_id")
+              .eq("user_id", user.id)
+              .limit(1)
+              .single();
+
+            const tenantId = tenantUser?.tenant_id || null;
+
+            const policyData: Record<string, any> = {
+              name: String(args.name).slice(0, 300),
+              created_by: user.id,
+              tenant_id: tenantId,
+              status: "draft",
+              tier: args.tier || "custom",
+              tax_approach: args.tax_approach || "tax-equalization",
+            };
+
+            if (args.description) policyData.description = String(args.description).slice(0, 2000);
+            if (args.benefit_components && Array.isArray(args.benefit_components)) {
+              // Sanitize each component
+              policyData.benefit_components = args.benefit_components.slice(0, 50).map((c: any) => ({
+                name: String(c.name || "").slice(0, 200),
+                type: String(c.type || "Allowance").slice(0, 100),
+                taxable: String(c.taxable || "N/A").slice(0, 50),
+                calcMethod: String(c.calcMethod || "").slice(0, 500),
+                amount: String(c.amount || "").slice(0, 100),
+              }));
+            }
+
+            const { data: newPolicy, error: policyErr } = await supabase
+              .from("policies")
+              .insert(policyData)
+              .select("id, name, status, tier")
+              .single();
+
+            if (policyErr) {
+              console.error("Policy create error:", policyErr);
+              toolResults.push({
+                tool_call_id: tc.id,
+                role: "tool",
+                content: JSON.stringify({ success: false, error: policyErr.message }),
+              });
+            } else {
+              toolResults.push({
+                tool_call_id: tc.id,
+                role: "tool",
+                content: JSON.stringify({
+                  success: true,
+                  policy_id: newPolicy.id,
+                  policy_name: newPolicy.name,
+                  status: newPolicy.status,
+                  tier: newPolicy.tier,
+                }),
+              });
+            }
+
+          } else if (tc.function.name === "update_policy") {
+            const args = JSON.parse(tc.function.arguments);
+
+            const updateData: Record<string, any> = {};
+            if (args.name) updateData.name = String(args.name).slice(0, 300);
+            if (args.description !== undefined) updateData.description = args.description ? String(args.description).slice(0, 2000) : null;
+            if (args.tier) updateData.tier = String(args.tier).slice(0, 50);
+            if (args.tax_approach) updateData.tax_approach = String(args.tax_approach).slice(0, 50);
+            if (args.status) updateData.status = String(args.status).slice(0, 20);
+            if (args.benefit_components && Array.isArray(args.benefit_components)) {
+              updateData.benefit_components = args.benefit_components.slice(0, 50).map((c: any) => ({
+                name: String(c.name || "").slice(0, 200),
+                type: String(c.type || "Allowance").slice(0, 100),
+                taxable: String(c.taxable || "N/A").slice(0, 50),
+                calcMethod: String(c.calcMethod || "").slice(0, 500),
+                amount: String(c.amount || "").slice(0, 100),
+                calculationId: c.calculationId || null,
+              }));
+            }
+
+            if (Object.keys(updateData).length === 0) {
+              toolResults.push({
+                tool_call_id: tc.id,
+                role: "tool",
+                content: JSON.stringify({ success: false, error: "No fields to update." }),
+              });
+              continue;
+            }
+
+            const { error: polErr } = await supabase
+              .from("policies")
+              .update(updateData)
+              .eq("id", args.policy_id);
+
+            if (polErr) {
+              console.error("Policy update error:", polErr);
+              toolResults.push({
+                tool_call_id: tc.id,
+                role: "tool",
+                content: JSON.stringify({ success: false, error: polErr.message }),
+              });
+            } else {
+              toolResults.push({
+                tool_call_id: tc.id,
+                role: "tool",
+                content: JSON.stringify({ success: true, policy_id: args.policy_id, updated_fields: updateData }),
+              });
+            }
+
           } // end inner tool dispatch
         } // end admin-checked tools
       }
@@ -759,12 +981,12 @@ ${contextBlock}`;
         );
       }
 
-      // Prepend custom events for each created simulation, then pipe the AI stream
-      const simEvents: string[] = [];
+      // Prepend custom events for each created entity, then pipe the AI stream
+      const customEvents: string[] = [];
       for (const tr of toolResults) {
         const parsed = JSON.parse(tr.content);
         if (parsed.success && parsed.simulation_id) {
-          simEvents.push(
+          customEvents.push(
             `event: simulation_created\ndata: ${JSON.stringify({
               id: parsed.simulation_id,
               sim_code: parsed.sim_code,
@@ -772,10 +994,20 @@ ${contextBlock}`;
             })}\n\n`
           );
         }
+        if (parsed.success && parsed.policy_id && parsed.policy_name) {
+          customEvents.push(
+            `event: policy_created\ndata: ${JSON.stringify({
+              id: parsed.policy_id,
+              name: parsed.policy_name,
+              status: parsed.status || "draft",
+              tier: parsed.tier || "custom",
+            })}\n\n`
+          );
+        }
       }
 
       const encoder = new TextEncoder();
-      const prefixBytes = encoder.encode(simEvents.join(""));
+      const prefixBytes = encoder.encode(customEvents.join(""));
 
       // Create a combined stream: prefix events + AI stream
       const aiBody = followUpResponse.body!;
