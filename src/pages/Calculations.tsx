@@ -72,6 +72,39 @@ export default function Calculations() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [stageFilter, setStageFilter] = useState("all");
 
+  // Compute counts for filter options (based on search + opposite filter only)
+  const countByType = (type: string) =>
+    (calculations || []).filter((c) => {
+      const cat = (c.category || "").toLowerCase();
+      const matchesSearch =
+        c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        cat.includes(searchTerm.toLowerCase());
+      const matchesStageF =
+        stageFilter === "all" || cat.includes(stageFilter.toLowerCase());
+      if (!matchesSearch || !matchesStageF) return false;
+      if (type === "all") return true;
+      if (type === "cash") return cat.startsWith("cash");
+      if (type === "non-cash") return cat.startsWith("non-cash");
+      if (type === "either") return cat.startsWith("either");
+      return false;
+    }).length;
+
+  const countByStage = (stage: string) =>
+    (calculations || []).filter((c) => {
+      const cat = (c.category || "").toLowerCase();
+      const matchesSearch =
+        c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        cat.includes(searchTerm.toLowerCase());
+      const matchesTypeF =
+        typeFilter === "all" ||
+        (typeFilter === "cash" && cat.startsWith("cash")) ||
+        (typeFilter === "non-cash" && cat.startsWith("non-cash")) ||
+        (typeFilter === "either" && cat.startsWith("either"));
+      if (!matchesSearch || !matchesTypeF) return false;
+      if (stage === "all") return true;
+      return cat.includes(stage.toLowerCase());
+    }).length;
+
   const filtered = calculations?.filter((c) => {
     const matchesSearch =
       c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -87,7 +120,6 @@ export default function Calculations() {
       cat.includes(stageFilter.toLowerCase());
     return matchesSearch && matchesType && matchesStage;
   });
-
   if (editingCalc) {
     return (
       <CalculationEditor
@@ -143,21 +175,21 @@ export default function Calculations() {
             <SelectValue placeholder="Benefit type" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            <SelectItem value="cash">Cash</SelectItem>
-            <SelectItem value="non-cash">Non-Cash</SelectItem>
-            <SelectItem value="either">Either</SelectItem>
+            <SelectItem value="all">All Types ({countByType("all")})</SelectItem>
+            <SelectItem value="cash">Cash ({countByType("cash")})</SelectItem>
+            <SelectItem value="non-cash">Non-Cash ({countByType("non-cash")})</SelectItem>
+            <SelectItem value="either">Either ({countByType("either")})</SelectItem>
           </SelectContent>
         </Select>
         <Select value={stageFilter} onValueChange={setStageFilter}>
-          <SelectTrigger className="w-[180px] h-9">
+          <SelectTrigger className="w-[200px] h-9">
             <SelectValue placeholder="Move stage" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Stages</SelectItem>
-            <SelectItem value="relocation">Relocation</SelectItem>
-            <SelectItem value="ongoing">Ongoing</SelectItem>
-            <SelectItem value="end of assignment">End of Assignment</SelectItem>
+            <SelectItem value="all">All Stages ({countByStage("all")})</SelectItem>
+            <SelectItem value="relocation">Relocation ({countByStage("relocation")})</SelectItem>
+            <SelectItem value="ongoing">Ongoing ({countByStage("ongoing")})</SelectItem>
+            <SelectItem value="end of assignment">End of Assignment ({countByStage("end of assignment")})</SelectItem>
           </SelectContent>
         </Select>
       </div>
