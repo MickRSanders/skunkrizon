@@ -629,6 +629,72 @@ export type Database = {
           },
         ]
       }
+      simulation_groups: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          destination_city: string | null
+          destination_country: string | null
+          id: string
+          name: string
+          origin_city: string | null
+          origin_country: string | null
+          status: string
+          sub_tenant_id: string | null
+          tenant_id: string | null
+          total_cost: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          destination_city?: string | null
+          destination_country?: string | null
+          id?: string
+          name: string
+          origin_city?: string | null
+          origin_country?: string | null
+          status?: string
+          sub_tenant_id?: string | null
+          tenant_id?: string | null
+          total_cost?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          destination_city?: string | null
+          destination_country?: string | null
+          id?: string
+          name?: string
+          origin_city?: string | null
+          origin_country?: string | null
+          status?: string
+          sub_tenant_id?: string | null
+          tenant_id?: string | null
+          total_cost?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulation_groups_sub_tenant_id_fkey"
+            columns: ["sub_tenant_id"]
+            isOneToOne: false
+            referencedRelation: "sub_tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulation_groups_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       simulations: {
         Row: {
           assignment_type: string
@@ -645,6 +711,7 @@ export type Database = {
           employee_name: string
           exchange_rate_buffer: number | null
           grade: string | null
+          group_id: string | null
           housing_cap: number | null
           id: string
           include_relocation_lump_sum: boolean | null
@@ -681,6 +748,7 @@ export type Database = {
           employee_name: string
           exchange_rate_buffer?: number | null
           grade?: string | null
+          group_id?: string | null
           housing_cap?: number | null
           id?: string
           include_relocation_lump_sum?: boolean | null
@@ -717,6 +785,7 @@ export type Database = {
           employee_name?: string
           exchange_rate_buffer?: number | null
           grade?: string | null
+          group_id?: string | null
           housing_cap?: number | null
           id?: string
           include_relocation_lump_sum?: boolean | null
@@ -739,6 +808,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "simulations_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "simulation_groups"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "simulations_policy_id_fkey"
             columns: ["policy_id"]
