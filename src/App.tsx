@@ -28,6 +28,7 @@ import AuditLog from "./pages/AuditLog";
 import PreTravel from "./pages/PreTravel";
 import PreTravelDetail from "./pages/PreTravelDetail";
 import ResetPassword from "./pages/ResetPassword";
+import EmployeeDirectory from "./pages/EmployeeDirectory";
 
 const queryClient = new QueryClient();
 
@@ -61,6 +62,7 @@ const App = () => (
               <Route path="/settings/roles" element={<RolesPermissions />} />
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/audit-log" element={<AuditLog />} />
+              <Route path="/employees" element={<EmployeeDirectory />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
