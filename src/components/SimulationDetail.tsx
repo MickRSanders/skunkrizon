@@ -21,6 +21,7 @@ import {
   Clock,
   Layers,
 } from "lucide-react";
+import { useTaxConfig, TAX_RATE_MAP } from "@/contexts/TaxConfigContext";
 
 const CURRENCIES = ["USD", "EUR", "GBP", "JPY", "CHF", "SGD", "AUD", "CAD", "INR", "BRL"] as const;
 
@@ -40,7 +41,7 @@ interface Scenario {
   benefits: BenefitLine[];
 }
 
-function generateBenefits(sim: any): BenefitLine[] {
+function generateBenefits(sim: any, grossUpMultiplier: number): BenefitLine[] {
   const baseSalary = Number(sim.base_salary) || 0;
   const cola = baseSalary * (Number(sim.cola_percent) || 0) / 100;
   const housingMonthly = Number(sim.housing_cap) || 0;
@@ -50,17 +51,17 @@ function generateBenefits(sim: any): BenefitLine[] {
   const schooling = sim.include_schooling ? Math.round(baseSalary * 0.12) : 0;
   const spouseSupport = sim.include_spouse_support ? Math.round(baseSalary * 0.05) : 0;
 
-  let taxCost = 0;
-  if (sim.tax_approach === "tax-equalization") taxCost = Math.round(baseSalary * 0.35);
-  else if (sim.tax_approach === "tax-protection") taxCost = Math.round(baseSalary * 0.28);
-  else taxCost = Math.round(baseSalary * 0.22);
+  const taxRate = TAX_RATE_MAP[sim.tax_approach] ?? 0.22;
+  const baseTaxCost = Math.round(baseSalary * taxRate);
+  // Apply gross-up multiplier to the base tax cost
+  const taxCost = Math.round(baseTaxCost * grossUpMultiplier);
 
   const lines: BenefitLine[] = [
     { id: "base", category: "Compensation", label: "Base Salary", amount: baseSalary, isOverridden: false, originalAmount: baseSalary },
     { id: "cola", category: "Compensation", label: "COLA Adjustment", amount: Math.round(cola), isOverridden: false, originalAmount: Math.round(cola) },
     { id: "fx", category: "Compensation", label: "FX Rate Buffer", amount: Math.round(fxBuffer), isOverridden: false, originalAmount: Math.round(fxBuffer) },
     { id: "housing", category: "Allowances", label: "Housing Allowance", amount: Math.round(housingTotal), isOverridden: false, originalAmount: Math.round(housingTotal) },
-    { id: "tax", category: "Tax & Social", label: "Estimated Tax Costs", amount: taxCost, isOverridden: false, originalAmount: taxCost },
+    { id: "tax", category: "Tax & Social", label: "Tax Costs (incl. Gross-Up)", amount: taxCost, isOverridden: false, originalAmount: taxCost },
     { id: "relocation", category: "Relocation", label: "Relocation Lump Sum", amount: relocation, isOverridden: false, originalAmount: relocation },
   ];
 
@@ -79,12 +80,13 @@ interface SimulationDetailProps {
 }
 
 export default function SimulationDetail({ simulation, onBack }: SimulationDetailProps) {
+  const { grossUpMultiplier } = useTaxConfig();
   const [scenarios, setScenarios] = useState<Scenario[]>(() => [
     {
       id: "primary",
       name: simulation.employee_name || "Primary Scenario",
       currency: simulation.currency || "USD",
-      benefits: generateBenefits(simulation),
+      benefits: generateBenefits(simulation, grossUpMultiplier),
     },
   ]);
 

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import KPICard from "@/components/KPICard";
 import { Globe, FileCheck, AlertTriangle, CheckCircle, Info } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
@@ -7,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
+import { useTaxConfig, type TaxTreatment, type GrossUpMode } from "@/contexts/TaxConfigContext";
 
 const countryPairs = [
   { home: "United States", host: "United Kingdom", treaty: "Yes", status: "Validated", scenarios: 42 },
@@ -19,9 +19,6 @@ const countryPairs = [
   { home: "France", host: "Canada", treaty: "Yes", status: "Validated", scenarios: 7 },
 ];
 
-type TaxTreatment = "equalized" | "protected" | "employee_borne" | "laissez_faire";
-type GrossUpMode = "standard" | "selective" | "none";
-
 const taxTreatmentInfo: Record<TaxTreatment, { label: string; desc: string }> = {
   equalized: { label: "Tax Equalized", desc: "Company bears the difference between home and host tax so the assignee pays only hypothetical home tax." },
   protected: { label: "Tax Protected", desc: "Assignee never pays more than home-country tax; savings in lower-tax hosts go to the employee." },
@@ -30,14 +27,16 @@ const taxTreatmentInfo: Record<TaxTreatment, { label: string; desc: string }> = 
 };
 
 export default function TaxEngine() {
-  const [taxTreatment, setTaxTreatment] = useState<TaxTreatment>("equalized");
-  const [grossUpMode, setGrossUpMode] = useState<GrossUpMode>("standard");
-  const [includeSocialSecurity, setIncludeSocialSecurity] = useState(true);
-  const [includeHousingInGrossUp, setIncludeHousingInGrossUp] = useState(true);
-  const [includeEducationInGrossUp, setIncludeEducationInGrossUp] = useState(false);
-  const [includeColaInGrossUp, setIncludeColaInGrossUp] = useState(true);
-  const [hypoTaxMethod, setHypoTaxMethod] = useState("marginal");
-  const [equalizationSettlement, setEqualizationSettlement] = useState("annual");
+  const {
+    taxTreatment, setTaxTreatment,
+    grossUpMode, setGrossUpMode,
+    includeSocialSecurity, setIncludeSocialSecurity,
+    includeHousingInGrossUp, setIncludeHousingInGrossUp,
+    includeEducationInGrossUp, setIncludeEducationInGrossUp,
+    includeColaInGrossUp, setIncludeColaInGrossUp,
+    hypoTaxMethod, setHypoTaxMethod,
+    equalizationSettlement, setEqualizationSettlement,
+  } = useTaxConfig();
 
   return (
     <div className="space-y-6">
