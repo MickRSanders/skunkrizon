@@ -20,6 +20,7 @@ import {
   Check,
   Database,
   Cable,
+  ClipboardList,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -47,6 +48,7 @@ const settingsMenuItems = [
   { to: "/tax-engine", icon: Globe, label: "Tax Engine" },
   { to: "/users", icon: Users, label: "User Management" },
   { to: "/tenants", icon: Building2, label: "Organizations" },
+  { to: "/audit-log", icon: ClipboardList, label: "Audit Log" },
 ];
 
 export default function AppSidebar() {

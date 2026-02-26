@@ -24,6 +24,7 @@ import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import RolesPermissions from "./pages/RolesPermissions";
 import ProfilePage from "./pages/ProfilePage";
+import AuditLog from "./pages/AuditLog";
 
 const queryClient = new QueryClient();
 
@@ -53,6 +54,7 @@ const App = () => (
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/settings/roles" element={<RolesPermissions />} />
               <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/audit-log" element={<AuditLog />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
