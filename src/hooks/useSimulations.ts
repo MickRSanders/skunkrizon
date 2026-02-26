@@ -94,3 +94,20 @@ export function useCreateSimulation() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["simulations"] }),
   });
 }
+
+export function useUpdateSimulation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string } & Partial<TablesInsert<"simulations">>) => {
+      const { data, error } = await supabase
+        .from("simulations")
+        .update(updates)
+        .eq("id", id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["simulations"] }),
+  });
+}

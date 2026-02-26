@@ -14,10 +14,13 @@ import {
   TrendingUp,
   LayoutGrid,
   List,
+  Pencil,
+  Check,
+  X,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { useSimulations, useCreateSimulation } from "@/hooks/useSimulations";
+import { useSimulations, useCreateSimulation, useUpdateSimulation } from "@/hooks/useSimulations";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import type { SimulationFormData } from "@/components/SimulationForm";
 import { format } from "date-fns";
@@ -34,8 +37,11 @@ export default function Simulations() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const { data: simulations, isLoading } = useSimulations();
   const createSimulation = useCreateSimulation();
+  const updateSimulation = useUpdateSimulation();
   const currentTenant = useCurrentTenant();
   const tenantId = currentTenant.data?.tenant_id ?? null;
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   const selectedSim = simulations?.find((s) => s.id === selectedSimId) ?? null;
 
@@ -84,6 +90,29 @@ export default function Simulations() {
     } catch (err: any) {
       toast.error(err.message || "Failed to create simulation");
     }
+  };
+
+  const startRename = (sim: { id: string; employee_name: string }, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRenamingId(sim.id);
+    setRenameValue(sim.employee_name);
+  };
+
+  const confirmRename = async (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (!renamingId || !renameValue.trim()) return;
+    try {
+      await updateSimulation.mutateAsync({ id: renamingId, employee_name: renameValue.trim() });
+      toast.success("Simulation renamed");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to rename");
+    }
+    setRenamingId(null);
+  };
+
+  const cancelRename = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setRenamingId(null);
   };
 
   if (selectedSim) {
@@ -209,7 +238,30 @@ export default function Simulations() {
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1 min-w-0">
                   <p className="font-mono text-[10px] text-muted-foreground tracking-wider mb-1">{sim.sim_code}</p>
-                  <h3 className="text-base font-semibold text-foreground truncate">{sim.employee_name}</h3>
+                  {renamingId === sim.id ? (
+                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        autoFocus
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") confirmRename(); if (e.key === "Escape") cancelRename(); }}
+                        className="text-base font-semibold text-foreground bg-transparent border-b border-accent outline-none w-full"
+                      />
+                      <button onClick={confirmRename} className="p-1 rounded hover:bg-muted text-accent"><Check className="w-3.5 h-3.5" /></button>
+                      <button onClick={cancelRename} className="p-1 rounded hover:bg-muted text-muted-foreground"><X className="w-3.5 h-3.5" /></button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1 group/name">
+                      <h3 className="text-base font-semibold text-foreground truncate">{sim.employee_name}</h3>
+                      <button
+                        onClick={(e) => startRename(sim, e)}
+                        className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover/name:opacity-100 transition-opacity"
+                        title="Rename"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <StatusBadge status={sim.status} />
               </div>
@@ -268,7 +320,32 @@ export default function Simulations() {
                   onClick={() => setSelectedSimId(sim.id)}
                 >
                   <td className="px-5 py-3.5 font-mono text-xs text-accent">{sim.sim_code}</td>
-                  <td className="px-5 py-3.5 font-medium text-foreground">{sim.employee_name}</td>
+                  <td className="px-5 py-3.5 font-medium text-foreground">
+                    {renamingId === sim.id ? (
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          autoFocus
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") confirmRename(); if (e.key === "Escape") cancelRename(); }}
+                          className="font-medium text-foreground bg-transparent border-b border-accent outline-none w-full"
+                        />
+                        <button onClick={confirmRename} className="p-1 rounded hover:bg-muted text-accent"><Check className="w-3.5 h-3.5" /></button>
+                        <button onClick={cancelRename} className="p-1 rounded hover:bg-muted text-muted-foreground"><X className="w-3.5 h-3.5" /></button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1 group/name">
+                        <span>{sim.employee_name}</span>
+                        <button
+                          onClick={(e) => startRename(sim, e)}
+                          className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover/name:opacity-100 transition-opacity"
+                          title="Rename"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+                  </td>
                   <td className="px-5 py-3.5 text-muted-foreground text-xs">
                     <div className="flex items-center gap-1">
                       {sim.origin_city ? `${sim.origin_city}, ` : ""}{sim.origin_country}
