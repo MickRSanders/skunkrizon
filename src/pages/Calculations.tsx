@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,11 +52,13 @@ import {
 import type { Json } from "@/integrations/supabase/types";
 import { evaluateFormula, type EvalResult } from "@/lib/formulaEngine";
 import { useFieldLibrary, useCreateFieldLibraryItem, type FieldLibraryItem } from "@/hooks/useFieldLibrary";
+import { useCalcUsageMap } from "@/hooks/useCrossReferences";
 
 export default function Calculations() {
   const { user } = useAuth();
   const { data: currentTenant } = useCurrentTenant();
   const { data: calculations, isLoading } = useCalculations();
+  const calcUsageMap = useCalcUsageMap();
   const [editingCalc, setEditingCalc] = useState<Calculation | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -126,6 +129,7 @@ export default function Calculations() {
             <CalcCard
               key={calc.id}
               calc={calc}
+              usage={calcUsageMap.get(calc.id)}
               onEdit={() => setEditingCalc(calc)}
             />
           ))}
@@ -148,11 +152,17 @@ export default function Calculations() {
 
 function CalcCard({
   calc,
+  usage,
   onEdit,
 }: {
   calc: Calculation;
+  usage?: import("@/hooks/useCrossReferences").CalcUsage;
   onEdit: () => void;
 }) {
+  const uniquePolicies = usage
+    ? [...new Map(usage.policies.map((p) => [p.id, p])).values()]
+    : [];
+
   return (
     <div className="bg-card rounded-lg border border-border p-5 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between mb-3">
@@ -176,6 +186,16 @@ function CalcCard({
           {calc.formula || "No formula defined"}
         </code>
       </div>
+      {uniquePolicies.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-3">
+          {uniquePolicies.map((p) => (
+            <span key={p.id} className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-primary/10 text-primary font-medium">
+              <FileText className="w-2.5 h-2.5" />
+              {p.policyName}
+            </span>
+          ))}
+        </div>
+      )}
       <div className="flex items-center gap-1 pt-2 border-t border-border">
         <Button variant="ghost" size="sm" onClick={onEdit} className="text-xs gap-1">
           <Edit className="w-3.5 h-3.5" /> Edit Formula
