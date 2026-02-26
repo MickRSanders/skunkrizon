@@ -39,6 +39,7 @@ import {
   useUpdateField,
   useDeleteField,
   useUpsertDataSource,
+  useLookupTables,
   type Calculation,
   type CalculationField,
 } from "@/hooks/useCalculations";
@@ -269,6 +270,7 @@ function CalculationEditor({
   const { data: fieldsData, isLoading: loadingFields } = useCalculationFields(calculation.id);
   const { data: allFieldsData } = useAllCalculationFields();
   const { data: allCalcs } = useCalculations();
+  const { data: lookupTables } = useLookupTables();
   const createField = useCreateField();
   const deleteField = useDeleteField();
   const updateCalc = useUpdateCalculation();
@@ -319,7 +321,12 @@ function CalculationEditor({
 
   const handleSaveFormula = async () => {
     const formula = blocks
-      .map((b) => (b.type === "field" ? b.value : b.value))
+      .map((b) => {
+        if (b.type === "lookup" && b.lookupMeta) {
+          return `LOOKUP("${b.lookupMeta.tableName}", "${b.lookupMeta.keyColumn}", "${b.lookupMeta.valueColumn}", ${b.lookupMeta.keyFieldName})`;
+        }
+        return b.type === "field" ? b.value : b.value;
+      })
       .join(" ");
     try {
       await updateCalc.mutateAsync({ id: calculation.id, formula });
@@ -386,6 +393,8 @@ function CalculationEditor({
               blocks={blocks}
               onChange={setBlocks}
               fields={fields}
+              allFields={allFields}
+              lookupTables={lookupTables || []}
               onAddField={() => setShowAddField(true)}
               onEditField={(field) => setShowDataSource(field)}
             />
