@@ -81,6 +81,9 @@ function generateBenefits(sim: any, grossUpMultiplier: number): BenefitLine[] {
 const formatCurrency = (amount: number, currency: string) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
 
+const formatNumber = (amount: number) =>
+  new Intl.NumberFormat("en-US").format(amount);
+
 interface SimulationDetailProps {
   simulation: any;
   onBack: () => void;

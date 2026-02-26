@@ -67,7 +67,7 @@ export default function Simulations() {
         (Number(formData.housingCap || 0) * Number(formData.durationMonths)) +
         (formData.includeRelocationLumpSum ? Number(formData.relocationLumpSum || 0) : 0);
 
-      await createSimulation.mutateAsync({
+      const newSim = await createSimulation.mutateAsync({
         employee_name: formData.scenarioName,
         base_salary: Number(formData.baseSalary),
         currency: formData.currency,
@@ -94,6 +94,7 @@ export default function Simulations() {
       } as any);
       setShowForm(false);
       toast.success(`Simulation "${formData.scenarioName}" created`);
+      setSelectedSimId(newSim.id);
     } catch (err: any) {
       toast.error(err.message || "Failed to create simulation");
     }
