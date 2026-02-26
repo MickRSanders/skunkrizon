@@ -22,6 +22,7 @@ import {
   Check,
   X,
   Trash2,
+  Play,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -292,6 +293,23 @@ export default function Simulations() {
               </div>
 
               <div className="flex items-center gap-1 mt-3 pt-3 border-t border-border/50" onClick={(e) => e.stopPropagation()}>
+                {sim.status === "draft" && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        await updateSimulation.mutateAsync({ id: sim.id, status: "running" as any });
+                        setSelectedSimId(sim.id);
+                        toast.success("Simulation running");
+                      } catch (err: any) {
+                        toast.error(err.message || "Failed to run simulation");
+                      }
+                    }}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-accent/10 hover:bg-accent/20 transition-colors text-accent text-xs font-medium"
+                    title="Run Simulation"
+                  >
+                    <Play className="w-3 h-3" /> Run
+                  </button>
+                )}
                 <button className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Clone">
                   <Copy className="w-3.5 h-3.5" />
                 </button>
@@ -375,6 +393,23 @@ export default function Simulations() {
                   <td className="px-5 py-3.5"><StatusBadge status={sim.status} /></td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      {sim.status === "draft" && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              await updateSimulation.mutateAsync({ id: sim.id, status: "running" as any });
+                              setSelectedSimId(sim.id);
+                              toast.success("Simulation running");
+                            } catch (err: any) {
+                              toast.error(err.message || "Failed to run simulation");
+                            }
+                          }}
+                          className="flex items-center gap-1 px-2 py-1 rounded-md bg-accent/10 hover:bg-accent/20 transition-colors text-accent text-xs font-medium"
+                          title="Run Simulation"
+                        >
+                          <Play className="w-3 h-3" /> Run
+                        </button>
+                      )}
                       <button className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Clone"><Copy className="w-3.5 h-3.5" /></button>
                       <button className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Export"><Download className="w-3.5 h-3.5" /></button>
                       {sim.status === "draft" && (
