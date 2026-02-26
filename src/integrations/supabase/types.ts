@@ -67,6 +67,7 @@ export type Database = {
           formula: string
           id: string
           name: string
+          sub_tenant_id: string | null
           tenant_id: string | null
           updated_at: string
         }
@@ -78,6 +79,7 @@ export type Database = {
           formula: string
           id?: string
           name: string
+          sub_tenant_id?: string | null
           tenant_id?: string | null
           updated_at?: string
         }
@@ -89,10 +91,18 @@ export type Database = {
           formula?: string
           id?: string
           name?: string
+          sub_tenant_id?: string | null
           tenant_id?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "calculations_sub_tenant_id_fkey"
+            columns: ["sub_tenant_id"]
+            isOneToOne: false
+            referencedRelation: "sub_tenants"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "calculations_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -202,6 +212,7 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          sub_tenant_id: string | null
           tenant_id: string | null
           updated_at: string
         }
@@ -212,6 +223,7 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          sub_tenant_id?: string | null
           tenant_id?: string | null
           updated_at?: string
         }
@@ -222,10 +234,18 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          sub_tenant_id?: string | null
           tenant_id?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "lookup_tables_sub_tenant_id_fkey"
+            columns: ["sub_tenant_id"]
+            isOneToOne: false
+            referencedRelation: "sub_tenants"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "lookup_tables_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -244,6 +264,7 @@ export type Database = {
           id: string
           name: string
           status: string
+          sub_tenant_id: string | null
           tax_approach: string | null
           tenant_id: string | null
           tier: string
@@ -257,6 +278,7 @@ export type Database = {
           id?: string
           name: string
           status?: string
+          sub_tenant_id?: string | null
           tax_approach?: string | null
           tenant_id?: string | null
           tier?: string
@@ -270,12 +292,20 @@ export type Database = {
           id?: string
           name?: string
           status?: string
+          sub_tenant_id?: string | null
           tax_approach?: string | null
           tenant_id?: string | null
           tier?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "policies_sub_tenant_id_fkey"
+            columns: ["sub_tenant_id"]
+            isOneToOne: false
+            referencedRelation: "sub_tenants"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "policies_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -349,6 +379,7 @@ export type Database = {
           sim_code: string
           start_date: string | null
           status: Database["public"]["Enums"]["simulation_status"]
+          sub_tenant_id: string | null
           tax_approach: string | null
           tenant_id: string | null
           total_cost: number | null
@@ -384,6 +415,7 @@ export type Database = {
           sim_code?: string
           start_date?: string | null
           status?: Database["public"]["Enums"]["simulation_status"]
+          sub_tenant_id?: string | null
           tax_approach?: string | null
           tenant_id?: string | null
           total_cost?: number | null
@@ -419,6 +451,7 @@ export type Database = {
           sim_code?: string
           start_date?: string | null
           status?: Database["public"]["Enums"]["simulation_status"]
+          sub_tenant_id?: string | null
           tax_approach?: string | null
           tenant_id?: string | null
           total_cost?: number | null
@@ -430,6 +463,13 @@ export type Database = {
             columns: ["policy_id"]
             isOneToOne: false
             referencedRelation: "policies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "simulations_sub_tenant_id_fkey"
+            columns: ["sub_tenant_id"]
+            isOneToOne: false
+            referencedRelation: "sub_tenants"
             referencedColumns: ["id"]
           },
           {
