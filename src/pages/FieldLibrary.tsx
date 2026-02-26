@@ -27,6 +27,8 @@ import {
   Loader2,
   BookOpen,
   Layers,
+  FunctionSquare,
+  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -38,6 +40,7 @@ import {
   type FieldLibraryItem,
 } from "@/hooks/useFieldLibrary";
 import { useLookupTables, type LookupTable } from "@/hooks/useCalculations";
+import { useFieldUsageMap, type FieldUsage } from "@/hooks/useCrossReferences";
 import type { Json } from "@/integrations/supabase/types";
 
 const SOURCE_LABELS: Record<string, { label: string; icon: typeof Database; color: string }> = {
@@ -65,6 +68,7 @@ export default function FieldLibrary() {
   const { user } = useAuth();
   const { data: fields, isLoading } = useFieldLibrary();
   const { data: lookupTables } = useLookupTables();
+  const fieldUsageMap = useFieldUsageMap();
   const [searchTerm, setSearchTerm] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingField, setEditingField] = useState<FieldLibraryItem | null>(null);
@@ -123,7 +127,7 @@ export default function FieldLibrary() {
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Field</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Type</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Data Source</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Source Detail</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Used In</th>
                 <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -133,6 +137,7 @@ export default function FieldLibrary() {
                   key={field.id}
                   field={field}
                   lookupTables={lookupTables || []}
+                  usage={fieldUsageMap.get(field.name)}
                   onEdit={() => openEdit(field)}
                 />
               ))}
@@ -166,28 +171,17 @@ export default function FieldLibrary() {
 function FieldRow({
   field,
   lookupTables,
+  usage,
   onEdit,
 }: {
   field: FieldLibraryItem;
   lookupTables: LookupTable[];
+  usage?: FieldUsage;
   onEdit: () => void;
 }) {
   const deleteField = useDeleteFieldLibraryItem();
   const source = SOURCE_LABELS[field.source_type] || SOURCE_LABELS.manual;
   const Icon = source.icon;
-
-  const sourceDetail = (() => {
-    if (field.source_type === "database" && field.db_table && field.db_column) {
-      return `${field.db_table}.${field.db_column}`;
-    }
-    if (field.source_type === "lookup" && field.lookup_table_id) {
-      const lt = lookupTables.find((t) => t.id === field.lookup_table_id);
-      return lt
-        ? `${lt.name} → ${field.lookup_value_column || "?"} (key: ${field.lookup_key_column || "?"})`
-        : "Lookup table (deleted)";
-    }
-    return "—";
-  })();
 
   const handleDelete = async () => {
     try {
@@ -197,6 +191,8 @@ function FieldRow({
       toast.error(err.message || "Failed to delete");
     }
   };
+
+  const hasUsage = usage && (usage.calculations.length > 0 || usage.policyBenefits.length > 0);
 
   return (
     <tr className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
@@ -219,7 +215,24 @@ function FieldRow({
         </div>
       </td>
       <td className="px-5 py-3">
-        <code className="text-xs font-mono text-muted-foreground">{sourceDetail}</code>
+        {hasUsage ? (
+          <div className="flex flex-wrap gap-1">
+            {usage!.calculations.map((c) => (
+              <span key={c.id} className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-accent/10 text-accent font-medium">
+                <FunctionSquare className="w-2.5 h-2.5" />
+                {c.name}
+              </span>
+            ))}
+            {usage!.policyBenefits.map((p, i) => (
+              <span key={`${p.id}-${i}`} className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-primary/10 text-primary font-medium">
+                <FileText className="w-2.5 h-2.5" />
+                {p.policyName}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        )}
       </td>
       <td className="px-5 py-3 text-right">
         <div className="flex items-center justify-end gap-1">
