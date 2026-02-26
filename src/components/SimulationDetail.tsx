@@ -327,7 +327,10 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
           <div className="flex items-end justify-between">
             <div>
               <p className="text-primary-foreground/50 font-mono text-xs tracking-wider mb-1">{simulation.sim_code}</p>
-              <h1 className="text-2xl font-bold text-primary-foreground tracking-tight">{simulation.employee_name}</h1>
+              <h1 className="text-2xl font-bold text-primary-foreground tracking-tight">
+                {simulation.origin_city || simulation.origin_country} → {simulation.destination_city || simulation.destination_country}
+                {simulation.start_date && ` · ${format(new Date(simulation.start_date), "MMM yyyy")}`}
+              </h1>
               <div className="flex items-center gap-4 mt-3 text-sm text-primary-foreground/70">
                 <div className="flex items-center gap-1.5">
                   <Globe className="w-3.5 h-3.5" />

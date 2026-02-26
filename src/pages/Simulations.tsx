@@ -9,7 +9,6 @@ import {
 import {
   Plus,
   Search,
-  ArrowRight,
   Copy,
   Download,
   Loader2,
@@ -18,9 +17,6 @@ import {
   TrendingUp,
   LayoutGrid,
   List,
-  Pencil,
-  Check,
-  X,
   Trash2,
   Play,
 } from "lucide-react";
@@ -36,6 +32,13 @@ const formatCurrency = (amount: number | null, currency = "USD") => {
   return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
 };
 
+const getSimTitle = (sim: { origin_city?: string | null; origin_country: string; destination_city?: string | null; destination_country: string; start_date?: string | null }) => {
+  const origin = sim.origin_city ? `${sim.origin_city}` : sim.origin_country;
+  const dest = sim.destination_city ? `${sim.destination_city}` : sim.destination_country;
+  const date = sim.start_date ? format(new Date(sim.start_date), "MMM yyyy") : "";
+  return date ? `${origin} → ${dest} · ${date}` : `${origin} → ${dest}`;
+};
+
 export default function Simulations() {
   const [showForm, setShowForm] = useState(false);
   const [selectedSimId, setSelectedSimId] = useState<string | null>(null);
@@ -47,18 +50,17 @@ export default function Simulations() {
   const deleteSimulation = useDeleteSimulation();
   const currentTenant = useCurrentTenant();
   const tenantId = currentTenant.data?.tenant_id ?? null;
-  const [renamingId, setRenamingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
-  const [renameValue, setRenameValue] = useState("");
 
   const selectedSim = simulations?.find((s) => s.id === selectedSimId) ?? null;
 
   const filtered = (simulations ?? []).filter(
     (s) =>
-      s.employee_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.sim_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.origin_country.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.destination_country.toLowerCase().includes(searchQuery.toLowerCase())
+      s.destination_country.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.origin_city || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.destination_city || "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleCreate = async (formData: SimulationFormData) => {
@@ -101,28 +103,6 @@ export default function Simulations() {
     }
   };
 
-  const startRename = (sim: { id: string; employee_name: string }, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setRenamingId(sim.id);
-    setRenameValue(sim.employee_name);
-  };
-
-  const confirmRename = async (e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    if (!renamingId || !renameValue.trim()) return;
-    try {
-      await updateSimulation.mutateAsync({ id: renamingId, employee_name: renameValue.trim() });
-      toast.success("Simulation renamed");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to rename");
-    }
-    setRenamingId(null);
-  };
-
-  const cancelRename = (e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    setRenamingId(null);
-  };
 
   if (selectedSim) {
     return <SimulationDetail simulation={selectedSim} onBack={() => setSelectedSimId(null)} />;
@@ -247,38 +227,21 @@ export default function Simulations() {
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1 min-w-0">
                   <p className="font-mono text-[10px] text-muted-foreground tracking-wider mb-1">{sim.sim_code}</p>
-                  {renamingId === sim.id ? (
-                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        autoFocus
-                        value={renameValue}
-                        onChange={(e) => setRenameValue(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") confirmRename(); if (e.key === "Escape") cancelRename(); }}
-                        className="text-base font-semibold text-foreground bg-transparent border-b border-accent outline-none w-full"
-                      />
-                      <button onClick={confirmRename} className="p-1 rounded hover:bg-muted text-accent"><Check className="w-3.5 h-3.5" /></button>
-                      <button onClick={cancelRename} className="p-1 rounded hover:bg-muted text-muted-foreground"><X className="w-3.5 h-3.5" /></button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1 group/name">
-                      <h3 className="text-base font-semibold text-foreground truncate">{sim.employee_name}</h3>
-                      <button
-                        onClick={(e) => startRename(sim, e)}
-                        className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover/name:opacity-100 transition-opacity"
-                        title="Rename"
-                      >
-                        <Pencil className="w-3 h-3" />
-                      </button>
-                    </div>
-                  )}
+                  <h3 className="text-base font-semibold text-foreground truncate">{getSimTitle(sim)}</h3>
                 </div>
                 <StatusBadge status={sim.status} />
               </div>
 
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-4">
-                <span className="truncate">{sim.origin_city ? `${sim.origin_city}, ` : ""}{sim.origin_country}</span>
-                <ArrowRight className="w-3 h-3 text-accent shrink-0" />
-                <span className="truncate">{sim.destination_city ? `${sim.destination_city}, ` : ""}{sim.destination_country}</span>
+                <span>{sim.assignment_type}</span>
+                <span>·</span>
+                <span>{sim.duration_months}mo</span>
+                {sim.start_date && (
+                  <>
+                    <span>·</span>
+                    <span>{format(new Date(sim.start_date), "MMM yyyy")}</span>
+                  </>
+                )}
               </div>
 
               <div className="flex items-center justify-between pt-3 border-t border-border">
@@ -318,7 +281,7 @@ export default function Simulations() {
                 </button>
                 {sim.status === "draft" && (
                   <button
-                    onClick={() => setDeleteTarget({ id: sim.id, name: sim.employee_name })}
+                    onClick={() => setDeleteTarget({ id: sim.id, name: getSimTitle(sim) })}
                     className="p-1.5 rounded-md hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
                     title="Delete"
                   >
@@ -339,8 +302,8 @@ export default function Simulations() {
             <thead>
               <tr className="border-b border-border bg-muted/30">
                 <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">ID</th>
-                <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Scenario</th>
-                <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Route</th>
+                <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Simulation</th>
+                
                 <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Duration</th>
                 <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Cost</th>
                 <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
@@ -356,37 +319,7 @@ export default function Simulations() {
                 >
                   <td className="px-5 py-3.5 font-mono text-xs text-accent">{sim.sim_code}</td>
                   <td className="px-5 py-3.5 font-medium text-foreground">
-                    {renamingId === sim.id ? (
-                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          autoFocus
-                          value={renameValue}
-                          onChange={(e) => setRenameValue(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === "Enter") confirmRename(); if (e.key === "Escape") cancelRename(); }}
-                          className="font-medium text-foreground bg-transparent border-b border-accent outline-none w-full"
-                        />
-                        <button onClick={confirmRename} className="p-1 rounded hover:bg-muted text-accent"><Check className="w-3.5 h-3.5" /></button>
-                        <button onClick={cancelRename} className="p-1 rounded hover:bg-muted text-muted-foreground"><X className="w-3.5 h-3.5" /></button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1 group/name">
-                        <span>{sim.employee_name}</span>
-                        <button
-                          onClick={(e) => startRename(sim, e)}
-                          className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground opacity-0 group-hover/name:opacity-100 transition-opacity"
-                          title="Rename"
-                        >
-                          <Pencil className="w-3 h-3" />
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-5 py-3.5 text-muted-foreground text-xs">
-                    <div className="flex items-center gap-1">
-                      {sim.origin_city ? `${sim.origin_city}, ` : ""}{sim.origin_country}
-                      <ArrowRight className="w-3 h-3 text-accent" />
-                      {sim.destination_city ? `${sim.destination_city}, ` : ""}{sim.destination_country}
-                    </div>
+                    <span>{getSimTitle(sim)}</span>
                   </td>
                   <td className="px-5 py-3.5 text-muted-foreground">{sim.duration_months}mo</td>
                   <td className="px-5 py-3.5 font-semibold text-foreground">{formatCurrency(sim.total_cost, sim.currency)}</td>
@@ -414,7 +347,7 @@ export default function Simulations() {
                       <button className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Export"><Download className="w-3.5 h-3.5" /></button>
                       {sim.status === "draft" && (
                         <button
-                          onClick={() => setDeleteTarget({ id: sim.id, name: sim.employee_name })}
+                          onClick={() => setDeleteTarget({ id: sim.id, name: getSimTitle(sim) })}
                           className="p-1.5 rounded hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
                           title="Delete"
                         >
