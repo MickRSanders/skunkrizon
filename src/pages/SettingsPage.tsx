@@ -3,7 +3,7 @@ import { Settings as SettingsIcon, Shield, Database, Globe, Bell } from "lucide-
 const settingSections = [
   { icon: Shield, title: "Security & SSO", desc: "Configure SSO providers, MFA, and session policies", items: ["SAML/OAuth2 SSO", "Multi-Factor Authentication", "Session Timeout", "IP Allowlisting"] },
   { icon: Database, title: "Data & Storage", desc: "Database, encryption, and backup settings", items: ["Encryption at Rest", "Backup Schedule", "Data Retention", "Export Settings"] },
-  { icon: Globe, title: "Multi-Tenant Configuration", desc: "Tenant onboarding, isolation, and resource allocation", items: ["Tenant Provisioning", "Data Isolation", "Resource Limits", "Feature Flags"] },
+  { icon: Globe, title: "Multi-Organization Configuration", desc: "Organization onboarding, isolation, and resource allocation", items: ["Organization Provisioning", "Data Isolation", "Resource Limits", "Feature Flags"] },
   { icon: Bell, title: "Notifications", desc: "Email and in-app notification preferences", items: ["Simulation Completed", "Policy Changes", "User Activity Alerts", "System Maintenance"] },
 ];
 

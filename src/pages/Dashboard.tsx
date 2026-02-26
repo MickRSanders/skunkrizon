@@ -92,7 +92,7 @@ export default function Dashboard() {
               {activeSubTenant.name}
             </span>
             <Badge variant="outline" className="text-xs">
-              Active Sub-tenant
+              Active Sub-organization
             </Badge>
           </div>
           {counts && (
