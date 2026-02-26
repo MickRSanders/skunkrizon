@@ -309,5 +309,21 @@ export function useTripDetail(tripId: string | undefined) {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  return { segments: segmentsQuery, assessments: assessmentsQuery, addSegment, updateSegment, deleteSegment };
+  const reorderSegments = useMutation({
+    mutationFn: async (orderedIds: string[]) => {
+      // Update each segment's segment_order in parallel
+      const updates = orderedIds.map((id, index) =>
+        supabase.from("trip_segments").update({ segment_order: index } as any).eq("id", id)
+      );
+      const results = await Promise.all(updates);
+      const firstError = results.find((r) => r.error);
+      if (firstError?.error) throw firstError.error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["trip_segments", tripId] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  return { segments: segmentsQuery, assessments: assessmentsQuery, addSegment, updateSegment, deleteSegment, reorderSegments };
 }
