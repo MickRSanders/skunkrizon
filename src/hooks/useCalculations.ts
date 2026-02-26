@@ -61,6 +61,20 @@ export function useDeleteCalculation() {
 
 // ─── Calculation Fields ────────────────────────────────────────
 
+export function useAllCalculationFields() {
+  return useQuery({
+    queryKey: ["calculation_fields", "all"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("calculation_fields")
+        .select("*, field_data_sources(*)")
+        .order("position");
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
 export function useCalculationFields(calculationId: string | null) {
   return useQuery({
     queryKey: ["calculation_fields", calculationId],
