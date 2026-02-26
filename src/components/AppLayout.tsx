@@ -3,7 +3,8 @@ import AppSidebar from "./AppSidebar";
 import Breadcrumbs from "./Breadcrumbs";
 import ThemeToggle from "./ThemeToggle";
 import PageTransition from "./PageTransition";
-import { Bell, Menu, User, X } from "lucide-react";
+import NotificationDropdown from "./NotificationDropdown";
+import { Menu, User, X } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -49,10 +50,7 @@ export default function AppLayout() {
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <button className="relative p-2 rounded-md hover:bg-muted transition-colors">
-              <Bell className="w-4 h-4 text-muted-foreground" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-accent" />
-            </button>
+            <NotificationDropdown />
             <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-border">
               <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
                 <User className="w-4 h-4 text-primary-foreground" />
