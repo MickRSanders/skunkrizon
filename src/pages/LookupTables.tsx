@@ -36,8 +36,40 @@ import {
   type LookupTable,
 } from "@/hooks/useCalculations";
 import type { Json } from "@/integrations/supabase/types";
+import * as XLSX from "xlsx";
 
-// ─── CSV/TSV file parser ──────────────────────────────────────
+// ─── File parser (CSV/TSV/Excel) ──────────────────────────────
+function parseFileData(
+  file: File,
+  onParsed: (result: { headers: string[]; rows: Record<string, string>[] }) => void
+) {
+  const isExcel = /\.(xlsx?|xls)$/i.test(file.name);
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    if (isExcel) {
+      const data = new Uint8Array(ev.target?.result as ArrayBuffer);
+      const wb = XLSX.read(data, { type: "array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const jsonRows = XLSX.utils.sheet_to_json<Record<string, any>>(ws, { defval: "" });
+      if (jsonRows.length === 0) return onParsed({ headers: [], rows: [] });
+      const headers = Object.keys(jsonRows[0]);
+      const rows = jsonRows.map((r) => {
+        const row: Record<string, string> = {};
+        headers.forEach((h) => (row[h] = String(r[h] ?? "")));
+        return row;
+      });
+      onParsed({ headers, rows });
+    } else {
+      const text = ev.target?.result as string;
+      if (!text) return onParsed({ headers: [], rows: [] });
+      onParsed(parseDelimitedText(text));
+    }
+  };
+  if (isExcel) reader.readAsArrayBuffer(file);
+  else reader.readAsText(file);
+}
+
+// ─── CSV/TSV text parser ──────────────────────────────────────
 function parseDelimitedText(text: string): { headers: string[]; rows: Record<string, string>[] } {
   const lines = text.trim().split(/\r?\n/).filter(Boolean);
   if (lines.length === 0) return { headers: [], rows: [] };
@@ -262,28 +294,21 @@ function CreateLookupTable({
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string;
-      if (!text) return;
-      const { headers, rows } = parseDelimitedText(text);
+    parseFileData(file, ({ headers, rows }) => {
       if (headers.length === 0) return toast.error("Could not parse file headers");
 
-      // Auto-detect columns from file
       const detectedCols = headers.map((h) => ({
         name: h,
         type: guessColumnType(rows.map((r) => r[h] || "")),
       }));
       setColDefs(detectedCols);
 
-      // Build CSV text for preview
       const csvLines = [headers.join(","), ...rows.map((r) => headers.map((h) => r[h] || "").join(","))];
       setCsvData(csvLines.join("\n"));
 
-      if (!name) setName(file.name.replace(/\.(csv|tsv|txt)$/i, "").replace(/[_-]/g, " "));
+      if (!name) setName(file.name.replace(/\.(csv|tsv|txt|xlsx?|xls)$/i, "").replace(/[_-]/g, " "));
       toast.success(`Parsed ${rows.length} rows and ${headers.length} columns from file`);
-    };
-    reader.readAsText(file);
+    });
     e.target.value = "";
   };
 
@@ -346,17 +371,17 @@ function CreateLookupTable({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv,.tsv,.txt"
+                accept=".csv,.tsv,.txt,.xlsx,.xls"
                 onChange={handleFileUpload}
                 className="hidden"
               />
               <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="text-xs gap-1">
-                <FileUp className="w-3.5 h-3.5" /> Upload CSV / TSV File
+                <FileUp className="w-3.5 h-3.5" /> Upload CSV / Excel File
               </Button>
             </div>
           </div>
           <p className="text-[10px] text-muted-foreground">
-            Upload a file or paste CSV below. First row = headers. Uploading auto-detects columns.
+            Upload a CSV/Excel file or paste data below. First row = headers. Uploading auto-detects columns.
           </p>
           <textarea
             value={csvData}
@@ -465,18 +490,13 @@ function LookupTableEditor({
   const handleEditorFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string;
-      if (!text) return;
-      const { headers, rows: parsed } = parseDelimitedText(text);
+    parseFileData(file, ({ headers, rows: parsed }) => {
       if (headers.length === 0) return toast.error("Could not parse file");
       const csvLines = [headers.join(","), ...parsed.map((r) => headers.map((h) => r[h] || "").join(","))];
       setCsvImport(csvLines.join("\n"));
       setShowImport(true);
       toast.success(`Loaded ${parsed.length} rows from file — review and click Import`);
-    };
-    reader.readAsText(file);
+    });
     e.target.value = "";
   };
 
@@ -499,7 +519,7 @@ function LookupTableEditor({
           <input
             ref={editorFileRef}
             type="file"
-            accept=".csv,.tsv,.txt"
+            accept=".csv,.tsv,.txt,.xlsx,.xls"
             onChange={handleEditorFileUpload}
             className="hidden"
           />
