@@ -19,6 +19,7 @@ import {
   ChevronsUpDown,
   Check,
   Database,
+  Cable,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -41,6 +42,7 @@ const dataMenuItems = [
   { to: "/calculations", icon: FunctionSquare, label: "Calculations Engine" },
   { to: "/lookup-tables", icon: Table2, label: "Lookup Tables" },
   { to: "/field-library", icon: BookOpen, label: "Field Library" },
+  { to: "/data-sources", icon: Cable, label: "Data Sources" },
 ];
 
 export default function AppSidebar() {

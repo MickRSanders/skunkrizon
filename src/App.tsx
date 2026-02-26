@@ -19,6 +19,7 @@ import SettingsPage from "./pages/SettingsPage";
 import TenantManagement from "./pages/TenantManagement";
 import LookupTables from "./pages/LookupTables";
 import FieldLibrary from "./pages/FieldLibrary";
+import DataSources from "./pages/DataSources";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -46,6 +47,7 @@ const App = () => (
               <Route path="/tenants" element={<TenantManagement />} />
               <Route path="/lookup-tables" element={<LookupTables />} />
               <Route path="/field-library" element={<FieldLibrary />} />
+              <Route path="/data-sources" element={<DataSources />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />
