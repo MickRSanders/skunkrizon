@@ -312,7 +312,7 @@ export default function Dashboard() {
                 return (
                   <div
                     key={n.id}
-                    className={`flex items-start gap-3 p-2 rounded-md hover:bg-muted/30 transition-colors ${href ? "cursor-pointer" : ""}`}
+                    className={`group flex items-start gap-3 p-2 rounded-md hover:bg-muted/30 transition-colors ${href ? "cursor-pointer" : ""}`}
                     onClick={href ? () => navigate(href) : undefined}
                   >
                     <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
