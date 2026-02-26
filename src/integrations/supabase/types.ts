@@ -537,6 +537,59 @@ export type Database = {
           },
         ]
       }
+      tenant_tax_settings: {
+        Row: {
+          created_at: string
+          equalization_settlement: string
+          gross_up_mode: string
+          hypo_tax_method: string
+          id: string
+          include_cola_in_gross_up: boolean
+          include_education_in_gross_up: boolean
+          include_housing_in_gross_up: boolean
+          include_social_security: boolean
+          tax_treatment: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          equalization_settlement?: string
+          gross_up_mode?: string
+          hypo_tax_method?: string
+          id?: string
+          include_cola_in_gross_up?: boolean
+          include_education_in_gross_up?: boolean
+          include_housing_in_gross_up?: boolean
+          include_social_security?: boolean
+          tax_treatment?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          equalization_settlement?: string
+          gross_up_mode?: string
+          hypo_tax_method?: string
+          id?: string
+          include_cola_in_gross_up?: boolean
+          include_education_in_gross_up?: boolean
+          include_housing_in_gross_up?: boolean
+          include_social_security?: boolean
+          tax_treatment?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_tax_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_users: {
         Row: {
           created_at: string
