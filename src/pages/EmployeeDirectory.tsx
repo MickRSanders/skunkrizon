@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useEmployees, Employee } from "@/hooks/useEmployees";
 import { useEmployeeDependents, Dependent } from "@/hooks/useEmployeeDependents";
 import PageTransition from "@/components/PageTransition";
+import EmployeeImportDialog from "@/components/EmployeeImportDialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +46,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
+import { Upload } from "lucide-react";
 import { format } from "date-fns";
 
 function formatCurrency(v: number, currency = "USD") {
@@ -68,6 +70,7 @@ export default function EmployeeDirectory() {
   const [pageSize, setPageSize] = useState(25);
 
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   // Derive unique filter options
   const divisions = useMemo(() => [...new Set(employees.map((e) => e.division).filter(Boolean))].sort() as string[], [employees]);
@@ -113,11 +116,16 @@ export default function EmployeeDirectory() {
               {employees.length} active employees
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-muted-foreground" />
-            <span className="text-sm font-medium text-muted-foreground">
-              {filtered.length} shown
-            </span>
+          <div className="flex items-center gap-3">
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setImportOpen(true)}>
+              <Upload className="h-4 w-4" /> Import
+            </Button>
+            <div className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-muted-foreground" />
+              <span className="text-sm font-medium text-muted-foreground">
+                {filtered.length} shown
+              </span>
+            </div>
           </div>
         </div>
 
@@ -295,6 +303,7 @@ export default function EmployeeDirectory() {
           onOpenChange={(open) => !open && setSelectedEmployee(null)}
         />
       )}
+      <EmployeeImportDialog open={importOpen} onOpenChange={setImportOpen} />
     </PageTransition>
   );
 }
