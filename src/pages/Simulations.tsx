@@ -18,6 +18,7 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import { useSimulations, useCreateSimulation } from "@/hooks/useSimulations";
+import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import type { SimulationFormData } from "@/components/SimulationForm";
 import { format } from "date-fns";
 
@@ -33,6 +34,8 @@ export default function Simulations() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const { data: simulations, isLoading } = useSimulations();
   const createSimulation = useCreateSimulation();
+  const currentTenant = useCurrentTenant();
+  const tenantId = currentTenant.data?.tenant_id ?? null;
 
   const selectedSim = simulations?.find((s) => s.id === selectedSimId) ?? null;
 
@@ -73,7 +76,8 @@ export default function Simulations() {
         total_cost: Math.round(totalCost),
         notes: formData.notes || null,
         status: "draft",
-      });
+        tenant_id: tenantId,
+      } as any);
       setShowForm(false);
       toast.success(`Simulation "${formData.scenarioName}" created`);
     } catch (err: any) {
