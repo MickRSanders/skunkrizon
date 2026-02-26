@@ -43,17 +43,16 @@ import type { CalculationField, LookupTable } from "@/hooks/useCalculations";
 
 export interface FormulaBlock {
   id: string;
-  type: "field" | "operator" | "constant" | "paren" | "lookup";
+  type: "field" | "operator" | "constant" | "paren" | "lookup" | "func";
   value: string;
   fieldId?: string;
   label?: string;
-  /** For lookup blocks: serialized metadata */
   lookupMeta?: {
     tableId: string;
     tableName: string;
     keyColumn: string;
     valueColumn: string;
-    keyFieldName: string; // the field name used as key input
+    keyFieldName: string;
   };
 }
 
@@ -64,6 +63,23 @@ const OPERATORS = [
   { value: "/", label: "÷" },
   { value: "(", label: "(" },
   { value: ")", label: ")" },
+  { value: ",", label: "," },
+];
+
+const COMPARISON_OPS = [
+  { value: ">", label: ">" },
+  { value: ">=", label: "≥" },
+  { value: "<", label: "<" },
+  { value: "<=", label: "≤" },
+  { value: "==", label: "=" },
+  { value: "!=", label: "≠" },
+];
+
+const FUNCTIONS = [
+  { value: "IF", label: "IF()", hint: "IF(condition, then, else)" },
+  { value: "MIN", label: "MIN()", hint: "MIN(a, b, ...)" },
+  { value: "MAX", label: "MAX()", hint: "MAX(a, b, ...)" },
+  { value: "ROUND", label: "ROUND()", hint: "ROUND(value, decimals)" },
 ];
 
 interface FormulaBuilderProps {
@@ -124,8 +140,6 @@ export default function FormulaBuilder({
   };
 
   const activeBlock = blocks.find((b) => b.id === activeId);
-
-  // Combine fields for lookup key selection
   const availableFields = allFields && allFields.length > 0 ? allFields : fields;
 
   // Build formula string preview
@@ -134,7 +148,9 @@ export default function FormulaBuilder({
       if (b.type === "lookup" && b.lookupMeta) {
         return `LOOKUP("${b.lookupMeta.tableName}", "${b.lookupMeta.keyColumn}", "${b.lookupMeta.valueColumn}", ${b.lookupMeta.keyFieldName})`;
       }
-      return b.type === "field" ? b.label || b.value : b.value;
+      if (b.type === "field") return b.label || b.value;
+      if (b.type === "func") return b.value;
+      return b.value;
     })
     .join(" ");
 
@@ -176,6 +192,15 @@ export default function FormulaBuilder({
               {op.label}
             </button>
           ))}
+          {COMPARISON_OPS.map((op) => (
+            <button
+              key={op.value}
+              onClick={() => addBlock("operator", op.value)}
+              className="w-9 h-9 rounded-md border border-border bg-muted/30 flex items-center justify-center text-sm font-bold text-foreground hover:bg-muted transition-colors"
+            >
+              {op.label}
+            </button>
+          ))}
           <div className="flex items-center gap-1 ml-2">
             <Input
               placeholder="Constant..."
@@ -192,10 +217,23 @@ export default function FormulaBuilder({
             />
             <span className="text-xs text-muted-foreground">↵</span>
           </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {FUNCTIONS.map((fn) => (
+            <button
+              key={fn.value}
+              onClick={() => addBlock("func", fn.value)}
+              title={fn.hint}
+              className="flex items-center gap-1.5 px-3 h-9 rounded-md border border-chart-3/30 bg-chart-3/5 text-xs font-bold text-chart-3 hover:bg-chart-3/10 transition-colors"
+            >
+              <Calculator className="w-3.5 h-3.5" />
+              {fn.label}
+            </button>
+          ))}
           {lookupTables && lookupTables.length > 0 && (
             <button
               onClick={() => setShowLookupBuilder(!showLookupBuilder)}
-              className="flex items-center gap-1.5 px-3 h-9 rounded-md border border-primary/30 bg-primary/5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors ml-1"
+              className="flex items-center gap-1.5 px-3 h-9 rounded-md border border-primary/30 bg-primary/5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
             >
               <TableIcon className="w-3.5 h-3.5" />
               LOOKUP()
@@ -461,10 +499,22 @@ function BlockChip({
     );
   }
 
+  if (block.type === "func") {
+    return (
+      <span
+        className={`${base} bg-chart-3/10 text-chart-3 border border-chart-3/20 font-bold ${isDragging ? "shadow-lg ring-2 ring-chart-3/30" : ""}`}
+      >
+        <Calculator className="w-3 h-3" />
+        {block.value}
+      </span>
+    );
+  }
+
   if (block.type === "operator") {
+    const displayMap: Record<string, string> = { "*": "×", "/": "÷", ">=": "≥", "<=": "≤", "==": "=", "!=": "≠" };
     return (
       <span className={`${base} bg-muted text-foreground font-bold text-sm ${isDragging ? "shadow-lg" : ""}`}>
-        {block.value === "*" ? "×" : block.value === "/" ? "÷" : block.value}
+        {displayMap[block.value] || block.value}
       </span>
     );
   }
