@@ -440,17 +440,20 @@ function CalculationEditor({
 
   const handleSaveToLibrary = async (field: CalculationField) => {
     try {
+      // Extract data source config if present (joined via field_data_sources(*))
+      const ds = (field as any).field_data_sources?.[0] || (field as any).field_data_source;
+      const sourceType = ds?.source_type || "manual";
       await createLibraryItem.mutateAsync({
         name: field.name,
         label: field.label,
         description: null,
         field_type: field.field_type,
-        source_type: "manual",
-        db_table: null,
-        db_column: null,
-        lookup_table_id: null,
-        lookup_key_column: null,
-        lookup_value_column: null,
+        source_type: sourceType,
+        db_table: ds?.connector_config?.db_table ?? null,
+        db_column: ds?.connector_config?.db_column ?? null,
+        lookup_table_id: ds?.lookup_table_id ?? null,
+        lookup_key_column: ds?.lookup_key_column ?? null,
+        lookup_value_column: ds?.lookup_value_column ?? null,
         created_by: user?.id || "",
       });
       toast.success(`"${field.label}" saved to Field Library`);
