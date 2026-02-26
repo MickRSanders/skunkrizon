@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +21,7 @@ import {
   FileSpreadsheet,
   Pencil,
   X,
+  FileUp,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -35,6 +36,37 @@ import {
   type LookupTable,
 } from "@/hooks/useCalculations";
 import type { Json } from "@/integrations/supabase/types";
+
+// ─── CSV/TSV file parser ──────────────────────────────────────
+function parseDelimitedText(text: string): { headers: string[]; rows: Record<string, string>[] } {
+  const lines = text.trim().split(/\r?\n/).filter(Boolean);
+  if (lines.length === 0) return { headers: [], rows: [] };
+
+  // Detect delimiter: tab, semicolon, or comma
+  const firstLine = lines[0];
+  const delimiter = firstLine.includes("\t") ? "\t" : firstLine.includes(";") ? ";" : ",";
+
+  const headers = lines[0].split(delimiter).map((h) => h.trim().replace(/^["']|["']$/g, ""));
+  const rows = lines.slice(1).map((line) => {
+    const values = line.split(delimiter).map((v) => v.trim().replace(/^["']|["']$/g, ""));
+    const rowData: Record<string, string> = {};
+    headers.forEach((h, j) => {
+      rowData[h] = values[j] || "";
+    });
+    return rowData;
+  });
+  return { headers, rows };
+}
+
+function guessColumnType(values: string[]): string {
+  const sample = values.filter(Boolean).slice(0, 20);
+  if (sample.length === 0) return "text";
+  const allNumbers = sample.every((v) => !isNaN(Number(v.replace(/[,$%]/g, ""))));
+  if (!allNumbers) return "text";
+  if (sample.some((v) => v.includes("%"))) return "percentage";
+  if (sample.some((v) => v.includes("$") || v.includes("€") || v.includes("£"))) return "currency";
+  return "number";
+}
 
 export default function LookupTablesPage() {
   const { data: tables, isLoading } = useLookupTables();
@@ -207,22 +239,14 @@ function CreateLookupTable({
       });
 
       if (csvData.trim()) {
-        const lines = csvData.trim().split("\n");
-        const headers = lines[0].split(",").map((h) => h.trim());
-        const rows = lines.slice(1).map((line, i) => {
-          const values = line.split(",").map((v) => v.trim());
-          const rowData: Record<string, string> = {};
-          headers.forEach((h, j) => {
-            rowData[h] = values[j] || "";
-          });
-          return {
-            lookup_table_id: table.id,
-            row_data: rowData as unknown as Json,
-            row_order: i,
-          };
-        });
-        if (rows.length > 0) {
-          await bulkInsert.mutateAsync({ tableId: table.id, rows });
+        const { rows: parsed } = parseDelimitedText(csvData);
+        const importRows = parsed.map((rowData, i) => ({
+          lookup_table_id: table.id,
+          row_data: rowData as unknown as Json,
+          row_order: i,
+        }));
+        if (importRows.length > 0) {
+          await bulkInsert.mutateAsync({ tableId: table.id, rows: importRows });
         }
       }
 
@@ -231,6 +255,36 @@ function CreateLookupTable({
     } catch (err: any) {
       toast.error(err.message || "Failed to create table");
     }
+  };
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      if (!text) return;
+      const { headers, rows } = parseDelimitedText(text);
+      if (headers.length === 0) return toast.error("Could not parse file headers");
+
+      // Auto-detect columns from file
+      const detectedCols = headers.map((h) => ({
+        name: h,
+        type: guessColumnType(rows.map((r) => r[h] || "")),
+      }));
+      setColDefs(detectedCols);
+
+      // Build CSV text for preview
+      const csvLines = [headers.join(","), ...rows.map((r) => headers.map((h) => r[h] || "").join(","))];
+      setCsvData(csvLines.join("\n"));
+
+      if (!name) setName(file.name.replace(/\.(csv|tsv|txt)$/i, "").replace(/[_-]/g, " "));
+      toast.success(`Parsed ${rows.length} rows and ${headers.length} columns from file`);
+    };
+    reader.readAsText(file);
+    e.target.value = "";
   };
 
   return (
@@ -285,10 +339,24 @@ function CreateLookupTable({
           </Button>
         </div>
 
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Import CSV Data (optional)</Label>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs text-muted-foreground">Import Data (optional)</Label>
+            <div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.tsv,.txt"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+              <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} className="text-xs gap-1">
+                <FileUp className="w-3.5 h-3.5" /> Upload CSV / TSV File
+              </Button>
+            </div>
+          </div>
           <p className="text-[10px] text-muted-foreground">
-            First row = headers. Must match column names above.
+            Upload a file or paste CSV below. First row = headers. Uploading auto-detects columns.
           </p>
           <textarea
             value={csvData}
@@ -376,18 +444,12 @@ function LookupTableEditor({
 
   const handleCsvImport = async () => {
     if (!csvImport.trim()) return;
-    const lines = csvImport.trim().split("\n");
-    const headers = lines[0].split(",").map((h) => h.trim());
-    const importRows = lines.slice(1).map((line, i) => {
-      const values = line.split(",").map((v) => v.trim());
-      const rowData: Record<string, string> = {};
-      headers.forEach((h, j) => (rowData[h] = values[j] || ""));
-      return {
-        lookup_table_id: table.id,
-        row_data: rowData as unknown as Json,
-        row_order: (rows?.length || 0) + i,
-      };
-    });
+    const { rows: parsed } = parseDelimitedText(csvImport);
+    const importRows = parsed.map((rowData, i) => ({
+      lookup_table_id: table.id,
+      row_data: rowData as unknown as Json,
+      row_order: (rows?.length || 0) + i,
+    }));
     try {
       await bulkInsert.mutateAsync({ tableId: table.id, rows: importRows });
       setCsvImport("");
@@ -396,6 +458,26 @@ function LookupTableEditor({
     } catch (err: any) {
       toast.error(err.message || "Import failed");
     }
+  };
+
+  const editorFileRef = useRef<HTMLInputElement>(null);
+
+  const handleEditorFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      if (!text) return;
+      const { headers, rows: parsed } = parseDelimitedText(text);
+      if (headers.length === 0) return toast.error("Could not parse file");
+      const csvLines = [headers.join(","), ...parsed.map((r) => headers.map((h) => r[h] || "").join(","))];
+      setCsvImport(csvLines.join("\n"));
+      setShowImport(true);
+      toast.success(`Loaded ${parsed.length} rows from file — review and click Import`);
+    };
+    reader.readAsText(file);
+    e.target.value = "";
   };
 
   return (
@@ -413,14 +495,29 @@ function LookupTableEditor({
             </p>
           </div>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setShowImport(!showImport)}>
-          <Upload className="w-4 h-4 mr-1" /> Import CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          <input
+            ref={editorFileRef}
+            type="file"
+            accept=".csv,.tsv,.txt"
+            onChange={handleEditorFileUpload}
+            className="hidden"
+          />
+          <Button variant="outline" size="sm" onClick={() => editorFileRef.current?.click()}>
+            <FileUp className="w-4 h-4 mr-1" /> Upload File
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowImport(!showImport)}>
+            <Upload className="w-4 h-4 mr-1" /> Paste CSV
+          </Button>
+        </div>
       </div>
 
       {showImport && (
         <div className="bg-card border border-border rounded-lg p-5 space-y-3 max-w-2xl">
-          <h3 className="text-sm font-semibold text-foreground">Import CSV Data</h3>
+          <h3 className="text-sm font-semibold text-foreground">Import Data</h3>
+          <p className="text-[10px] text-muted-foreground">
+            First row = headers. Supports CSV, TSV, and semicolon-delimited formats.
+          </p>
           <textarea
             value={csvImport}
             onChange={(e) => setCsvImport(e.target.value)}
