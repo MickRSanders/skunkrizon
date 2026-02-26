@@ -2,6 +2,10 @@ import { useState, useEffect } from "react";
 import PolicyUploadDialog from "@/components/PolicyUploadDialog";
 import PolicyComponentEditor, { type BenefitComponent } from "@/components/PolicyComponentEditor";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Plus, Upload, Search, FileText, Eye, Edit, Loader2, Calculator, Layers, Send, FilePenLine } from "lucide-react";
 import { toast } from "sonner";
 import { usePolicies, useCreatePolicy, useUpdatePolicy, type Policy } from "@/hooks/usePolicies";
@@ -23,6 +27,7 @@ export default function Policies() {
   const [selectedPolicy, setSelectedPolicy] = useState<Policy | null>(null);
   const [editingPolicy, setEditingPolicy] = useState<Policy | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | "draft" | "published">("all");
+  const [confirmPolicy, setConfirmPolicy] = useState<Policy | null>(null);
 
   const calcNameMap = new Map((calculations ?? []).map((c) => [c.id, c.name]));
 
@@ -92,6 +97,7 @@ export default function Policies() {
     } catch (err: any) {
       toast.error(err.message || "Failed to update status");
     }
+    setConfirmPolicy(null);
   };
 
   return (
@@ -208,7 +214,7 @@ export default function Policies() {
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                           <button
-                            onClick={() => handleToggleStatus(p)}
+                            onClick={() => setConfirmPolicy(p)}
                             className={`p-1.5 rounded hover:bg-muted transition-colors ${
                               status === "published"
                                 ? "text-green-600 hover:text-amber-600"
@@ -323,18 +329,29 @@ export default function Policies() {
         />
       )}
 
-      {editingPolicy && (
-        <PolicyComponentEditor
-          policyName={editingPolicy.name}
-          components={
-            Array.isArray(editingPolicy.benefit_components)
-              ? (editingPolicy.benefit_components as BenefitComponent[])
-              : []
-          }
-          onSave={handleSaveComponents}
-          onClose={() => setEditingPolicy(null)}
-        />
-      )}
+      {/* Publish/Unpublish Confirmation Dialog */}
+      <AlertDialog open={!!confirmPolicy} onOpenChange={(open) => !open && setConfirmPolicy(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {((confirmPolicy as any)?.status ?? "draft") === "published"
+                ? "Revert to Draft?"
+                : "Publish Policy?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {((confirmPolicy as any)?.status ?? "draft") === "published"
+                ? `"${confirmPolicy?.name}" will no longer be available for new simulations. Existing simulations linked to it won't be affected.`
+                : `"${confirmPolicy?.name}" will become available for use in cost simulations.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => confirmPolicy && handleToggleStatus(confirmPolicy)}>
+              {((confirmPolicy as any)?.status ?? "draft") === "published" ? "Revert to Draft" : "Publish"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
