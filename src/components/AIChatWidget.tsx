@@ -231,8 +231,8 @@ export default function AIChatWidget() {
       <button
         onClick={() => setOpen(!open)}
         className={cn(
-          "fixed bottom-6 right-6 z-50 rounded-full w-14 h-14 flex items-center justify-center shadow-lg transition-all duration-300 hover:scale-105",
-          "bg-primary text-primary-foreground",
+          "fixed bottom-6 right-6 z-50 rounded-full w-14 h-14 flex items-center justify-center shadow-lg transition-all duration-300 hover:scale-110",
+          "bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white ring-4 ring-violet-500/20 animate-[pulse_2s_cubic-bezier(0.4,0,0.6,1)_infinite]",
           open && "scale-0 opacity-0 pointer-events-none"
         )}
       >
