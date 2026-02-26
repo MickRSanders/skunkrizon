@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { supabase } from "@/integrations/supabase/client";
 import { Separator } from "@/components/ui/separator";
 import {
   Select,
@@ -162,8 +163,73 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
     setScenarios((prev) => prev.map((s) => (s.id === scenarioId ? { ...s, name } : s)));
   };
 
-  const updateScenarioCurrency = (scenarioId: string, currency: string) => {
-    setScenarios((prev) => prev.map((s) => (s.id === scenarioId ? { ...s, currency } : s)));
+  // Fetch exchange rates from lookup table
+  const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
+  useEffect(() => {
+    async function fetchRates() {
+      // Find the Exchange Rates lookup table
+      const { data: tables } = await supabase
+        .from("lookup_tables")
+        .select("id")
+        .eq("name", "Exchange Rates")
+        .limit(1);
+      if (!tables || tables.length === 0) return;
+
+      const { data: rows } = await supabase
+        .from("lookup_table_rows")
+        .select("row_data")
+        .eq("lookup_table_id", tables[0].id);
+      if (!rows) return;
+
+      const rateMap: Record<string, number> = {};
+      rows.forEach((r: any) => {
+        const d = r.row_data;
+        if (d.base_currency && d.target_currency && d.rate) {
+          rateMap[`${d.base_currency}_${d.target_currency}`] = Number(d.rate);
+        }
+      });
+      setExchangeRates(rateMap);
+    }
+    fetchRates();
+  }, []);
+
+  const getExchangeRate = useCallback((from: string, to: string): number | null => {
+    if (from === to) return 1;
+    const direct = exchangeRates[`${from}_${to}`];
+    if (direct) return direct;
+    // Try inverse
+    const inverse = exchangeRates[`${to}_${from}`];
+    if (inverse) return 1 / inverse;
+    // Try cross via USD
+    if (from !== "USD" && to !== "USD") {
+      const fromToUsd = exchangeRates[`${from}_USD`] || (exchangeRates[`USD_${from}`] ? 1 / exchangeRates[`USD_${from}`] : null);
+      const usdToTarget = exchangeRates[`USD_${to}`] || (exchangeRates[`${to}_USD`] ? 1 / exchangeRates[`${to}_USD`] : null);
+      if (fromToUsd && usdToTarget) return fromToUsd * usdToTarget;
+    }
+    return null;
+  }, [exchangeRates]);
+
+  const updateScenarioCurrency = (scenarioId: string, newCurrency: string) => {
+    setScenarios((prev) => prev.map((s) => {
+      if (s.id !== scenarioId) return s;
+      const oldCurrency = s.currency;
+      if (oldCurrency === newCurrency) return s;
+
+      const rate = getExchangeRate(oldCurrency, newCurrency);
+      if (rate === null || rate === 1) {
+        return { ...s, currency: newCurrency };
+      }
+
+      return {
+        ...s,
+        currency: newCurrency,
+        benefits: s.benefits.map((b) => ({
+          ...b,
+          amount: Math.round(b.amount * rate),
+          originalAmount: Math.round(b.originalAmount * rate),
+        })),
+      };
+    }));
   };
 
   const updateBenefitAmount = (scenarioId: string, benefitId: string, amount: number) => {
