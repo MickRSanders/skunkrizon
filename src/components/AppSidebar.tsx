@@ -53,7 +53,7 @@ export default function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const { signOut, profile } = useAuth();
-  const { tenants, activeTenant, activeSubTenant, subTenants, switchTenant, switchSubTenant } = useTenantContext();
+  const { tenants, activeTenant, activeSubTenant, subTenants, switchTenant, switchSubTenant, isSuperadmin } = useTenantContext();
   const tenantName = activeTenant?.tenant_name;
   const [tenantMenuOpen, setTenantMenuOpen] = useState(false);
   const [dataMenuOpen, setDataMenuOpen] = useState(
@@ -114,6 +114,11 @@ export default function AppSidebar() {
                   <span className="text-[11px] font-medium text-sidebar-foreground/70 truncate">
                     {tenantName}
                   </span>
+                  {isSuperadmin && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-accent/20 text-accent font-semibold uppercase tracking-wider shrink-0">
+                      Super
+                    </span>
+                  )}
                 </div>
                 {activeSubTenant && (
                   <span className="ml-5.5 text-[10px] text-sidebar-foreground/50 truncate">
