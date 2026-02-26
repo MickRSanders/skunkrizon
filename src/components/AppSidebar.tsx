@@ -43,6 +43,7 @@ const dataMenuItems = [
 
 const settingsMenuItems = [
   { to: "/settings", icon: Settings, label: "General" },
+  { to: "/settings/roles", icon: Shield, label: "Roles & Permissions" },
   { to: "/tax-engine", icon: Globe, label: "Tax Engine" },
   { to: "/users", icon: Users, label: "User Management" },
   { to: "/tenants", icon: Building2, label: "Organizations" },
