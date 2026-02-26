@@ -1,10 +1,12 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { MessageCircle, X, Send, Loader2, Bot, User, Sparkles, Trash2 } from "lucide-react";
+import { MessageCircle, X, Send, Loader2, Bot, User, Sparkles, Trash2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 
 type Msg = { role: "user" | "assistant"; content: string };
+type CreatedSim = { id: string; sim_code: string; employee_name: string };
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`;
 const STORAGE_KEY = "ai-chat-history";
@@ -13,7 +15,7 @@ const SUGGESTIONS = [
   "What policies do I have?",
   "Summarize my active simulations",
   "How does tax equalization work?",
-  "Help me start a new simulation",
+  "Create a simulation for John Smith relocating from US to Germany",
 ];
 
 export default function AIChatWidget() {
@@ -28,20 +30,21 @@ export default function AIChatWidget() {
   });
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [createdSims, setCreatedSims] = useState<CreatedSim[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, open]);
+  }, [messages, open, createdSims]);
 
   useEffect(() => {
     if (open && inputRef.current) inputRef.current.focus();
   }, [open]);
 
-  // Persist messages to localStorage
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
@@ -50,6 +53,7 @@ export default function AIChatWidget() {
 
   const clearChat = useCallback(() => {
     setMessages([]);
+    setCreatedSims([]);
     localStorage.removeItem(STORAGE_KEY);
   }, []);
 
@@ -102,6 +106,7 @@ export default function AIChatWidget() {
         const decoder = new TextDecoder();
         let textBuffer = "";
         let streamDone = false;
+        let currentEvent = "";
 
         while (!streamDone) {
           const { done, value } = await reader.read();
@@ -113,9 +118,31 @@ export default function AIChatWidget() {
             let line = textBuffer.slice(0, newlineIndex);
             textBuffer = textBuffer.slice(newlineIndex + 1);
             if (line.endsWith("\r")) line = line.slice(0, -1);
-            if (line.startsWith(":") || line.trim() === "") continue;
+
+            // Track SSE event type
+            if (line.startsWith("event: ")) {
+              currentEvent = line.slice(7).trim();
+              continue;
+            }
+
+            if (line.startsWith(":") || line.trim() === "") {
+              if (line.trim() === "") currentEvent = "";
+              continue;
+            }
             if (!line.startsWith("data: ")) continue;
+
             const jsonStr = line.slice(6).trim();
+
+            // Handle custom simulation_created event
+            if (currentEvent === "simulation_created") {
+              try {
+                const simData = JSON.parse(jsonStr) as CreatedSim;
+                setCreatedSims((prev) => [...prev, simData]);
+              } catch { /* ignore */ }
+              currentEvent = "";
+              continue;
+            }
+
             if (jsonStr === "[DONE]") {
               streamDone = true;
               break;
@@ -162,6 +189,11 @@ export default function AIChatWidget() {
       e.preventDefault();
       send(input);
     }
+  };
+
+  const goToSimulation = (simId: string) => {
+    setOpen(false);
+    navigate(`/simulations?highlight=${simId}`);
   };
 
   return (
@@ -264,6 +296,28 @@ export default function AIChatWidget() {
                   <User className="w-3 h-3 text-secondary-foreground" />
                 </div>
               )}
+            </div>
+          ))}
+
+          {/* Simulation created cards */}
+          {createdSims.map((sim) => (
+            <div
+              key={sim.id}
+              className="flex gap-2 justify-start"
+            >
+              <div className="w-6 h-6 rounded-full bg-primary/10 flex-shrink-0 flex items-center justify-center mt-1">
+                <Bot className="w-3 h-3 text-primary" />
+              </div>
+              <button
+                onClick={() => goToSimulation(sim.id)}
+                className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm bg-primary/10 border border-primary/20 hover:bg-primary/20 transition-colors text-foreground text-left"
+              >
+                <div>
+                  <p className="font-medium text-primary">{sim.sim_code}</p>
+                  <p className="text-xs text-muted-foreground">{sim.employee_name} — Draft created</p>
+                </div>
+                <ExternalLink className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+              </button>
             </div>
           ))}
 
