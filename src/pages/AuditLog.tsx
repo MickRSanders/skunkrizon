@@ -1,13 +1,14 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
-import { ArrowRightLeft, Clock, Loader2, ShieldAlert, User } from "lucide-react";
+import { ArrowRightLeft, Clock, Loader2, ShieldAlert } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import PageTransition from "@/components/PageTransition";
-import { cn } from "@/lib/utils";
+
+const PAGE_SIZE = 30;
 
 interface AuditEntry {
   id: string;
@@ -25,37 +26,49 @@ interface AuditEntry {
 
 export default function AuditLog() {
   const [search, setSearch] = useState("");
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const { data: entries = [], isLoading } = useQuery({
+  const {
+    data,
+    isLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+  } = useInfiniteQuery({
     queryKey: ["superadmin_audit_log"],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    initialPageParam: 0,
+    queryFn: async ({ pageParam = 0 }) => {
+      const from = pageParam * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data: rows, error } = await supabase
         .from("superadmin_audit_log")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(200);
+        .range(from, to);
       if (error) throw error;
 
-      // Fetch profiles for unique user_ids
-      const userIds = [...new Set((data ?? []).map((d: any) => d.user_id))];
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", userIds);
+      const userIds = [...new Set((rows ?? []).map((d: any) => d.user_id))];
+      const { data: profiles } = userIds.length
+        ? await supabase.from("profiles").select("id, display_name, avatar_url").in("id", userIds)
+        : { data: [] };
 
-      const profileMap = Object.fromEntries(
-        (profiles ?? []).map((p) => [p.id, p])
-      );
+      const profileMap = Object.fromEntries((profiles ?? []).map((p) => [p.id, p]));
 
-      return (data ?? []).map((entry: any) => ({
+      const entries = (rows ?? []).map((entry: any) => ({
         ...entry,
         details: entry.details as AuditEntry["details"],
         profile: profileMap[entry.user_id] ?? null,
       })) as AuditEntry[];
+
+      return { entries, nextPage: entries.length === PAGE_SIZE ? pageParam + 1 : undefined };
     },
+    getNextPageParam: (lastPage) => lastPage.nextPage,
   });
 
-  const filtered = entries.filter((e) => {
+  const allEntries = data?.pages.flatMap((p) => p.entries) ?? [];
+
+  const filtered = allEntries.filter((e) => {
     if (!search) return true;
     const q = search.toLowerCase();
     return (
@@ -65,6 +78,24 @@ export default function AuditLog() {
       e.action.toLowerCase().includes(q)
     );
   });
+
+  // Intersection observer for infinite scroll
+  const handleObserver = useCallback(
+    (entries: IntersectionObserverEntry[]) => {
+      if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
+        fetchNextPage();
+      }
+    },
+    [hasNextPage, isFetchingNextPage, fetchNextPage]
+  );
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(handleObserver, { threshold: 0.1 });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [handleObserver]);
 
   return (
     <PageTransition>
@@ -81,7 +112,9 @@ export default function AuditLog() {
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div>
                 <CardTitle className="text-base">Organization Switches</CardTitle>
-                <CardDescription>{filtered.length} entries</CardDescription>
+                <CardDescription>
+                  {filtered.length} entries{hasNextPage ? "+" : ""}
+                </CardDescription>
               </div>
               <Input
                 placeholder="Search by user or organization…"
@@ -119,7 +152,6 @@ export default function AuditLog() {
                       key={entry.id}
                       className="flex items-start gap-4 py-3 first:pt-0 last:pb-0"
                     >
-                      {/* Avatar */}
                       <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center shrink-0 mt-0.5">
                         {entry.profile?.avatar_url ? (
                           <img
@@ -134,7 +166,6 @@ export default function AuditLog() {
                         )}
                       </div>
 
-                      {/* Content */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-medium text-foreground">
@@ -168,6 +199,19 @@ export default function AuditLog() {
                   );
                 })}
               </div>
+            )}
+
+            {/* Infinite scroll sentinel */}
+            <div ref={sentinelRef} className="h-1" />
+            {isFetchingNextPage && (
+              <div className="flex justify-center py-4">
+                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+              </div>
+            )}
+            {!hasNextPage && allEntries.length > 0 && (
+              <p className="text-center text-xs text-muted-foreground/50 py-3">
+                End of log
+              </p>
             )}
           </CardContent>
         </Card>
