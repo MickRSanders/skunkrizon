@@ -1,65 +1,171 @@
+import { useMemo } from "react";
 import KPICard from "@/components/KPICard";
 import StatusBadge from "@/components/StatusBadge";
-import { Calculator, FileText, Users, TrendingUp, Globe, ArrowRight, Building2 } from "lucide-react";
-import { Link } from "react-router-dom";
+import {
+  Calculator, FileText, Users, TrendingUp, Globe, ArrowRight,
+  Building2, Plus, Plane, Clock, AlertTriangle, CheckCircle2,
+  Activity, Loader2,
+} from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import { useTenantContext } from "@/contexts/TenantContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
-
-const simulationData = [
-  { month: "Sep", count: 42 },
-  { month: "Oct", count: 58 },
-  { month: "Nov", count: 45 },
-  { month: "Dec", count: 73 },
-  { month: "Jan", count: 89 },
-  { month: "Feb", count: 102 },
-];
-
-const costTrend = [
-  { month: "Sep", avg: 125000 },
-  { month: "Oct", avg: 132000 },
-  { month: "Nov", avg: 128000 },
-  { month: "Dec", avg: 141000 },
-  { month: "Jan", avg: 138000 },
-  { month: "Feb", avg: 145000 },
-];
-
-const policyDistribution = [
-  { name: "Gold Tier", value: 35, color: "hsl(174, 62%, 40%)" },
-  { name: "Silver Tier", value: 40, color: "hsl(222, 62%, 22%)" },
-  { name: "Bronze Tier", value: 20, color: "hsl(38, 92%, 50%)" },
-  { name: "Custom", value: 5, color: "hsl(220, 10%, 46%)" },
-];
-
-const recentSimulations = [
-  { id: "SIM-2847", employee: "Sarah Chen", origin: "New York, US", destination: "London, UK", policy: "Gold Tier", totalCost: "$284,500", status: "completed" as const, date: "Feb 24, 2026" },
-  { id: "SIM-2846", employee: "James Park", origin: "Seoul, KR", destination: "Singapore, SG", policy: "Silver Tier", totalCost: "$167,200", status: "running" as const, date: "Feb 24, 2026" },
-  { id: "SIM-2845", employee: "Maria González", origin: "Madrid, ES", destination: "São Paulo, BR", policy: "Gold Tier", totalCost: "$312,800", status: "completed" as const, date: "Feb 23, 2026" },
-  { id: "SIM-2844", employee: "Alex Thompson", origin: "Chicago, US", destination: "Tokyo, JP", policy: "Silver Tier", totalCost: "$198,400", status: "draft" as const, date: "Feb 23, 2026" },
-  { id: "SIM-2843", employee: "Priya Sharma", origin: "Mumbai, IN", destination: "Zurich, CH", policy: "Gold Tier", totalCost: "$425,100", status: "completed" as const, date: "Feb 22, 2026" },
-];
+import { formatDistanceToNow } from "date-fns";
 
 export default function Dashboard() {
+  const { user } = useAuth();
   const { activeTenant, activeSubTenant } = useTenantContext();
+  const navigate = useNavigate();
   const tenantId = activeTenant?.tenant_id;
   const subTenantId = activeSubTenant?.id;
 
-  const { data: counts } = useQuery({
+  // ─── Live KPI queries ────────────────────────────────────────
+  const tenantFilter = (q: any) => {
+    if (!tenantId) return q;
+    q = q.eq("tenant_id", tenantId);
+    if (subTenantId) q = q.eq("sub_tenant_id", subTenantId);
+    return q;
+  };
+
+  const { data: simStats, isLoading: loadingSims } = useQuery({
+    queryKey: ["dashboard_sims", tenantId, subTenantId],
+    queryFn: async () => {
+      const { data, error } = await tenantFilter(
+        supabase.from("simulations").select("id, status, total_cost, created_at")
+      );
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const { data: policies, isLoading: loadingPolicies } = useQuery({
+    queryKey: ["dashboard_policies", tenantId, subTenantId],
+    queryFn: async () => {
+      const { data, error } = await tenantFilter(
+        supabase.from("policies").select("id, status, name, tier")
+      );
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const { data: trips, isLoading: loadingTrips } = useQuery({
+    queryKey: ["dashboard_trips", tenantId, subTenantId],
+    queryFn: async () => {
+      const q = supabase.from("trips").select("id, status, traveler_name, created_at, trip_code");
+      if (tenantId) q.eq("tenant_id", tenantId);
+      if (subTenantId) q.eq("sub_tenant_id", subTenantId);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const { data: recentSims } = useQuery({
+    queryKey: ["dashboard_recent_sims", tenantId, subTenantId],
+    queryFn: async () => {
+      let q = supabase
+        .from("simulations")
+        .select("id, sim_code, employee_name, origin_country, origin_city, destination_country, destination_city, total_cost, status, created_at, currency")
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (tenantId) q = q.eq("tenant_id", tenantId);
+      if (subTenantId) q = q.eq("sub_tenant_id", subTenantId);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // ─── Recent activity (notifications for this user) ───────────
+  const { data: recentActivity } = useQuery({
+    queryKey: ["dashboard_activity", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", user!.id)
+        .order("created_at", { ascending: false })
+        .limit(8);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // ─── Derived stats ──────────────────────────────────────────
+  const totalSims = simStats?.length ?? 0;
+  const completedSims = simStats?.filter((s) => s.status === "completed").length ?? 0;
+  const draftSims = simStats?.filter((s) => s.status === "draft").length ?? 0;
+  const runningSims = simStats?.filter((s) => s.status === "running").length ?? 0;
+  const activePolicies = policies?.filter((p) => p.status === "active").length ?? 0;
+  const draftPolicies = policies?.filter((p) => p.status === "draft").length ?? 0;
+  const totalTrips = trips?.length ?? 0;
+  const attentionTrips = trips?.filter((t) => ["needs_info", "attention", "escalate"].includes(t.status)).length ?? 0;
+
+  const avgCost = useMemo(() => {
+    if (!simStats || simStats.length === 0) return 0;
+    const withCost = simStats.filter((s) => s.total_cost != null);
+    if (withCost.length === 0) return 0;
+    return withCost.reduce((sum, s) => sum + (s.total_cost || 0), 0) / withCost.length;
+  }, [simStats]);
+
+  // Chart data from real sims grouped by month
+  const simChartData = useMemo(() => {
+    if (!simStats) return [];
+    const months: Record<string, number> = {};
+    simStats.forEach((s) => {
+      const d = new Date(s.created_at);
+      const key = d.toLocaleString("en-US", { month: "short", year: "2-digit" });
+      months[key] = (months[key] || 0) + 1;
+    });
+    return Object.entries(months)
+      .slice(-6)
+      .map(([month, count]) => ({ month, count }));
+  }, [simStats]);
+
+  // Policy tier distribution
+  const tierData = useMemo(() => {
+    if (!policies || policies.length === 0) return [];
+    const tiers: Record<string, number> = {};
+    policies.forEach((p) => {
+      const t = p.tier || "custom";
+      tiers[t] = (tiers[t] || 0) + 1;
+    });
+    const colors: Record<string, string> = {
+      gold: "hsl(38, 92%, 50%)",
+      silver: "hsl(220, 10%, 60%)",
+      bronze: "hsl(25, 60%, 45%)",
+      custom: "hsl(174, 62%, 40%)",
+    };
+    return Object.entries(tiers).map(([name, value]) => ({
+      name: name.charAt(0).toUpperCase() + name.slice(1),
+      value,
+      color: colors[name.toLowerCase()] || "hsl(222, 62%, 40%)",
+    }));
+  }, [policies]);
+
+  // ─── Tasks that need attention ──────────────────────────────
+  const actionItems = useMemo(() => {
+    const items: { label: string; count: number; icon: typeof AlertTriangle; link: string; color: string }[] = [];
+    if (draftSims > 0) items.push({ label: "Draft simulations to complete", count: draftSims, icon: Calculator, link: "/simulations", color: "text-amber-500" });
+    if (runningSims > 0) items.push({ label: "Simulations currently running", count: runningSims, icon: Loader2, link: "/simulations", color: "text-blue-500" });
+    if (draftPolicies > 0) items.push({ label: "Policies in draft status", count: draftPolicies, icon: FileText, link: "/policies", color: "text-amber-500" });
+    if (attentionTrips > 0) items.push({ label: "Trips needing attention", count: attentionTrips, icon: AlertTriangle, link: "/pre-travel", color: "text-destructive" });
+    return items;
+  }, [draftSims, runningSims, draftPolicies, attentionTrips]);
+
+  const isLoading = loadingSims || loadingPolicies || loadingTrips;
+
+  // ─── Sub-tenant counts (existing feature) ──────────────────
+  const { data: subCounts } = useQuery({
     queryKey: ["sub_tenant_counts", tenantId, subTenantId],
     enabled: !!subTenantId && !!tenantId,
     queryFn: async () => {
@@ -79,109 +185,196 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">Horizon platform overview and key metrics</p>
+      {/* Header with quick actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+          <p className="text-sm text-muted-foreground mt-1">Platform overview and key metrics</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button size="sm" onClick={() => navigate("/simulations")} className="gap-1.5">
+            <Plus className="w-3.5 h-3.5" /> New Simulation
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => navigate("/pre-travel")} className="gap-1.5">
+            <Plane className="w-3.5 h-3.5" /> New Trip
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => navigate("/policies")} className="gap-1.5">
+            <FileText className="w-3.5 h-3.5" /> New Policy
+          </Button>
+        </div>
       </div>
 
       {activeSubTenant && (
         <div className="flex items-center gap-3 rounded-lg border border-accent/20 bg-accent/5 px-4 py-3">
           <Building2 className="w-5 h-5 text-accent shrink-0" />
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-foreground">
-              {activeSubTenant.name}
-            </span>
-            <Badge variant="outline" className="text-xs">
-              Active Sub-organization
-            </Badge>
+            <span className="text-sm font-semibold text-foreground">{activeSubTenant.name}</span>
+            <Badge variant="outline" className="text-xs">Active Sub-organization</Badge>
           </div>
-          {counts && (
+          {subCounts && (
             <div className="ml-auto flex items-center gap-4 text-xs text-muted-foreground">
-              <span><strong className="text-foreground">{counts.simulations}</strong> Simulations</span>
-              <span><strong className="text-foreground">{counts.policies}</strong> Policies</span>
-              <span><strong className="text-foreground">{counts.calculations}</strong> Calculations</span>
+              <span><strong className="text-foreground">{subCounts.simulations}</strong> Simulations</span>
+              <span><strong className="text-foreground">{subCounts.policies}</strong> Policies</span>
+              <span><strong className="text-foreground">{subCounts.calculations}</strong> Calculations</span>
             </div>
           )}
         </div>
       )}
 
-      {/* KPI Cards */}
+      {/* KPI Cards — live data */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard
           title="Total Simulations"
-          value="409"
-          change="↑ 14.5% from last month"
+          value={isLoading ? "—" : String(totalSims)}
+          change={completedSims > 0 ? `${completedSims} completed` : undefined}
           changeType="positive"
           icon={<Calculator className="w-5 h-5" />}
-          subtitle="This quarter"
+          subtitle={draftSims > 0 ? `${draftSims} drafts` : undefined}
         />
         <KPICard
           title="Active Policies"
-          value="24"
-          change="2 pending review"
+          value={isLoading ? "—" : String(activePolicies)}
+          change={draftPolicies > 0 ? `${draftPolicies} in draft` : undefined}
           changeType="neutral"
           icon={<FileText className="w-5 h-5" />}
-          subtitle="Across 8 clients"
+          subtitle={`${policies?.length ?? 0} total`}
         />
         <KPICard
-          title="Active Users"
-          value="156"
-          change="↑ 8 new this month"
-          changeType="positive"
-          icon={<Users className="w-5 h-5" />}
-          subtitle="12 clients"
+          title="Trips"
+          value={isLoading ? "—" : String(totalTrips)}
+          change={attentionTrips > 0 ? `${attentionTrips} need attention` : undefined}
+          changeType={attentionTrips > 0 ? "negative" : "neutral"}
+          icon={<Plane className="w-5 h-5" />}
+          subtitle="Pre-travel assessments"
         />
         <KPICard
           title="Avg. Cost/Move"
-          value="$145K"
-          change="↑ 3.2% vs last quarter"
-          changeType="negative"
+          value={isLoading ? "—" : avgCost > 0 ? `$${Math.round(avgCost / 1000)}K` : "$0"}
+          change={totalSims > 0 ? `Across ${totalSims} simulations` : undefined}
+          changeType="neutral"
           icon={<TrendingUp className="w-5 h-5" />}
-          subtitle="International assignments"
+          subtitle="All assignments"
         />
+      </div>
+
+      {/* Tasks & Alerts + Activity Timeline */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Tasks & Alerts */}
+        <div className="bg-card rounded-lg border border-border p-5 space-y-3">
+          <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+            <AlertTriangle className="w-4 h-4 text-amber-500" />
+            Needs Attention
+          </h3>
+          {actionItems.length === 0 ? (
+            <div className="py-6 text-center">
+              <CheckCircle2 className="w-8 h-8 text-accent/30 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">All clear! Nothing needs your attention right now.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {actionItems.map((item) => (
+                <Link
+                  key={item.label}
+                  to={item.link}
+                  className="flex items-center gap-3 p-3 rounded-md border border-border hover:bg-muted/50 transition-colors group"
+                >
+                  <item.icon className={`w-4 h-4 ${item.color} shrink-0`} />
+                  <span className="text-sm text-foreground flex-1">{item.label}</span>
+                  <Badge variant="secondary" className="text-xs font-bold">{item.count}</Badge>
+                  <ArrowRight className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Recent Activity Timeline */}
+        <div className="bg-card rounded-lg border border-border p-5 space-y-3">
+          <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+            <Activity className="w-4 h-4 text-accent" />
+            Recent Activity
+          </h3>
+          {!recentActivity || recentActivity.length === 0 ? (
+            <div className="py-6 text-center">
+              <Clock className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">No recent activity yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {recentActivity.map((n) => (
+                <div key={n.id} className="flex items-start gap-3 p-2 rounded-md hover:bg-muted/30 transition-colors">
+                  <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
+                    n.type === "success" ? "bg-accent" : n.type === "error" ? "bg-destructive" : "bg-muted-foreground/40"
+                  }`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-foreground truncate">{n.title}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">{n.message}</p>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
+                    {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 bg-card rounded-lg border border-border p-5">
           <h3 className="text-sm font-semibold text-foreground mb-4">Simulations Over Time</h3>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={simulationData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 13%, 89%)" />
-              <XAxis dataKey="month" tick={{ fontSize: 12, fill: "hsl(220, 10%, 46%)" }} />
-              <YAxis tick={{ fontSize: 12, fill: "hsl(220, 10%, 46%)" }} />
-              <Tooltip />
-              <Bar dataKey="count" fill="hsl(174, 62%, 40%)" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {simChartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={simChartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="month" tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} />
+                <YAxis tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }} allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="count" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[240px] flex items-center justify-center text-sm text-muted-foreground">
+              No simulation data yet
+            </div>
+          )}
         </div>
         <div className="bg-card rounded-lg border border-border p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">Policy Distribution</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie data={policyDistribution} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" paddingAngle={3}>
-                {policyDistribution.map((entry, index) => (
-                  <Cell key={index} fill={entry.color} />
+          <h3 className="text-sm font-semibold text-foreground mb-4">Policy Tier Distribution</h3>
+          {tierData.length > 0 ? (
+            <>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie data={tierData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" paddingAngle={3}>
+                    {tierData.map((entry, index) => (
+                      <Cell key={index} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="space-y-1.5 mt-2">
+                {tierData.map((item) => (
+                  <div key={item.name} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                      <span className="text-muted-foreground">{item.name}</span>
+                    </div>
+                    <span className="font-medium text-foreground">{item.value}</span>
+                  </div>
                 ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="space-y-1.5 mt-2">
-            {policyDistribution.map((item) => (
-              <div key={item.name} className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                  <span className="text-muted-foreground">{item.name}</span>
-                </div>
-                <span className="font-medium text-foreground">{item.value}%</span>
               </div>
-            ))}
-          </div>
+            </>
+          ) : (
+            <div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground">
+              No policies yet
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Recent Simulations Table */}
+      {/* Recent Simulations Table — live data */}
       <div className="bg-card rounded-lg border border-border">
         <div className="flex items-center justify-between p-5 border-b border-border">
           <h3 className="text-sm font-semibold text-foreground">Recent Cost Simulations</h3>
@@ -196,28 +389,40 @@ export default function Dashboard() {
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">ID</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Employee</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Route</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Policy</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Cost</th>
                 <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Date</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Created</th>
               </tr>
             </thead>
             <tbody>
-              {recentSimulations.map((sim) => (
-                <tr key={sim.id} className="data-table-row">
-                  <td className="px-5 py-3 font-mono text-xs text-accent">{sim.id}</td>
-                  <td className="px-5 py-3 font-medium text-foreground">{sim.employee}</td>
+              {recentSims && recentSims.length > 0 ? recentSims.map((sim) => (
+                <tr key={sim.id} className="data-table-row cursor-pointer" onClick={() => navigate(`/simulations`)}>
+                  <td className="px-5 py-3 font-mono text-xs text-accent">{sim.sim_code}</td>
+                  <td className="px-5 py-3 font-medium text-foreground">{sim.employee_name}</td>
                   <td className="px-5 py-3 text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      {sim.origin} <ArrowRight className="w-3 h-3 text-accent" /> {sim.destination}
+                    <div className="flex items-center gap-1 text-xs">
+                      {sim.origin_city || sim.origin_country}
+                      <ArrowRight className="w-3 h-3 text-accent" />
+                      {sim.destination_city || sim.destination_country}
                     </div>
                   </td>
-                  <td className="px-5 py-3 text-muted-foreground">{sim.policy}</td>
-                  <td className="px-5 py-3 font-semibold text-foreground">{sim.totalCost}</td>
+                  <td className="px-5 py-3 font-semibold text-foreground">
+                    {sim.total_cost != null
+                      ? `${sim.currency === "USD" ? "$" : sim.currency + " "}${Math.round(sim.total_cost).toLocaleString()}`
+                      : "—"}
+                  </td>
                   <td className="px-5 py-3"><StatusBadge status={sim.status} /></td>
-                  <td className="px-5 py-3 text-muted-foreground">{sim.date}</td>
+                  <td className="px-5 py-3 text-xs text-muted-foreground">
+                    {formatDistanceToNow(new Date(sim.created_at), { addSuffix: true })}
+                  </td>
                 </tr>
-              ))}
+              )) : (
+                <tr>
+                  <td colSpan={6} className="px-5 py-8 text-center text-sm text-muted-foreground">
+                    No simulations yet. Create your first one!
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
