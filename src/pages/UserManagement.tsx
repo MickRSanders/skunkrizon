@@ -120,6 +120,7 @@ function useUpdateUser() {
 // ─── Role descriptions ─────────────────────────────────────────
 
 const ROLE_DESCRIPTIONS: Record<string, string> = {
+  superadmin: "Topia staff — full platform access across all tenants",
   admin: "Full access to all features, user and tenant management",
   analyst: "Calculations, simulations, policy config, and reporting",
   viewer: "View assigned simulations and reports only",
@@ -159,7 +160,7 @@ export default function UserManagement() {
       </div>
 
       {/* Roles Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {Object.entries(ROLE_DESCRIPTIONS).map(([role, desc]) => (
           <div key={role} className="bg-card rounded-lg border border-border p-4">
             <div className="flex items-center gap-2 mb-2">
@@ -317,6 +318,7 @@ function EditUserDialog({ user, onClose }: { user: UserWithRole; onClose: () => 
                 <SelectItem value="viewer">Viewer</SelectItem>
                 <SelectItem value="analyst">Analyst</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="superadmin">Superadmin (Topia)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -381,6 +383,7 @@ function InviteUserDialog({ onClose }: { onClose: () => void }) {
                 <SelectItem value="viewer">Viewer</SelectItem>
                 <SelectItem value="analyst">Analyst</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="superadmin">Superadmin (Topia)</SelectItem>
               </SelectContent>
             </Select>
           </div>
