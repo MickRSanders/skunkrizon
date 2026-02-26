@@ -130,6 +130,43 @@ function downloadTableAsCsv(
   URL.revokeObjectURL(url);
 }
 
+// ─── Download Button (fetches rows on click) ─────────────────
+
+function DownloadTableButton({ table }: { table: LookupTable }) {
+  const [loading, setLoading] = useState(false);
+  const cols = (table.columns as Array<{ name: string; type: string }>) || [];
+
+  const handleDownload = async () => {
+    setLoading(true);
+    try {
+      const { supabase } = await import("@/integrations/supabase/client");
+      const { data: rows, error } = await supabase
+        .from("lookup_table_rows")
+        .select("row_data")
+        .eq("lookup_table_id", table.id)
+        .order("row_order");
+      if (error) throw error;
+      if (!rows || rows.length === 0) {
+        toast.error("Table has no rows to export");
+        return;
+      }
+      downloadTableAsCsv(table.name, cols, rows);
+      toast.success(`Downloaded ${rows.length} rows`);
+    } catch (err: any) {
+      toast.error(err.message || "Download failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Button variant="ghost" size="sm" onClick={handleDownload} disabled={loading} className="text-xs gap-1">
+      {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+      CSV
+    </Button>
+  );
+}
+
 export default function LookupTablesPage() {
   const { data: tables, isLoading } = useLookupTables();
   const [searchTerm, setSearchTerm] = useState("");
@@ -242,6 +279,7 @@ export default function LookupTablesPage() {
                   <Button variant="ghost" size="sm" onClick={() => setEditingTable(t)} className="text-xs gap-1">
                     <Pencil className="w-3.5 h-3.5" /> Edit Data
                   </Button>
+                  <DownloadTableButton table={t} />
                 </div>
               </div>
             );
