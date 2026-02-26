@@ -235,22 +235,49 @@ function CalcCard({
   return (
     <div className={`bg-card rounded-lg border p-5 hover:shadow-md transition-shadow ${inherited ? "border-border/60 opacity-90" : overridden ? "border-primary/40" : "border-border"}`}>
       <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <FunctionSquare className="w-4 h-4 text-accent" />
-          <span className="text-xs text-muted-foreground font-medium">
-            {calc.category || "General"}
-          </span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <FunctionSquare className="w-4 h-4 text-accent shrink-0" />
+          {(() => {
+            const cat = calc.category || "";
+            const [typePart, stagesPart] = cat.split("|").map((s) => s.trim());
+            const stages = stagesPart ? stagesPart.split(",").map((s) => s.trim()).filter(Boolean) : [];
+            const typeColors: Record<string, string> = {
+              "cash": "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+              "non-cash": "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+              "either": "bg-sky-500/10 text-sky-700 dark:text-sky-400",
+            };
+            const typeClass = typeColors[typePart.toLowerCase()] || "bg-muted text-muted-foreground";
+            return (
+              <>
+                {typePart && (
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${typeClass}`}>
+                    {typePart}
+                  </span>
+                )}
+                {stages.map((stage) => (
+                  <span key={stage} className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
+                    {stage}
+                  </span>
+                ))}
+                {!typePart && !stages.length && (
+                  <span className="text-xs text-muted-foreground font-medium">General</span>
+                )}
+              </>
+            );
+          })()}
         </div>
-        {inherited && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">
-            Inherited
-          </span>
-        )}
-        {overridden && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
-            Customized
-          </span>
-        )}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {inherited && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">
+              Inherited
+            </span>
+          )}
+          {overridden && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
+              Customized
+            </span>
+          )}
+        </div>
       </div>
       <h3 className="font-semibold text-foreground text-sm mb-1">
         {calc.name}
