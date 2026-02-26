@@ -12,7 +12,7 @@ export function useSimulations() {
     queryFn: async () => {
       let query = supabase
         .from("simulations")
-        .select("*")
+        .select("*, policies(name)")
         .order("created_at", { ascending: false });
 
       if (activeTenant) {
@@ -25,6 +25,47 @@ export function useSimulations() {
       const { data, error } = await query;
       if (error) throw error;
       return data;
+    },
+  });
+}
+
+export function useSimulationAuditLog(simulationId: string) {
+  return useQuery({
+    queryKey: ["simulation_audit_log", simulationId],
+    enabled: !!simulationId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("simulation_audit_log" as any)
+        .select("*")
+        .eq("simulation_id", simulationId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as any[];
+    },
+  });
+}
+
+export function useCreateAuditEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (entry: {
+      simulation_id: string;
+      scenario_id: string;
+      scenario_name: string;
+      field_id: string;
+      field_label: string;
+      old_value: number | null;
+      new_value: number | null;
+      action: string;
+      changed_by: string;
+    }) => {
+      const { error } = await supabase
+        .from("simulation_audit_log" as any)
+        .insert(entry as any);
+      if (error) throw error;
+    },
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ["simulation_audit_log", variables.simulation_id] });
     },
   });
 }
