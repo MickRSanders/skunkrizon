@@ -13,6 +13,7 @@ import {
   FunctionSquare,
   LogOut,
   Building2,
+  Table2,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ const navItems = [
   { to: "/simulations", icon: Calculator, label: "Cost Simulations" },
   { to: "/policies", icon: FileText, label: "Policy Agent" },
   { to: "/calculations", icon: FunctionSquare, label: "Calculations Engine" },
+  { to: "/lookup-tables", icon: Table2, label: "Lookup Tables" },
   { to: "/tax-engine", icon: Globe, label: "Tax Engine" },
   { to: "/analytics", icon: BarChart3, label: "Analytics" },
   { to: "/users", icon: Users, label: "User Management" },

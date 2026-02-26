@@ -15,6 +15,7 @@ import Analytics from "./pages/Analytics";
 import UserManagement from "./pages/UserManagement";
 import SettingsPage from "./pages/SettingsPage";
 import TenantManagement from "./pages/TenantManagement";
+import LookupTables from "./pages/LookupTables";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -38,6 +39,7 @@ const App = () => (
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/users" element={<UserManagement />} />
               <Route path="/tenants" element={<TenantManagement />} />
+              <Route path="/lookup-tables" element={<LookupTables />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />
