@@ -152,7 +152,7 @@ serve(async (req) => {
     let contextBlock = "";
     let policiesData: any[] = [];
     if (includeContext) {
-      const [policiesRes, simulationsRes, calculationsRes] = await Promise.all([
+      const [policiesRes, simulationsRes, calculationsRes, lookupTablesRes] = await Promise.all([
         supabase
           .from("policies")
           .select("id, name, status, tier, tax_approach, description")
@@ -167,11 +167,48 @@ serve(async (req) => {
           .from("calculations")
           .select("id, name, category, description, formula")
           .limit(50),
+        supabase
+          .from("lookup_tables")
+          .select("id, name, description, columns")
+          .limit(50),
       ]);
 
       policiesData = policiesRes.data ?? [];
       const simulations = simulationsRes.data ?? [];
       const calculations = calculationsRes.data ?? [];
+      const lookupTables = lookupTablesRes.data ?? [];
+
+      // Fetch rows for each lookup table (limit per table to keep context manageable)
+      let lookupDetails = "";
+      if (lookupTables.length > 0) {
+        const rowPromises = lookupTables.map((lt) =>
+          supabase
+            .from("lookup_table_rows")
+            .select("row_data")
+            .eq("lookup_table_id", lt.id)
+            .order("row_order", { ascending: true })
+            .limit(30)
+        );
+        const rowResults = await Promise.all(rowPromises);
+
+        lookupDetails = lookupTables
+          .map((lt, idx) => {
+            const cols = Array.isArray(lt.columns)
+              ? lt.columns.map((c: any) => c.name || c).join(", ")
+              : "unknown columns";
+            const rows = rowResults[idx]?.data ?? [];
+            const rowsStr = rows.length
+              ? rows
+                  .map((r) => {
+                    const d = r.row_data as Record<string, any>;
+                    return "  " + Object.entries(d).map(([k, v]) => `${k}=${v}`).join(", ");
+                  })
+                  .join("\n")
+              : "  (no rows)";
+            return `- **"${lt.name}"** (id=${lt.id})${lt.description ? ` — ${lt.description}` : ""}\n  Columns: ${cols}\n  Data (up to 30 rows):\n${rowsStr}`;
+          })
+          .join("\n\n");
+      }
 
       contextBlock = `
 
@@ -185,6 +222,9 @@ ${simulations.length ? simulations.map((s) => `- ${s.sim_code}: ${s.employee_nam
 
 ### Calculations (${calculations.length})
 ${calculations.length ? calculations.map((c) => `- "${c.name}" [${c.category || "uncategorized"}]${c.description ? ` — ${c.description}` : ""}`).join("\n") : "No calculations found."}
+
+### Lookup Tables (${lookupTables.length})
+${lookupTables.length ? lookupDetails : "No lookup tables found."}
 `;
     }
 
@@ -193,8 +233,9 @@ ${calculations.length ? calculations.map((c) => `- "${c.name}" [${c.category || 
 - **Simulations**: Cost projections for international employee assignments
 - **Calculations**: Benefit formulas (housing, COLA, tax equalization, etc.)
 - **Tax**: Tax equalization, hypothetical tax, gross-up methods
+- **Lookup Tables**: Reference data used in calculations (exchange rates, tax brackets, housing indices, COLA rates, etc.)
 
-You have access to the user's actual data. Provide specific, actionable answers referencing their policies, simulations, and calculations by name when relevant.
+You have access to the user's actual data including lookup table contents. When answering questions about rates, allowances, or reference data, look up the relevant lookup table and cite specific values. For exchange rate questions, refer to the Exchange Rates table if available.
 
 You have a tool called \`create_draft_simulation\` to create draft simulations. When the user wants to create a simulation:
 1. Gather the required info conversationally: employee name, origin country, destination country, and assignment type.
