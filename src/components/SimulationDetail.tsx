@@ -20,8 +20,15 @@ import {
   Globe,
   Clock,
   Layers,
+  FileText,
+  History,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { useTaxConfig, TAX_RATE_MAP } from "@/contexts/TaxConfigContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { useSimulationAuditLog, useCreateAuditEntry } from "@/hooks/useSimulations";
+import { format } from "date-fns";
 
 const CURRENCIES = ["USD", "EUR", "GBP", "JPY", "CHF", "SGD", "AUD", "CAD", "INR", "BRL"] as const;
 
@@ -80,7 +87,14 @@ interface SimulationDetailProps {
 }
 
 export default function SimulationDetail({ simulation, onBack }: SimulationDetailProps) {
+  const { user } = useAuth();
   const { grossUpMultiplier } = useTaxConfig();
+  const { data: auditLog } = useSimulationAuditLog(simulation.id);
+  const createAuditEntry = useCreateAuditEntry();
+  const [showAuditTrail, setShowAuditTrail] = useState(false);
+
+  const policyName = (simulation as any).policies?.name;
+
   const [scenarios, setScenarios] = useState<Scenario[]>(() => [
     {
       id: "primary",
@@ -115,6 +129,24 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
   };
 
   const updateBenefitAmount = (scenarioId: string, benefitId: string, amount: number) => {
+    const scenario = scenarios.find((s) => s.id === scenarioId);
+    const benefit = scenario?.benefits.find((b) => b.id === benefitId);
+
+    // Log audit entry when value changes and is an override
+    if (benefit && amount !== benefit.amount && user) {
+      createAuditEntry.mutate({
+        simulation_id: simulation.id,
+        scenario_id: scenarioId,
+        scenario_name: scenario!.name,
+        field_id: benefitId,
+        field_label: benefit.label,
+        old_value: benefit.amount,
+        new_value: amount,
+        action: amount !== benefit.originalAmount ? "override" : "reset",
+        changed_by: user.id,
+      });
+    }
+
     setScenarios((prev) =>
       prev.map((s) =>
         s.id === scenarioId
@@ -201,6 +233,12 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
                   <Layers className="w-3.5 h-3.5" />
                   <span>{scenarios.length} scenario{scenarios.length !== 1 ? "s" : ""}</span>
                 </div>
+                {policyName && (
+                  <div className="flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>{policyName}</span>
+                  </div>
+                )}
               </div>
             </div>
             <Button onClick={addScenario} className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 shadow-lg">
@@ -401,6 +439,59 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
           </div>
         </div>
       )}
+
+      {/* Audit Trail */}
+      <div className="bg-card rounded-xl border border-border overflow-hidden">
+        <button
+          onClick={() => setShowAuditTrail(!showAuditTrail)}
+          className="w-full flex items-center justify-between px-5 py-4 hover:bg-muted/20 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <History className="w-4 h-4 text-accent" />
+            <h3 className="text-sm font-bold text-foreground">Override Audit Trail</h3>
+            {auditLog && auditLog.length > 0 && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent font-medium">
+                {auditLog.length}
+              </span>
+            )}
+          </div>
+          {showAuditTrail ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+        </button>
+        {showAuditTrail && (
+          <div className="border-t border-border">
+            {!auditLog || auditLog.length === 0 ? (
+              <div className="px-5 py-8 text-center">
+                <History className="w-8 h-8 mx-auto text-muted-foreground/30 mb-2" />
+                <p className="text-sm text-muted-foreground">No overrides recorded yet</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">Changes to benefit amounts will be tracked here</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border/50 max-h-80 overflow-y-auto">
+                {auditLog.map((entry: any) => (
+                  <div key={entry.id} className="px-5 py-3 flex items-center gap-4 hover:bg-muted/10 transition-colors">
+                    <div className="w-2 h-2 rounded-full shrink-0 bg-accent" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-foreground">
+                        <span className="font-medium">{entry.field_label}</span>
+                        <span className="text-muted-foreground"> in </span>
+                        <span className="font-medium">{entry.scenario_name}</span>
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {entry.old_value != null ? formatCurrency(entry.old_value, "USD") : "—"}
+                        {" → "}
+                        {entry.new_value != null ? formatCurrency(entry.new_value, "USD") : "—"}
+                      </p>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground/60 shrink-0 tabular-nums">
+                      {format(new Date(entry.created_at), "MMM d, HH:mm")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -427,6 +427,56 @@ export type Database = {
         }
         Relationships: []
       }
+      simulation_audit_log: {
+        Row: {
+          action: string
+          changed_by: string
+          created_at: string
+          field_id: string
+          field_label: string
+          id: string
+          new_value: number | null
+          old_value: number | null
+          scenario_id: string
+          scenario_name: string
+          simulation_id: string
+        }
+        Insert: {
+          action?: string
+          changed_by: string
+          created_at?: string
+          field_id: string
+          field_label: string
+          id?: string
+          new_value?: number | null
+          old_value?: number | null
+          scenario_id: string
+          scenario_name: string
+          simulation_id: string
+        }
+        Update: {
+          action?: string
+          changed_by?: string
+          created_at?: string
+          field_id?: string
+          field_label?: string
+          id?: string
+          new_value?: number | null
+          old_value?: number | null
+          scenario_id?: string
+          scenario_name?: string
+          simulation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "simulation_audit_log_simulation_id_fkey"
+            columns: ["simulation_id"]
+            isOneToOne: false
+            referencedRelation: "simulations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       simulations: {
         Row: {
           assignment_type: string

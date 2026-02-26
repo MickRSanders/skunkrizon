@@ -76,6 +76,7 @@ export default function Simulations() {
         total_cost: Math.round(totalCost),
         notes: formData.notes || null,
         status: "draft",
+        policy_id: formData.policy || null,
         tenant_id: tenantId,
       } as any);
       setShowForm(false);
