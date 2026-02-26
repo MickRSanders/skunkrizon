@@ -1,9 +1,12 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useTripDetail, Trip, TripSegment, TripAssessment, AssessmentOutcome } from "@/hooks/useTrips";
+import { useTripDetail, useTrips, Trip, TripSegment, TripAssessment, AssessmentOutcome } from "@/hooks/useTrips";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -20,6 +23,10 @@ import {
   FileText,
   History,
   Settings2,
+  Pencil,
+  X,
+  Save,
+  Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -142,22 +149,7 @@ export default function PreTravelDetail() {
           {/* Trip DNA Tab */}
           <TabsContent value="trip-dna" className="space-y-4">
             {/* Traveler Info Card */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Traveler Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                  <InfoField label="Full Name" value={trip.traveler_name} />
-                  <InfoField label="Email" value={trip.traveler_email} />
-                  <InfoField label="Employee ID" value={trip.employee_id} />
-                  <InfoField label="Passport Country" value={trip.passport_country} />
-                  <InfoField label="Citizenship" value={trip.citizenship} />
-                  <InfoField label="Residency" value={trip.residency_country} />
-                  <InfoField label="Version" value={`v${trip.version}`} />
-                </div>
-              </CardContent>
-            </Card>
+            <TravelerDetailsCard trip={trip} />
 
             {/* Segments */}
             <Card>
@@ -244,6 +236,117 @@ export default function PreTravelDetail() {
         </Tabs>
       </div>
     </PageTransition>
+  );
+}
+
+function TravelerDetailsCard({ trip }: { trip: Trip }) {
+  const [editing, setEditing] = useState(false);
+  const { updateTrip } = useTrips();
+
+  const [form, setForm] = useState({
+    traveler_name: trip.traveler_name,
+    traveler_email: trip.traveler_email ?? "",
+    employee_id: trip.employee_id ?? "",
+    passport_country: trip.passport_country ?? "",
+    citizenship: trip.citizenship ?? "",
+    residency_country: trip.residency_country ?? "",
+  });
+
+  const handleEdit = () => {
+    setForm({
+      traveler_name: trip.traveler_name,
+      traveler_email: trip.traveler_email ?? "",
+      employee_id: trip.employee_id ?? "",
+      passport_country: trip.passport_country ?? "",
+      citizenship: trip.citizenship ?? "",
+      residency_country: trip.residency_country ?? "",
+    });
+    setEditing(true);
+  };
+
+  const handleSave = () => {
+    if (!form.traveler_name.trim()) {
+      toast.error("Traveler name is required");
+      return;
+    }
+    updateTrip.mutate(
+      {
+        tripId: trip.id,
+        updates: {
+          traveler_name: form.traveler_name.trim(),
+          traveler_email: form.traveler_email.trim() || null,
+          employee_id: form.employee_id.trim() || null,
+          passport_country: form.passport_country.trim() || null,
+          citizenship: form.citizenship.trim() || null,
+          residency_country: form.residency_country.trim() || null,
+        },
+      },
+      { onSuccess: () => setEditing(false) }
+    );
+  };
+
+  const update = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
+
+  const fields = [
+    { key: "traveler_name", label: "Full Name", required: true },
+    { key: "traveler_email", label: "Email" },
+    { key: "employee_id", label: "Employee ID" },
+    { key: "passport_country", label: "Passport Country" },
+    { key: "citizenship", label: "Citizenship" },
+    { key: "residency_country", label: "Residency" },
+  ];
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm">Traveler Details</CardTitle>
+          {!editing ? (
+            <Button variant="ghost" size="sm" className="gap-1.5 text-xs h-7" onClick={handleEdit}>
+              <Pencil className="h-3 w-3" /> Edit
+            </Button>
+          ) : (
+            <div className="flex gap-1.5">
+              <Button variant="ghost" size="sm" className="gap-1 text-xs h-7" onClick={() => setEditing(false)} disabled={updateTrip.isPending}>
+                <X className="h-3 w-3" /> Cancel
+              </Button>
+              <Button size="sm" className="gap-1 text-xs h-7" onClick={handleSave} disabled={updateTrip.isPending}>
+                {updateTrip.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                Save
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {editing ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {fields.map((f) => (
+              <div key={f.key} className="space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  {f.label} {f.required && <span className="text-destructive">*</span>}
+                </Label>
+                <Input
+                  value={(form as any)[f.key]}
+                  onChange={(e) => update(f.key, e.target.value)}
+                  className="h-8 text-sm"
+                />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+            <InfoField label="Full Name" value={trip.traveler_name} />
+            <InfoField label="Email" value={trip.traveler_email} />
+            <InfoField label="Employee ID" value={trip.employee_id} />
+            <InfoField label="Passport Country" value={trip.passport_country} />
+            <InfoField label="Citizenship" value={trip.citizenship} />
+            <InfoField label="Residency" value={trip.residency_country} />
+            <InfoField label="Version" value={`v${trip.version}`} />
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

@@ -168,6 +168,28 @@ export function useTrips() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const updateTrip = useMutation({
+    mutationFn: async ({ tripId, updates }: {
+      tripId: string;
+      updates: Partial<Pick<Trip, "traveler_name" | "traveler_email" | "employee_id" | "passport_country" | "citizenship" | "residency_country" | "purpose" | "notes">>;
+    }) => {
+      const { data, error } = await supabase
+        .from("trips")
+        .update(updates as any)
+        .eq("id", tripId)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as unknown as Trip;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["trips"] });
+      queryClient.invalidateQueries({ queryKey: ["trip", data.id] });
+      toast.success("Traveler details updated");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const deleteTrip = useMutation({
     mutationFn: async (tripId: string) => {
       const { error } = await supabase.from("trips").delete().eq("id", tripId) as any;
@@ -180,7 +202,7 @@ export function useTrips() {
     onError: (err: Error) => toast.error(err.message),
   });
 
-  return { ...tripsQuery, createTrip, deleteTrip };
+  return { ...tripsQuery, createTrip, updateTrip, deleteTrip };
 }
 
 export function useTripDetail(tripId: string | undefined) {
