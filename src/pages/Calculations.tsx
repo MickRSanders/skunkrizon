@@ -64,12 +64,24 @@ export default function Calculations() {
   const [editingCalc, setEditingCalc] = useState<Calculation | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [stageFilter, setStageFilter] = useState("all");
 
-  const filtered = calculations?.filter(
-    (c) =>
+  const filtered = calculations?.filter((c) => {
+    const matchesSearch =
       c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (c.category || "").toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      (c.category || "").toLowerCase().includes(searchTerm.toLowerCase());
+    const cat = (c.category || "").toLowerCase();
+    const matchesType =
+      typeFilter === "all" ||
+      (typeFilter === "cash" && cat.startsWith("cash")) ||
+      (typeFilter === "non-cash" && cat.startsWith("non-cash")) ||
+      (typeFilter === "either" && cat.startsWith("either"));
+    const matchesStage =
+      stageFilter === "all" ||
+      cat.includes(stageFilter.toLowerCase());
+    return matchesSearch && matchesType && matchesStage;
+  });
 
   if (editingCalc) {
     return (
@@ -110,15 +122,39 @@ export default function Calculations() {
         </Button>
       </div>
 
-      <div className="flex items-center gap-2 max-w-sm bg-card border border-border rounded-md px-3 py-2">
-        <Search className="w-4 h-4 text-muted-foreground" />
-        <input
-          type="text"
-          placeholder="Search calculations..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="bg-transparent text-sm outline-none w-full text-foreground placeholder:text-muted-foreground"
-        />
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2 bg-card border border-border rounded-md px-3 py-2 min-w-[200px]">
+          <Search className="w-4 h-4 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search calculations..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="bg-transparent text-sm outline-none w-full text-foreground placeholder:text-muted-foreground"
+          />
+        </div>
+        <Select value={typeFilter} onValueChange={setTypeFilter}>
+          <SelectTrigger className="w-[140px] h-9">
+            <SelectValue placeholder="Benefit type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            <SelectItem value="cash">Cash</SelectItem>
+            <SelectItem value="non-cash">Non-Cash</SelectItem>
+            <SelectItem value="either">Either</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={stageFilter} onValueChange={setStageFilter}>
+          <SelectTrigger className="w-[180px] h-9">
+            <SelectValue placeholder="Move stage" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Stages</SelectItem>
+            <SelectItem value="relocation">Relocation</SelectItem>
+            <SelectItem value="ongoing">Ongoing</SelectItem>
+            <SelectItem value="end of assignment">End of Assignment</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {isLoading ? (
