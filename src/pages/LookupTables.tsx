@@ -22,6 +22,7 @@ import {
   Pencil,
   X,
   FileUp,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -98,6 +99,35 @@ function guessColumnType(values: string[]): string {
   if (sample.some((v) => v.includes("%"))) return "percentage";
   if (sample.some((v) => v.includes("$") || v.includes("€") || v.includes("£"))) return "currency";
   return "number";
+}
+
+function downloadTableAsCsv(
+  tableName: string,
+  columns: Array<{ name: string; type: string }>,
+  rows: Array<{ row_data: any }>
+) {
+  const headers = columns.map((c) => c.name);
+  const csvLines = [
+    headers.join(","),
+    ...rows.map((r) => {
+      const data = r.row_data as Record<string, string>;
+      return headers.map((h) => {
+        const val = data[h] ?? "";
+        // Escape values containing commas, quotes, or newlines
+        if (/[,"\n\r]/.test(String(val))) {
+          return `"${String(val).replace(/"/g, '""')}"`;
+        }
+        return String(val);
+      }).join(",");
+    }),
+  ];
+  const blob = new Blob([csvLines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${tableName.replace(/\s+/g, "_")}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export default function LookupTablesPage() {
@@ -528,6 +558,14 @@ function LookupTableEditor({
           </Button>
           <Button variant="outline" size="sm" onClick={() => setShowImport(!showImport)}>
             <Upload className="w-4 h-4 mr-1" /> Paste CSV
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!rows || rows.length === 0}
+            onClick={() => rows && downloadTableAsCsv(table.name, cols, rows)}
+          >
+            <Download className="w-4 h-4 mr-1" /> Download CSV
           </Button>
         </div>
       </div>
