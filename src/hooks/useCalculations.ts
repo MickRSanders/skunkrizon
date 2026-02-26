@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useTenantContext } from "@/contexts/TenantContext";
 import type { Tables, TablesInsert, TablesUpdate, Json } from "@/integrations/supabase/types";
 
 export type Calculation = Tables<"calculations">;
@@ -11,13 +12,21 @@ export type LookupTableRow = Tables<"lookup_table_rows">;
 // ─── Calculations ──────────────────────────────────────────────
 
 export function useCalculations() {
+  const { activeTenant, activeSubTenant } = useTenantContext();
+
   return useQuery({
-    queryKey: ["calculations"],
+    queryKey: ["calculations", activeTenant?.tenant_id, activeSubTenant?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("calculations")
-        .select("*")
-        .order("name");
+      let query = supabase.from("calculations").select("*").order("name");
+
+      if (activeTenant) {
+        query = query.eq("tenant_id", activeTenant.tenant_id);
+      }
+      if (activeSubTenant) {
+        query = query.eq("sub_tenant_id", activeSubTenant.id);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
@@ -26,9 +35,15 @@ export function useCalculations() {
 
 export function useCreateCalculation() {
   const qc = useQueryClient();
+  const { activeTenant, activeSubTenant } = useTenantContext();
+
   return useMutation({
     mutationFn: async (calc: TablesInsert<"calculations">) => {
-      const { data, error } = await supabase.from("calculations").insert(calc).select().single();
+      const { data, error } = await supabase.from("calculations").insert({
+        ...calc,
+        tenant_id: activeTenant?.tenant_id ?? calc.tenant_id,
+        sub_tenant_id: activeSubTenant?.id ?? null,
+      }).select().single();
       if (error) throw error;
       return data;
     },
@@ -146,10 +161,21 @@ export function useUpsertDataSource() {
 // ─── Lookup Tables ─────────────────────────────────────────────
 
 export function useLookupTables() {
+  const { activeTenant, activeSubTenant } = useTenantContext();
+
   return useQuery({
-    queryKey: ["lookup_tables"],
+    queryKey: ["lookup_tables", activeTenant?.tenant_id, activeSubTenant?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("lookup_tables").select("*").order("name");
+      let query = supabase.from("lookup_tables").select("*").order("name");
+
+      if (activeTenant) {
+        query = query.eq("tenant_id", activeTenant.tenant_id);
+      }
+      if (activeSubTenant) {
+        query = query.eq("sub_tenant_id", activeSubTenant.id);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
@@ -158,9 +184,15 @@ export function useLookupTables() {
 
 export function useCreateLookupTable() {
   const qc = useQueryClient();
+  const { activeTenant, activeSubTenant } = useTenantContext();
+
   return useMutation({
     mutationFn: async (table: TablesInsert<"lookup_tables">) => {
-      const { data, error } = await supabase.from("lookup_tables").insert(table).select().single();
+      const { data, error } = await supabase.from("lookup_tables").insert({
+        ...table,
+        tenant_id: activeTenant?.tenant_id ?? table.tenant_id,
+        sub_tenant_id: activeSubTenant?.id ?? null,
+      }).select().single();
       if (error) throw error;
       return data;
     },

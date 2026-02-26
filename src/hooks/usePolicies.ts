@@ -1,17 +1,29 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useTenantContext } from "@/contexts/TenantContext";
 import type { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 
 export type Policy = Tables<"policies">;
 
 export function usePolicies() {
+  const { activeTenant, activeSubTenant } = useTenantContext();
+
   return useQuery({
-    queryKey: ["policies"],
+    queryKey: ["policies", activeTenant?.tenant_id, activeSubTenant?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("policies")
         .select("*")
         .order("updated_at", { ascending: false });
+
+      if (activeTenant) {
+        query = query.eq("tenant_id", activeTenant.tenant_id);
+      }
+      if (activeSubTenant) {
+        query = query.eq("sub_tenant_id", activeSubTenant.id);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
@@ -19,14 +31,25 @@ export function usePolicies() {
 }
 
 export function usePublishedPolicies() {
+  const { activeTenant, activeSubTenant } = useTenantContext();
+
   return useQuery({
-    queryKey: ["policies", "published"],
+    queryKey: ["policies", "published", activeTenant?.tenant_id, activeSubTenant?.id],
     queryFn: async () => {
-      const { data, error } = await (supabase
+      let query = supabase
         .from("policies")
-        .select("*") as any)
+        .select("*")
         .eq("status", "published")
         .order("name");
+
+      if (activeTenant) {
+        query = query.eq("tenant_id", activeTenant.tenant_id);
+      }
+      if (activeSubTenant) {
+        query = query.eq("sub_tenant_id", activeSubTenant.id);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data as Policy[];
     },
@@ -35,11 +58,17 @@ export function usePublishedPolicies() {
 
 export function useCreatePolicy() {
   const qc = useQueryClient();
+  const { activeTenant, activeSubTenant } = useTenantContext();
+
   return useMutation({
     mutationFn: async (policy: TablesInsert<"policies">) => {
       const { data, error } = await supabase
         .from("policies")
-        .insert(policy)
+        .insert({
+          ...policy,
+          tenant_id: activeTenant?.tenant_id ?? policy.tenant_id,
+          sub_tenant_id: activeSubTenant?.id ?? null,
+        })
         .select()
         .single();
       if (error) throw error;
