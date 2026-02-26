@@ -463,6 +463,86 @@ export type Database = {
         }
         Relationships: []
       }
+      pta_module_config: {
+        Row: {
+          activity_aliases: Json | null
+          bookings_api_enabled: boolean
+          confidence_threshold: number
+          created_at: string
+          hidden_fields: Json | null
+          id: string
+          immigration_enabled: boolean
+          monaeo_enabled: boolean
+          outcome_wording_overrides: Json | null
+          pe_enabled: boolean
+          pwd_enabled: boolean
+          risk_mapping_rules: Json | null
+          routing_rules: Json | null
+          schengen_enabled: boolean
+          shadow_mode_enabled: boolean
+          social_security_enabled: boolean
+          suppressed_activities: Json | null
+          tenant_id: string
+          tone: string
+          updated_at: string
+          withholding_enabled: boolean
+        }
+        Insert: {
+          activity_aliases?: Json | null
+          bookings_api_enabled?: boolean
+          confidence_threshold?: number
+          created_at?: string
+          hidden_fields?: Json | null
+          id?: string
+          immigration_enabled?: boolean
+          monaeo_enabled?: boolean
+          outcome_wording_overrides?: Json | null
+          pe_enabled?: boolean
+          pwd_enabled?: boolean
+          risk_mapping_rules?: Json | null
+          routing_rules?: Json | null
+          schengen_enabled?: boolean
+          shadow_mode_enabled?: boolean
+          social_security_enabled?: boolean
+          suppressed_activities?: Json | null
+          tenant_id: string
+          tone?: string
+          updated_at?: string
+          withholding_enabled?: boolean
+        }
+        Update: {
+          activity_aliases?: Json | null
+          bookings_api_enabled?: boolean
+          confidence_threshold?: number
+          created_at?: string
+          hidden_fields?: Json | null
+          id?: string
+          immigration_enabled?: boolean
+          monaeo_enabled?: boolean
+          outcome_wording_overrides?: Json | null
+          pe_enabled?: boolean
+          pwd_enabled?: boolean
+          risk_mapping_rules?: Json | null
+          routing_rules?: Json | null
+          schengen_enabled?: boolean
+          shadow_mode_enabled?: boolean
+          social_security_enabled?: boolean
+          suppressed_activities?: Json | null
+          tenant_id?: string
+          tone?: string
+          updated_at?: string
+          withholding_enabled?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pta_module_config_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       role_permissions: {
         Row: {
           can_create: boolean
@@ -905,6 +985,280 @@ export type Database = {
         }
         Relationships: []
       }
+      trip_assessments: {
+        Row: {
+          assessed_at: string | null
+          assessed_by: string | null
+          created_at: string
+          id: string
+          module: string
+          next_steps: string | null
+          outcome: Database["public"]["Enums"]["assessment_outcome"]
+          override_outcome:
+            | Database["public"]["Enums"]["assessment_outcome"]
+            | null
+          override_reason: string | null
+          override_wording: string | null
+          raw_api_response: Json | null
+          reasoning: string | null
+          risk_flags: Json | null
+          risk_level: string | null
+          rule_references: Json | null
+          segment_id: string | null
+          statutory_outcome: string | null
+          trip_id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          assessed_at?: string | null
+          assessed_by?: string | null
+          created_at?: string
+          id?: string
+          module: string
+          next_steps?: string | null
+          outcome?: Database["public"]["Enums"]["assessment_outcome"]
+          override_outcome?:
+            | Database["public"]["Enums"]["assessment_outcome"]
+            | null
+          override_reason?: string | null
+          override_wording?: string | null
+          raw_api_response?: Json | null
+          reasoning?: string | null
+          risk_flags?: Json | null
+          risk_level?: string | null
+          rule_references?: Json | null
+          segment_id?: string | null
+          statutory_outcome?: string | null
+          trip_id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          assessed_at?: string | null
+          assessed_by?: string | null
+          created_at?: string
+          id?: string
+          module?: string
+          next_steps?: string | null
+          outcome?: Database["public"]["Enums"]["assessment_outcome"]
+          override_outcome?:
+            | Database["public"]["Enums"]["assessment_outcome"]
+            | null
+          override_reason?: string | null
+          override_wording?: string | null
+          raw_api_response?: Json | null
+          reasoning?: string | null
+          risk_flags?: Json | null
+          risk_level?: string | null
+          rule_references?: Json | null
+          segment_id?: string | null
+          statutory_outcome?: string | null
+          trip_id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_assessments_segment_id_fkey"
+            columns: ["segment_id"]
+            isOneToOne: false
+            referencedRelation: "trip_segments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trip_assessments_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_segments: {
+        Row: {
+          activity_description: string | null
+          activity_type: string
+          created_at: string
+          destination_city: string | null
+          destination_country: string
+          duration_days: number | null
+          end_date: string
+          id: string
+          immigration_documents: Json | null
+          origin_city: string | null
+          origin_country: string
+          provenance: Database["public"]["Enums"]["input_provenance"]
+          segment_order: number
+          start_date: string
+          trip_id: string
+          updated_at: string
+        }
+        Insert: {
+          activity_description?: string | null
+          activity_type?: string
+          created_at?: string
+          destination_city?: string | null
+          destination_country: string
+          duration_days?: number | null
+          end_date: string
+          id?: string
+          immigration_documents?: Json | null
+          origin_city?: string | null
+          origin_country: string
+          provenance?: Database["public"]["Enums"]["input_provenance"]
+          segment_order?: number
+          start_date: string
+          trip_id: string
+          updated_at?: string
+        }
+        Update: {
+          activity_description?: string | null
+          activity_type?: string
+          created_at?: string
+          destination_city?: string | null
+          destination_country?: string
+          duration_days?: number | null
+          end_date?: string
+          id?: string
+          immigration_documents?: Json | null
+          origin_city?: string | null
+          origin_country?: string
+          provenance?: Database["public"]["Enums"]["input_provenance"]
+          segment_order?: number
+          start_date?: string
+          trip_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_segments_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trip_versions: {
+        Row: {
+          change_summary: string | null
+          changed_by: string
+          created_at: string
+          id: string
+          snapshot: Json
+          trip_id: string
+          version: number
+        }
+        Insert: {
+          change_summary?: string | null
+          changed_by: string
+          created_at?: string
+          id?: string
+          snapshot: Json
+          trip_id: string
+          version: number
+        }
+        Update: {
+          change_summary?: string | null
+          changed_by?: string
+          created_at?: string
+          id?: string
+          snapshot?: Json
+          trip_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trip_versions_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trips: {
+        Row: {
+          citizenship: string | null
+          created_at: string
+          created_by: string
+          employee_id: string | null
+          id: string
+          is_shadow: boolean
+          notes: string | null
+          passport_country: string | null
+          provenance: Json | null
+          purpose: string | null
+          residency_country: string | null
+          status: Database["public"]["Enums"]["trip_status"]
+          sub_tenant_id: string | null
+          tenant_id: string
+          traveler_email: string | null
+          traveler_name: string
+          trip_code: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          citizenship?: string | null
+          created_at?: string
+          created_by: string
+          employee_id?: string | null
+          id?: string
+          is_shadow?: boolean
+          notes?: string | null
+          passport_country?: string | null
+          provenance?: Json | null
+          purpose?: string | null
+          residency_country?: string | null
+          status?: Database["public"]["Enums"]["trip_status"]
+          sub_tenant_id?: string | null
+          tenant_id: string
+          traveler_email?: string | null
+          traveler_name: string
+          trip_code?: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          citizenship?: string | null
+          created_at?: string
+          created_by?: string
+          employee_id?: string | null
+          id?: string
+          is_shadow?: boolean
+          notes?: string | null
+          passport_country?: string | null
+          provenance?: Json | null
+          purpose?: string | null
+          residency_country?: string | null
+          status?: Database["public"]["Enums"]["trip_status"]
+          sub_tenant_id?: string | null
+          tenant_id?: string
+          traveler_email?: string | null
+          traveler_name?: string
+          trip_code?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trips_sub_tenant_id_fkey"
+            columns: ["sub_tenant_id"]
+            isOneToOne: false
+            referencedRelation: "sub_tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trips_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           id: string
@@ -950,13 +1304,28 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "analyst" | "viewer" | "superadmin"
+      assessment_outcome: "green" | "amber" | "red" | "pending"
       data_source_type:
         | "manual"
         | "api_connector"
         | "rate_file"
         | "lookup_table"
+      input_provenance:
+        | "ai_derived"
+        | "user_provided"
+        | "api_ingested"
+        | "system_generated"
       simulation_status: "draft" | "running" | "completed" | "pending"
       tenant_role: "tenant_admin" | "tenant_user"
+      trip_status:
+        | "draft"
+        | "confirmed"
+        | "assessed"
+        | "monitoring"
+        | "needs_info"
+        | "attention"
+        | "escalate"
+        | "closed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1085,14 +1454,31 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "analyst", "viewer", "superadmin"],
+      assessment_outcome: ["green", "amber", "red", "pending"],
       data_source_type: [
         "manual",
         "api_connector",
         "rate_file",
         "lookup_table",
       ],
+      input_provenance: [
+        "ai_derived",
+        "user_provided",
+        "api_ingested",
+        "system_generated",
+      ],
       simulation_status: ["draft", "running", "completed", "pending"],
       tenant_role: ["tenant_admin", "tenant_user"],
+      trip_status: [
+        "draft",
+        "confirmed",
+        "assessed",
+        "monitoring",
+        "needs_info",
+        "attention",
+        "escalate",
+        "closed",
+      ],
     },
   },
 } as const

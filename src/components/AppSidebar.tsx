@@ -21,6 +21,7 @@ import {
   Database,
   Cable,
   ClipboardList,
+  Plane,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,7 @@ import { toast } from "sonner";
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/simulations", icon: Calculator, label: "Cost Simulations" },
+  { to: "/pre-travel", icon: Plane, label: "Pre-Travel" },
   { to: "/policies", icon: FileText, label: "Policy Agent" },
   { to: "/analytics", icon: BarChart3, label: "Analytics" },
 ];

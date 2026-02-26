@@ -25,6 +25,8 @@ import NotFound from "./pages/NotFound";
 import RolesPermissions from "./pages/RolesPermissions";
 import ProfilePage from "./pages/ProfilePage";
 import AuditLog from "./pages/AuditLog";
+import PreTravel from "./pages/PreTravel";
+import PreTravelDetail from "./pages/PreTravelDetail";
 
 const queryClient = new QueryClient();
 
@@ -42,6 +44,8 @@ const App = () => (
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/simulations" element={<Simulations />} />
+              <Route path="/pre-travel" element={<PreTravel />} />
+              <Route path="/pre-travel/:id" element={<PreTravelDetail />} />
               <Route path="/policies" element={<Policies />} />
               <Route path="/calculations" element={<Calculations />} />
               <Route path="/tax-engine" element={<TaxEngine />} />
