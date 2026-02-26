@@ -1,5 +1,12 @@
+import { useState } from "react";
 import KPICard from "@/components/KPICard";
-import { Globe, FileCheck, AlertTriangle, CheckCircle } from "lucide-react";
+import { Globe, FileCheck, AlertTriangle, CheckCircle, Info } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
 
 const countryPairs = [
   { home: "United States", host: "United Kingdom", treaty: "Yes", status: "Validated", scenarios: 42 },
@@ -12,7 +19,26 @@ const countryPairs = [
   { home: "France", host: "Canada", treaty: "Yes", status: "Validated", scenarios: 7 },
 ];
 
+type TaxTreatment = "equalized" | "protected" | "employee_borne" | "laissez_faire";
+type GrossUpMode = "standard" | "selective" | "none";
+
+const taxTreatmentInfo: Record<TaxTreatment, { label: string; desc: string }> = {
+  equalized: { label: "Tax Equalized", desc: "Company bears the difference between home and host tax so the assignee pays only hypothetical home tax." },
+  protected: { label: "Tax Protected", desc: "Assignee never pays more than home-country tax; savings in lower-tax hosts go to the employee." },
+  employee_borne: { label: "Employee Borne", desc: "Assignee bears all actual home and host tax obligations with no company reimbursement." },
+  laissez_faire: { label: "Laissez-Faire", desc: "No tax adjustment; assignee files in both jurisdictions independently." },
+};
+
 export default function TaxEngine() {
+  const [taxTreatment, setTaxTreatment] = useState<TaxTreatment>("equalized");
+  const [grossUpMode, setGrossUpMode] = useState<GrossUpMode>("standard");
+  const [includeSocialSecurity, setIncludeSocialSecurity] = useState(true);
+  const [includeHousingInGrossUp, setIncludeHousingInGrossUp] = useState(true);
+  const [includeEducationInGrossUp, setIncludeEducationInGrossUp] = useState(false);
+  const [includeColaInGrossUp, setIncludeColaInGrossUp] = useState(true);
+  const [hypoTaxMethod, setHypoTaxMethod] = useState("marginal");
+  const [equalizationSettlement, setEqualizationSettlement] = useState("annual");
+
   return (
     <div className="space-y-6">
       <div>
@@ -64,34 +90,132 @@ export default function TaxEngine() {
         </div>
       </div>
 
-      {/* Tax Treatment Config */}
+      {/* Tax Treatment & Gross-Up Configuration */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-card rounded-lg border border-border p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">Tax Treatment Options</h3>
-          <div className="space-y-3">
-            {["Tax Equalized", "Tax Protected", "Employee Borne", "Laissez-Faire"].map((opt) => (
-              <div key={opt} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
-                <span className="text-sm text-foreground">{opt}</span>
-                <span className="text-xs text-muted-foreground">Available</span>
-              </div>
+        {/* Tax Treatment Options */}
+        <div className="bg-card rounded-lg border border-border p-5 space-y-5">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Tax Treatment Approach</h3>
+            <p className="text-xs text-muted-foreground mt-1">Select the default tax treatment for assignments</p>
+          </div>
+
+          <RadioGroup value={taxTreatment} onValueChange={(v) => setTaxTreatment(v as TaxTreatment)} className="space-y-2">
+            {(Object.entries(taxTreatmentInfo) as [TaxTreatment, { label: string; desc: string }][]).map(([key, { label, desc }]) => (
+              <label
+                key={key}
+                className={`flex items-start gap-3 p-3 rounded-md border cursor-pointer transition-colors ${
+                  taxTreatment === key ? "border-primary bg-primary/5" : "border-border hover:bg-muted/30"
+                }`}
+              >
+                <RadioGroupItem value={key} className="mt-0.5" />
+                <div className="min-w-0">
+                  <span className="text-sm font-medium text-foreground">{label}</span>
+                  <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
+                </div>
+              </label>
             ))}
+          </RadioGroup>
+
+          {/* Hypo Tax & Settlement */}
+          <div className="space-y-3 pt-3 border-t border-border">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <Label className="text-sm text-foreground">Hypothetical Tax Method</Label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="w-3.5 h-3.5 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="max-w-[220px]">
+                    <p className="text-xs">Marginal uses the assignee's actual bracket. Flat applies a fixed rate across all income.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+              <Select value={hypoTaxMethod} onValueChange={setHypoTaxMethod}>
+                <SelectTrigger className="w-[140px] h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="marginal">Marginal Rate</SelectItem>
+                  <SelectItem value="flat">Flat Rate</SelectItem>
+                  <SelectItem value="blended">Blended Rate</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <Label className="text-sm text-foreground">Equalization Settlement</Label>
+              <Select value={equalizationSettlement} onValueChange={setEqualizationSettlement}>
+                <SelectTrigger className="w-[140px] h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="annual">Annual</SelectItem>
+                  <SelectItem value="end_of_assignment">End of Assignment</SelectItem>
+                  <SelectItem value="quarterly">Quarterly</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
-        <div className="bg-card rounded-lg border border-border p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">Gross-Up Controls</h3>
-          <div className="space-y-3">
+
+        {/* Gross-Up Controls */}
+        <div className="bg-card rounded-lg border border-border p-5 space-y-5">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Gross-Up Controls</h3>
+            <p className="text-xs text-muted-foreground mt-1">Configure which benefits are included in tax gross-up calculations</p>
+          </div>
+
+          {/* Gross-up mode */}
+          <div className="space-y-2">
+            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Gross-Up Mode</Label>
+            <RadioGroup value={grossUpMode} onValueChange={(v) => setGrossUpMode(v as GrossUpMode)} className="flex gap-2">
+              {([
+                { value: "standard", label: "Standard" },
+                { value: "selective", label: "Selective" },
+                { value: "none", label: "None" },
+              ] as const).map((opt) => (
+                <label
+                  key={opt.value}
+                  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md border text-xs font-medium cursor-pointer transition-colors ${
+                    grossUpMode === opt.value ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground hover:bg-muted/30"
+                  }`}
+                >
+                  <RadioGroupItem value={opt.value} className="sr-only" />
+                  {opt.label}
+                </label>
+              ))}
+            </RadioGroup>
+            <p className="text-xs text-muted-foreground">
+              {grossUpMode === "standard" && "All taxable benefits are automatically grossed up."}
+              {grossUpMode === "selective" && "Choose which benefits to include in gross-up below."}
+              {grossUpMode === "none" && "No gross-up applied — assignee bears full tax on benefits."}
+            </p>
+          </div>
+
+          {/* Benefit toggles - visible in selective mode, informational in standard */}
+          <div className="space-y-1 pt-2 border-t border-border">
+            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Benefit Inclusions</Label>
             {[
-              { label: "Standard Gross-Up", desc: "Apply to all taxable benefits" },
-              { label: "Selective Gross-Up", desc: "Per-benefit configuration" },
-              { label: "Equalization Balance", desc: "Home vs host hypo tax offset" },
-              { label: "Social Security", desc: "Include in gross-up calculations" },
+              { id: "social_security", label: "Social Security / NI", desc: "Include employer social contributions", value: includeSocialSecurity, setter: setIncludeSocialSecurity },
+              { id: "housing", label: "Housing Allowance", desc: "Gross up housing benefits", value: includeHousingInGrossUp, setter: setIncludeHousingInGrossUp },
+              { id: "education", label: "Education / Schooling", desc: "Dependent education benefits", value: includeEducationInGrossUp, setter: setIncludeEducationInGrossUp },
+              { id: "cola", label: "COLA", desc: "Cost-of-living adjustment", value: includeColaInGrossUp, setter: setIncludeColaInGrossUp },
             ].map((item) => (
-              <div key={item.label} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
+              <div key={item.id} className="flex items-center justify-between py-2.5 border-b border-border/50 last:border-0">
                 <div>
                   <p className="text-sm text-foreground">{item.label}</p>
                   <p className="text-xs text-muted-foreground">{item.desc}</p>
                 </div>
-                <span className="text-xs text-accent font-medium">Configurable</span>
+                <div className="flex items-center gap-2">
+                  {grossUpMode === "standard" && (
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Auto</Badge>
+                  )}
+                  <Switch
+                    checked={grossUpMode === "standard" ? true : grossUpMode === "none" ? false : item.value}
+                    disabled={grossUpMode !== "selective"}
+                    onCheckedChange={item.setter}
+                  />
+                </div>
               </div>
             ))}
           </div>
