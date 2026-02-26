@@ -38,7 +38,7 @@ import {
   type LookupTable,
 } from "@/hooks/useCalculations";
 import type { Json } from "@/integrations/supabase/types";
-import * as XLSX from "xlsx";
+import * as XLSX from "@e965/xlsx";
 
 // ─── File parser (CSV/TSV/Excel) ──────────────────────────────
 function parseFileData(

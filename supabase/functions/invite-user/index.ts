@@ -51,11 +51,19 @@ serve(async (req) => {
       .maybeSingle();
 
     if (!roleData) {
-      throw new Error("Only admins can invite users");
+      return new Response(JSON.stringify({ error: "Insufficient permissions" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
     }
 
     const { email, displayName, role } = await req.json();
-    if (!email) throw new Error("Email is required");
+    if (!email || typeof email !== "string") {
+      return new Response(JSON.stringify({ error: "A valid email is required" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
 
     // Invite user — sends invite email automatically
     const { data: inviteData, error: inviteError } =
@@ -63,7 +71,16 @@ serve(async (req) => {
         data: { display_name: displayName || email },
       });
 
-    if (inviteError) throw inviteError;
+    if (inviteError) {
+      console.error("Invite error:", inviteError);
+      const userMessage = inviteError.message?.includes("already")
+        ? "This user has already been invited"
+        : "Failed to invite user";
+      return new Response(JSON.stringify({ error: userMessage }), {
+        status: 400,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
 
     // Assign role if specified (default 'viewer' is set by handle_new_user trigger)
     if (role && role !== "viewer" && inviteData.user) {
@@ -80,8 +97,8 @@ serve(async (req) => {
   } catch (error: any) {
     console.error("Error inviting user:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      JSON.stringify({ error: "An error occurred processing your request" }),
+      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }
 });
