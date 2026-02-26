@@ -1,13 +1,16 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
-import { ArrowRightLeft, Clock, Download, Loader2, ShieldAlert } from "lucide-react";
+import { format, startOfDay, endOfDay } from "date-fns";
+import { ArrowRightLeft, CalendarIcon, Clock, Download, Loader2, ShieldAlert, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import PageTransition from "@/components/PageTransition";
+import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 30;
 
@@ -28,16 +31,25 @@ interface AuditEntry {
 export default function AuditLog() {
   const [search, setSearch] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [dateFrom, setDateFrom] = useState<Date | undefined>();
+  const [dateTo, setDateTo] = useState<Date | undefined>();
   const sentinelRef = useRef<HTMLDivElement>(null);
+
+  const applyDateFilters = (query: any) => {
+    if (dateFrom) query = query.gte("created_at", startOfDay(dateFrom).toISOString());
+    if (dateTo) query = query.lte("created_at", endOfDay(dateTo).toISOString());
+    return query;
+  };
 
   const handleExportCsv = async () => {
     setExporting(true);
     try {
-      // Fetch ALL entries for export (not just loaded pages)
-      const { data: allRows, error } = await supabase
+      let q = supabase
         .from("superadmin_audit_log")
         .select("*")
         .order("created_at", { ascending: false });
+      q = applyDateFilters(q);
+      const { data: allRows, error } = await q;
       if (error) throw error;
 
       const userIds = [...new Set((allRows ?? []).map((d: any) => d.user_id))];
@@ -83,17 +95,19 @@ export default function AuditLog() {
     hasNextPage,
     fetchNextPage,
   } = useInfiniteQuery({
-    queryKey: ["superadmin_audit_log"],
+    queryKey: ["superadmin_audit_log", dateFrom?.toISOString(), dateTo?.toISOString()],
     initialPageParam: 0,
     queryFn: async ({ pageParam = 0 }) => {
       const from = pageParam * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
-      const { data: rows, error } = await supabase
+      let q = supabase
         .from("superadmin_audit_log")
         .select("*")
         .order("created_at", { ascending: false })
         .range(from, to);
+      q = applyDateFilters(q);
+      const { data: rows, error } = await q;
       if (error) throw error;
 
       const userIds = [...new Set((rows ?? []).map((d: any) => d.user_id))];
@@ -164,7 +178,67 @@ export default function AuditLog() {
                   {filtered.length} entries{hasNextPage ? "+" : ""}
                 </CardDescription>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Date From */}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={cn("w-[140px] justify-start text-left font-normal", !dateFrom && "text-muted-foreground")}
+                    >
+                      <CalendarIcon className="w-3.5 h-3.5 mr-1.5" />
+                      {dateFrom ? format(dateFrom, "MMM d, yyyy") : "From"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dateFrom}
+                      onSelect={setDateFrom}
+                      disabled={(d) => (dateTo ? d > dateTo : false)}
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                {/* Date To */}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={cn("w-[140px] justify-start text-left font-normal", !dateTo && "text-muted-foreground")}
+                    >
+                      <CalendarIcon className="w-3.5 h-3.5 mr-1.5" />
+                      {dateTo ? format(dateTo, "MMM d, yyyy") : "To"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dateTo}
+                      onSelect={setDateTo}
+                      disabled={(d) => (dateFrom ? d < dateFrom : false)}
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                {/* Clear dates */}
+                {(dateFrom || dateTo) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setDateFrom(undefined); setDateTo(undefined); }}
+                    className="px-2"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+
                 <Input
                   placeholder="Search by user or organization…"
                   value={search}
