@@ -2,7 +2,8 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
-import { ArrowRightLeft, Clock, Loader2, ShieldAlert } from "lucide-react";
+import { ArrowRightLeft, Clock, Download, Loader2, ShieldAlert } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +27,54 @@ interface AuditEntry {
 
 export default function AuditLog() {
   const [search, setSearch] = useState("");
+  const [exporting, setExporting] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
+
+  const handleExportCsv = async () => {
+    setExporting(true);
+    try {
+      // Fetch ALL entries for export (not just loaded pages)
+      const { data: allRows, error } = await supabase
+        .from("superadmin_audit_log")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+
+      const userIds = [...new Set((allRows ?? []).map((d: any) => d.user_id))];
+      const { data: profiles } = userIds.length
+        ? await supabase.from("profiles").select("id, display_name").in("id", userIds)
+        : { data: [] };
+      const profileMap = Object.fromEntries((profiles ?? []).map((p) => [p.id, p]));
+
+      const csvRows = [
+        ["Timestamp", "User", "User ID", "Action", "From Organization", "To Organization"].join(","),
+        ...(allRows ?? []).map((row: any) => {
+          const d = row.details as AuditEntry["details"];
+          const name = profileMap[row.user_id]?.display_name || "Unknown";
+          return [
+            `"${format(new Date(row.created_at), "yyyy-MM-dd HH:mm:ss")}"`,
+            `"${name.replace(/"/g, '""')}"`,
+            row.user_id,
+            row.action,
+            `"${(d.from_tenant_name || "—").replace(/"/g, '""')}"`,
+            `"${(d.to_tenant_name || "—").replace(/"/g, '""')}"`,
+          ].join(",");
+        }),
+      ];
+
+      const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `audit-log-${format(new Date(), "yyyy-MM-dd")}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // silent fail
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const {
     data,
@@ -116,12 +164,27 @@ export default function AuditLog() {
                   {filtered.length} entries{hasNextPage ? "+" : ""}
                 </CardDescription>
               </div>
-              <Input
-                placeholder="Search by user or organization…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="max-w-xs"
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="Search by user or organization…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="max-w-xs"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={filtered.length === 0 || exporting}
+                  onClick={handleExportCsv}
+                >
+                  {exporting ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                  ) : (
+                    <Download className="w-4 h-4 mr-1.5" />
+                  )}
+                  Export CSV
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
