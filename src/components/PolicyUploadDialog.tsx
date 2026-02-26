@@ -101,15 +101,6 @@ export default function PolicyUploadDialog({ onClose, onSave }: PolicyUploadDial
     if (e.target.files?.[0]) acceptFile(e.target.files[0]);
   };
 
-  const readFileAsText = async (f: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = () => reject(new Error("Failed to read file"));
-      reader.readAsText(f);
-    });
-  };
-
   const handleUploadAndParse = async () => {
     if (!file || !user) return;
     setUploading(true);
@@ -123,14 +114,12 @@ export default function PolicyUploadDialog({ onClose, onSave }: PolicyUploadDial
         .upload(filePath, file);
       if (uploadErr) throw uploadErr;
 
-      // 2. Read text content
-      const text = await readFileAsText(file);
       setUploading(false);
 
-      // 3. Send to AI for parsing
+      // 2. Send file path to AI for parsing (edge function downloads from storage)
       setParsing(true);
       const { data, error } = await supabase.functions.invoke("parse-policy", {
-        body: { documentText: text, fileName: file.name },
+        body: { filePath, fileName: file.name },
       });
 
       if (error) throw error;
