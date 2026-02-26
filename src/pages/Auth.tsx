@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, ArrowLeft } from "lucide-react";
 
 export default function Auth() {
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -20,14 +21,22 @@ export default function Auth() {
     e.preventDefault();
     setLoading(true);
     try {
-      if (mode === "login") {
+      if (mode === "forgot") {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
+        if (error) throw error;
+        toast.success("Password reset email sent. Check your inbox.");
+        setMode("login");
+      } else if (mode === "login") {
         await signIn(email, password);
         toast.success("Signed in successfully");
+        navigate("/");
       } else {
         await signUp(email, password, displayName);
         toast.success("Account created! You're signed in.");
+        navigate("/");
       }
-      navigate("/");
     } catch (err: any) {
       toast.error(err.message || "Authentication failed");
     } finally {
@@ -41,7 +50,7 @@ export default function Auth() {
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-foreground tracking-tight">Horizon by Topia</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {mode === "login" ? "Sign in to your account" : "Create a new account"}
+            {mode === "login" ? "Sign in to your account" : mode === "signup" ? "Create a new account" : "Reset your password"}
           </p>
         </div>
         <form onSubmit={handleSubmit} className="bg-card border border-border rounded-xl p-6 space-y-4 shadow-sm">
@@ -55,19 +64,37 @@ export default function Auth() {
             <Label className="text-xs text-muted-foreground">Email</Label>
             <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" />
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Password</Label>
-            <Input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
-          </div>
+          {mode !== "forgot" && (
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Password</Label>
+              <Input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+            </div>
+          )}
           <Button type="submit" className="w-full" disabled={loading}>
             {loading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-            {mode === "login" ? "Sign In" : "Create Account"}
+            {mode === "login" ? "Sign In" : mode === "signup" ? "Create Account" : "Send Reset Link"}
           </Button>
+          {mode === "login" && (
+            <p className="text-xs text-center">
+              <button type="button" className="text-accent hover:underline font-medium" onClick={() => setMode("forgot")}>
+                Forgot your password?
+              </button>
+            </p>
+          )}
+          {mode === "forgot" && (
+            <p className="text-xs text-center">
+              <button type="button" className="text-accent hover:underline font-medium inline-flex items-center gap-1" onClick={() => setMode("login")}>
+                <ArrowLeft className="w-3 h-3" /> Back to sign in
+              </button>
+            </p>
+          )}
           <p className="text-xs text-center text-muted-foreground">
-            {mode === "login" ? "Don't have an account?" : "Already have an account?"}{" "}
-            <button type="button" className="text-accent hover:underline font-medium" onClick={() => setMode(mode === "login" ? "signup" : "login")}>
-              {mode === "login" ? "Sign up" : "Sign in"}
-            </button>
+            {mode === "login" ? "Don't have an account?" : mode === "signup" ? "Already have an account?" : ""}{" "}
+            {mode !== "forgot" && (
+              <button type="button" className="text-accent hover:underline font-medium" onClick={() => setMode(mode === "login" ? "signup" : "login")}>
+                {mode === "login" ? "Sign up" : "Sign in"}
+              </button>
+            )}
           </p>
         </form>
       </div>
