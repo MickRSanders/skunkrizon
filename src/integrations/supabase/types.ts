@@ -232,6 +232,7 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          status: string
           tax_approach: string | null
           tenant_id: string | null
           tier: string
@@ -244,6 +245,7 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          status?: string
           tax_approach?: string | null
           tenant_id?: string | null
           tier?: string
@@ -256,6 +258,7 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          status?: string
           tax_approach?: string | null
           tenant_id?: string | null
           tier?: string
