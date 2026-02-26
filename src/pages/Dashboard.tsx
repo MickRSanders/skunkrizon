@@ -396,7 +396,7 @@ export default function Dashboard() {
             </thead>
             <tbody>
               {recentSims && recentSims.length > 0 ? recentSims.map((sim) => (
-                <tr key={sim.id} className="data-table-row cursor-pointer" onClick={() => navigate(`/simulations`)}>
+                <tr key={sim.id} className="data-table-row cursor-pointer" onClick={() => navigate(`/simulations?sim=${sim.id}`)}>
                   <td className="px-5 py-3 font-mono text-xs text-accent">{sim.sim_code}</td>
                   <td className="px-5 py-3 font-medium text-foreground">{sim.employee_name}</td>
                   <td className="px-5 py-3 text-muted-foreground">
