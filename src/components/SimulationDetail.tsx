@@ -339,7 +339,7 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
                         {items.map((benefit) => (
                           <div
                             key={benefit.id}
-                            className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-all ${
+                            className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition-all ${
                               benefit.isOverridden
                                 ? "bg-warning/5 border border-warning/20 shadow-sm"
                                 : "bg-muted/20 hover:bg-muted/40"
@@ -349,18 +349,22 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
                               <Input
                                 value={benefit.label}
                                 onChange={(e) => updateBenefitLabel(scenario.id, benefit.id, e.target.value)}
-                                className="h-6 text-xs bg-transparent border-none p-0 focus-visible:ring-0 flex-1 text-foreground"
+                                className="h-6 text-[13px] bg-transparent border-none p-0 focus-visible:ring-0 flex-1 text-foreground tracking-tight"
                               />
                             ) : (
-                              <span className="flex-1 text-foreground text-sm">{benefit.label}</span>
+                              <span className="flex-1 text-foreground text-[13px] tracking-tight">{benefit.label}</span>
                             )}
-                            <div className="flex items-center gap-1">
-                              <DollarSign className="w-3 h-3 text-muted-foreground/50" />
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-muted-foreground/50 text-xs">$</span>
                               <Input
-                                type="number"
-                                value={benefit.amount}
-                                onChange={(e) => updateBenefitAmount(scenario.id, benefit.id, Number(e.target.value) || 0)}
-                                className="h-6 w-[90px] text-xs text-right bg-transparent border-none p-0 focus-visible:ring-0 font-mono text-foreground tabular-nums"
+                                type="text"
+                                inputMode="numeric"
+                                value={formatNumber(benefit.amount)}
+                                onChange={(e) => {
+                                  const raw = e.target.value.replace(/,/g, "");
+                                  updateBenefitAmount(scenario.id, benefit.id, Number(raw) || 0);
+                                }}
+                                className="h-6 w-[100px] text-[13px] text-right bg-transparent border-none p-0 focus-visible:ring-0 text-foreground tabular-nums tracking-tight"
                               />
                               {benefit.isOverridden && benefit.category !== "Custom" && (
                                 <button
