@@ -206,6 +206,7 @@ export function useTrips() {
 }
 
 export function useTripDetail(tripId: string | undefined) {
+  const queryClient = useQueryClient();
   const segmentsQuery = useQuery({
     queryKey: ["trip_segments", tripId],
     queryFn: async () => {
@@ -236,5 +237,77 @@ export function useTripDetail(tripId: string | undefined) {
     enabled: !!tripId,
   });
 
-  return { segments: segmentsQuery, assessments: assessmentsQuery };
+  const addSegment = useMutation({
+    mutationFn: async (input: {
+      origin_country: string;
+      origin_city?: string;
+      destination_country: string;
+      destination_city?: string;
+      start_date: string;
+      end_date: string;
+      activity_type: string;
+      activity_description?: string;
+    }) => {
+      if (!tripId) throw new Error("No trip");
+      const currentSegments = segmentsQuery.data ?? [];
+      const { data, error } = await supabase
+        .from("trip_segments")
+        .insert({
+          trip_id: tripId,
+          segment_order: currentSegments.length,
+          origin_country: input.origin_country,
+          origin_city: input.origin_city ?? null,
+          destination_country: input.destination_country,
+          destination_city: input.destination_city ?? null,
+          start_date: input.start_date,
+          end_date: input.end_date,
+          activity_type: input.activity_type,
+          activity_description: input.activity_description ?? null,
+        } as any)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as unknown as TripSegment;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["trip_segments", tripId] });
+      toast.success("Segment added");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const updateSegment = useMutation({
+    mutationFn: async ({ segmentId, updates }: {
+      segmentId: string;
+      updates: Partial<Pick<TripSegment, "origin_country" | "origin_city" | "destination_country" | "destination_city" | "start_date" | "end_date" | "activity_type" | "activity_description">>;
+    }) => {
+      const { data, error } = await supabase
+        .from("trip_segments")
+        .update(updates as any)
+        .eq("id", segmentId)
+        .select()
+        .single();
+      if (error) throw error;
+      return data as unknown as TripSegment;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["trip_segments", tripId] });
+      toast.success("Segment updated");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  const deleteSegment = useMutation({
+    mutationFn: async (segmentId: string) => {
+      const { error } = await supabase.from("trip_segments").delete().eq("id", segmentId) as any;
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["trip_segments", tripId] });
+      toast.success("Segment deleted");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
+  return { segments: segmentsQuery, assessments: assessmentsQuery, addSegment, updateSegment, deleteSegment };
 }

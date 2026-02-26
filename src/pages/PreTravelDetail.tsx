@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useTripDetail, useTrips, Trip, TripSegment, TripAssessment, AssessmentOutcome } from "@/hooks/useTrips";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -27,6 +28,8 @@ import {
   X,
   Save,
   Loader2,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -70,7 +73,7 @@ export default function PreTravelDetail() {
     enabled: !!id,
   });
 
-  const { segments, assessments } = useTripDetail(id);
+  const { segments, assessments, addSegment, updateSegment, deleteSegment } = useTripDetail(id);
   const trip = tripQuery.data;
 
   const runAssessment = useMutation({
@@ -151,21 +154,13 @@ export default function PreTravelDetail() {
             {/* Traveler Info Card */}
             <TravelerDetailsCard trip={trip} />
 
-            {/* Segments */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Trip Segments ({(segments.data ?? []).length})</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {(segments.data ?? []).length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No segments defined.</p>
-                ) : (
-                  (segments.data ?? []).map((seg, i) => (
-                    <SegmentCard key={seg.id} segment={seg} index={i} />
-                  ))
-                )}
-              </CardContent>
-            </Card>
+            <SegmentsSection
+              segments={segments.data ?? []}
+              tripId={id!}
+              addSegment={addSegment}
+              updateSegment={updateSegment}
+              deleteSegment={deleteSegment}
+            />
           </TabsContent>
 
           {/* Results Tab */}
@@ -359,14 +354,262 @@ function InfoField({ label, value }: { label: string; value: string | null | und
   );
 }
 
-function SegmentCard({ segment, index }: { segment: TripSegment; index: number }) {
+const ACTIVITY_TYPES = [
+  "business_meeting",
+  "client_visit",
+  "conference",
+  "training",
+  "project_work",
+  "relocation",
+  "other",
+];
+
+const emptySegmentForm = {
+  origin_country: "",
+  origin_city: "",
+  destination_country: "",
+  destination_city: "",
+  start_date: "",
+  end_date: "",
+  activity_type: "business_meeting",
+  activity_description: "",
+};
+
+function SegmentsSection({
+  segments,
+  tripId,
+  addSegment,
+  updateSegment,
+  deleteSegment,
+}: {
+  segments: TripSegment[];
+  tripId: string;
+  addSegment: any;
+  updateSegment: any;
+  deleteSegment: any;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ ...emptySegmentForm });
+
+  const handleAdd = () => {
+    if (!form.origin_country.trim() || !form.destination_country.trim() || !form.start_date || !form.end_date) {
+      toast.error("Origin, destination, and dates are required");
+      return;
+    }
+    addSegment.mutate(
+      {
+        origin_country: form.origin_country.trim(),
+        origin_city: form.origin_city.trim() || undefined,
+        destination_country: form.destination_country.trim(),
+        destination_city: form.destination_city.trim() || undefined,
+        start_date: form.start_date,
+        end_date: form.end_date,
+        activity_type: form.activity_type,
+        activity_description: form.activity_description.trim() || undefined,
+      },
+      {
+        onSuccess: () => {
+          setForm({ ...emptySegmentForm });
+          setAdding(false);
+        },
+      }
+    );
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm">Trip Segments ({segments.length})</CardTitle>
+          {!adding && (
+            <Button variant="ghost" size="sm" className="gap-1.5 text-xs h-7" onClick={() => setAdding(true)}>
+              <Plus className="h-3 w-3" /> Add Segment
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {segments.length === 0 && !adding && (
+          <p className="text-sm text-muted-foreground">No segments defined.</p>
+        )}
+        {segments.map((seg, i) => (
+          <SegmentCard
+            key={seg.id}
+            segment={seg}
+            index={i}
+            updateSegment={updateSegment}
+            deleteSegment={deleteSegment}
+          />
+        ))}
+        {adding && (
+          <div className="border rounded-lg p-4 bg-muted/20 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground">New Segment</span>
+              <div className="flex gap-1.5">
+                <Button variant="ghost" size="sm" className="text-xs h-7 gap-1" onClick={() => setAdding(false)} disabled={addSegment.isPending}>
+                  <X className="h-3 w-3" /> Cancel
+                </Button>
+                <Button size="sm" className="text-xs h-7 gap-1" onClick={handleAdd} disabled={addSegment.isPending}>
+                  {addSegment.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                  Save
+                </Button>
+              </div>
+            </div>
+            <SegmentFormFields form={form} setForm={setForm} />
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SegmentFormFields({
+  form,
+  setForm,
+}: {
+  form: typeof emptySegmentForm;
+  setForm: React.Dispatch<React.SetStateAction<typeof emptySegmentForm>>;
+}) {
+  const update = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="space-y-1">
+        <Label className="text-xs text-muted-foreground">Origin Country <span className="text-destructive">*</span></Label>
+        <Input value={form.origin_country} onChange={(e) => update("origin_country", e.target.value)} className="h-8 text-sm" />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs text-muted-foreground">Origin City</Label>
+        <Input value={form.origin_city} onChange={(e) => update("origin_city", e.target.value)} className="h-8 text-sm" />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs text-muted-foreground">Destination Country <span className="text-destructive">*</span></Label>
+        <Input value={form.destination_country} onChange={(e) => update("destination_country", e.target.value)} className="h-8 text-sm" />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs text-muted-foreground">Destination City</Label>
+        <Input value={form.destination_city} onChange={(e) => update("destination_city", e.target.value)} className="h-8 text-sm" />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs text-muted-foreground">Start Date <span className="text-destructive">*</span></Label>
+        <Input type="date" value={form.start_date} onChange={(e) => update("start_date", e.target.value)} className="h-8 text-sm" />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs text-muted-foreground">End Date <span className="text-destructive">*</span></Label>
+        <Input type="date" value={form.end_date} onChange={(e) => update("end_date", e.target.value)} className="h-8 text-sm" />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs text-muted-foreground">Activity Type</Label>
+        <select
+          value={form.activity_type}
+          onChange={(e) => update("activity_type", e.target.value)}
+          className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {ACTIVITY_TYPES.map((t) => (
+            <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
+          ))}
+        </select>
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs text-muted-foreground">Description</Label>
+        <Input value={form.activity_description} onChange={(e) => update("activity_description", e.target.value)} className="h-8 text-sm" />
+      </div>
+    </div>
+  );
+}
+
+function SegmentCard({
+  segment,
+  index,
+  updateSegment,
+  deleteSegment,
+}: {
+  segment: TripSegment;
+  index: number;
+  updateSegment: any;
+  deleteSegment: any;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ ...emptySegmentForm });
+
+  const handleEdit = () => {
+    setForm({
+      origin_country: segment.origin_country,
+      origin_city: segment.origin_city ?? "",
+      destination_country: segment.destination_country,
+      destination_city: segment.destination_city ?? "",
+      start_date: segment.start_date,
+      end_date: segment.end_date,
+      activity_type: segment.activity_type,
+      activity_description: segment.activity_description ?? "",
+    });
+    setEditing(true);
+  };
+
+  const handleSave = () => {
+    if (!form.origin_country.trim() || !form.destination_country.trim() || !form.start_date || !form.end_date) {
+      toast.error("Origin, destination, and dates are required");
+      return;
+    }
+    updateSegment.mutate(
+      {
+        segmentId: segment.id,
+        updates: {
+          origin_country: form.origin_country.trim(),
+          origin_city: form.origin_city.trim() || null,
+          destination_country: form.destination_country.trim(),
+          destination_city: form.destination_city.trim() || null,
+          start_date: form.start_date,
+          end_date: form.end_date,
+          activity_type: form.activity_type,
+          activity_description: form.activity_description.trim() || null,
+        },
+      },
+      { onSuccess: () => setEditing(false) }
+    );
+  };
+
+  if (editing) {
+    return (
+      <div className="border rounded-lg p-4 bg-muted/20 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold text-muted-foreground">Editing Segment {index + 1}</span>
+          <div className="flex gap-1.5">
+            <Button variant="ghost" size="sm" className="text-xs h-7 gap-1" onClick={() => setEditing(false)} disabled={updateSegment.isPending}>
+              <X className="h-3 w-3" /> Cancel
+            </Button>
+            <Button size="sm" className="text-xs h-7 gap-1" onClick={handleSave} disabled={updateSegment.isPending}>
+              {updateSegment.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+              Save
+            </Button>
+          </div>
+        </div>
+        <SegmentFormFields form={form} setForm={setForm} />
+      </div>
+    );
+  }
+
   return (
     <div className="border rounded-lg p-4 bg-muted/20">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-semibold text-muted-foreground">Segment {index + 1}</span>
-        <Badge variant="outline" className="text-xs capitalize">
-          {segment.activity_type.replace(/_/g, " ")}
-        </Badge>
+        <div className="flex items-center gap-1.5">
+          <Badge variant="outline" className="text-xs capitalize">
+            {segment.activity_type.replace(/_/g, " ")}
+          </Badge>
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleEdit}>
+            <Pencil className="h-3 w-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-destructive hover:text-destructive"
+            onClick={() => deleteSegment.mutate(segment.id)}
+            disabled={deleteSegment.isPending}
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
       </div>
       <div className="flex items-center gap-2 text-sm">
         <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
@@ -379,8 +622,11 @@ function SegmentCard({ segment, index }: { segment: TripSegment; index: number }
         <span>
           {format(new Date(segment.start_date), "MMM d")} — {format(new Date(segment.end_date), "MMM d, yyyy")}
         </span>
-        <span className="text-muted-foreground">({segment.duration_days} days)</span>
+        {segment.duration_days && <span className="text-muted-foreground">({segment.duration_days} days)</span>}
       </div>
+      {segment.activity_description && (
+        <p className="text-xs text-muted-foreground mt-1">{segment.activity_description}</p>
+      )}
       <Badge variant="secondary" className="mt-2 text-[10px]">
         {segment.provenance.replace(/_/g, " ")}
       </Badge>
