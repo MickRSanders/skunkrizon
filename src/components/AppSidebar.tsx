@@ -85,7 +85,7 @@ export default function AppSidebar() {
       {/* Logo */}
       <div className="flex items-center justify-between px-4 h-16 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <img src={topiaIcon} alt="Topia" className="w-8 h-8 rounded-lg object-cover shrink-0" />
+          <img src={topiaIcon} alt="Topia" className="w-8 h-8 rounded-full object-cover shrink-0" />
           {!collapsed && (
             <div className="overflow-hidden">
               <h1 className="text-sm font-bold text-sidebar-accent-foreground tracking-tight">
