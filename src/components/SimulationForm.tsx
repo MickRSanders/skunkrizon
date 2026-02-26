@@ -23,7 +23,9 @@ import {
   X,
   Wallet,
   Check,
+  Loader2,
 } from "lucide-react";
+import { usePublishedPolicies } from "@/hooks/usePolicies";
 
 interface SimulationFormProps {
   onClose: () => void;
@@ -92,6 +94,7 @@ const COUNTRIES = [
 export default function SimulationForm({ onClose, onSubmit }: SimulationFormProps) {
   const [step, setStep] = useState(0);
   const [data, setData] = useState<SimulationFormData>(initialData);
+  const { data: publishedPolicies, isLoading: loadingPolicies } = usePublishedPolicies();
 
   const update = (field: keyof SimulationFormData, value: string | number | boolean) => {
     setData((prev) => ({ ...prev, [field]: value }));
@@ -121,7 +124,7 @@ export default function SimulationForm({ onClose, onSubmit }: SimulationFormProp
             </button>
           </div>
 
-          {/* Step Indicator — pill-style */}
+          {/* Step Indicator */}
           <div className="flex items-center gap-2">
             {STEPS.map((s, i) => {
               const Icon = s.icon;
@@ -243,15 +246,30 @@ export default function SimulationForm({ onClose, onSubmit }: SimulationFormProp
             <>
               <SectionTitle>Policy Selection</SectionTitle>
               <Field label="Relocation Policy *">
-                <Select value={data.policy} onValueChange={(v) => update("policy", v)}>
-                  <SelectTrigger><SelectValue placeholder="Select policy" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="gold">Gold Tier — Full benefits package</SelectItem>
-                    <SelectItem value="silver">Silver Tier — Standard benefits</SelectItem>
-                    <SelectItem value="bronze">Bronze Tier — Core benefits only</SelectItem>
-                    <SelectItem value="custom">Custom — Build from scratch</SelectItem>
-                  </SelectContent>
-                </Select>
+                {loadingPolicies ? (
+                  <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Loading published policies…
+                  </div>
+                ) : publishedPolicies && publishedPolicies.length > 0 ? (
+                  <Select value={data.policy} onValueChange={(v) => update("policy", v)}>
+                    <SelectTrigger><SelectValue placeholder="Select a published policy" /></SelectTrigger>
+                    <SelectContent>
+                      {publishedPolicies.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                          {p.tier ? ` — ${p.tier}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-amber-500/30 bg-amber-500/5 px-4 py-3">
+                    <p className="text-sm text-amber-600 font-medium">No published policies available</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Go to the Policy Agent page and publish a policy to make it available for simulations.
+                    </p>
+                  </div>
+                )}
               </Field>
               <Separator />
               <SectionTitle>Benefit Components</SectionTitle>
@@ -416,17 +434,28 @@ function ToggleRow({ title, description, checked, onChange }: { title: string; d
   );
 }
 
-function SliderField({ label, value, onChange, min, max, step, description }: {
-  label: string; value: number; onChange: (v: number) => void; min: number; max: number; step: number; description: string;
+function SliderField({
+  label, value, onChange, min, max, step, description,
+}: {
+  label: string; value: number; onChange: (v: number) => void;
+  min: number; max: number; step: number; description?: string;
 }) {
   return (
-    <div className="space-y-3 p-4 rounded-xl bg-muted/20 border border-border/50">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <Label className="text-sm font-medium">{label}</Label>
-        <span className="text-sm font-bold text-accent tabular-nums">{value}%</span>
+        <div>
+          <p className="text-sm font-medium text-foreground">{label}</p>
+          {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
+        </div>
+        <span className="text-lg font-bold text-accent tabular-nums">{value}%</span>
       </div>
-      <Slider value={[value]} onValueChange={([v]) => onChange(v)} min={min} max={max} step={step} />
-      <p className="text-xs text-muted-foreground">{description}</p>
+      <Slider
+        value={[value]}
+        onValueChange={([v]) => onChange(v)}
+        min={min}
+        max={max}
+        step={step}
+      />
     </div>
   );
 }
