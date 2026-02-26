@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
+import type { Tables, TablesInsert, TablesUpdate, Json } from "@/integrations/supabase/types";
 
 export type Calculation = Tables<"calculations">;
 export type CalculationField = Tables<"calculation_fields">;
@@ -165,6 +165,44 @@ export function useCreateLookupTable() {
       return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["lookup_tables"] }),
+  });
+}
+
+export function useDeleteLookupTable() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("lookup_tables").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["lookup_tables"] }),
+  });
+}
+
+export function useUpdateLookupTableRows() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ tableId, rowId, rowData }: { tableId: string; rowId: string; rowData: Record<string, string> }) => {
+      const { error } = await supabase
+        .from("lookup_table_rows")
+        .update({ row_data: rowData as unknown as Json })
+        .eq("id", rowId);
+      if (error) throw error;
+      return tableId;
+    },
+    onSuccess: (tableId) => qc.invalidateQueries({ queryKey: ["lookup_table_rows", tableId] }),
+  });
+}
+
+export function useDeleteLookupTableRow() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ rowId, tableId }: { rowId: string; tableId: string }) => {
+      const { error } = await supabase.from("lookup_table_rows").delete().eq("id", rowId);
+      if (error) throw error;
+      return tableId;
+    },
+    onSuccess: (tableId) => qc.invalidateQueries({ queryKey: ["lookup_table_rows", tableId] }),
   });
 }
 
