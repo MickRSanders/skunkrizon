@@ -84,6 +84,11 @@ const formatCurrency = (amount: number, currency: string) =>
 const formatNumber = (amount: number) =>
   new Intl.NumberFormat("en-US").format(amount);
 
+const getCurrencySymbol = (currency: string) => {
+  const parts = new Intl.NumberFormat("en-US", { style: "currency", currency, currencyDisplay: "narrowSymbol" }).formatToParts(0);
+  return parts.find((p) => p.type === "currency")?.value ?? currency;
+};
+
 interface SimulationDetailProps {
   simulation: any;
   onBack: () => void;
@@ -355,7 +360,7 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
                               <span className="flex-1 text-foreground text-[13px] tracking-tight">{benefit.label}</span>
                             )}
                             <div className="flex items-center gap-1.5">
-                              <span className="text-muted-foreground/50 text-xs">$</span>
+                              <span className="text-muted-foreground/50 text-xs">{getCurrencySymbol(scenario.currency)}</span>
                               <Input
                                 type="text"
                                 inputMode="numeric"
