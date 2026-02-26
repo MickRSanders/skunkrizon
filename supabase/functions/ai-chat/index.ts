@@ -407,7 +407,29 @@ ${contextBlock}`;
               }),
             });
           }
-        } else if (tc.function.name === "add_lookup_table_row") {
+        } else if (tc.function.name === "add_lookup_table_row" || tc.function.name === "update_lookup_table_row") {
+          // Admin-level check: only admin or superadmin can mutate lookup data
+          const { data: userRoles, error: roleErr } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", userId);
+
+          const roles = (userRoles ?? []).map((r: any) => r.role as string);
+          const isAdmin = roles.includes("admin") || roles.includes("superadmin");
+
+          if (roleErr || !isAdmin) {
+            toolResults.push({
+              tool_call_id: tc.id,
+              role: "tool",
+              content: JSON.stringify({
+                success: false,
+                error: "Permission denied. Only admin-level users can create or update lookup table data via chat.",
+              }),
+            });
+            continue;
+          }
+
+          if (tc.function.name === "add_lookup_table_row") {
           const args = JSON.parse(tc.function.arguments);
 
           // Validate row_data is a plain object
@@ -466,7 +488,7 @@ ${contextBlock}`;
               }),
             });
           }
-        } else if (tc.function.name === "update_lookup_table_row") {
+          } else if (tc.function.name === "update_lookup_table_row") {
           const args = JSON.parse(tc.function.arguments);
 
           if (!args.row_data || typeof args.row_data !== "object" || Array.isArray(args.row_data)) {
@@ -525,7 +547,8 @@ ${contextBlock}`;
               }),
             });
           }
-        }
+          } // end inner if add/update
+        } // end admin-checked lookup tools
       }
 
       // Step 3: Stream the follow-up response with tool results
