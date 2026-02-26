@@ -5,6 +5,7 @@ import ThemeToggle from "./ThemeToggle";
 import PageTransition from "./PageTransition";
 import NotificationDropdown from "./NotificationDropdown";
 import UserProfileDropdown from "./UserProfileDropdown";
+import AIChatWidget from "./AIChatWidget";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -62,6 +63,7 @@ export default function AppLayout() {
           </PageTransition>
         </main>
       </div>
+      <AIChatWidget />
     </div>
   );
 }
