@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTrips } from "@/hooks/useTrips";
+import { useEmployees, Employee } from "@/hooks/useEmployees";
 import { useNavigate } from "react-router-dom";
 import {
   Dialog,
@@ -19,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Trash2 } from "lucide-react";
+import EmployeeCombobox from "./EmployeeCombobox";
 
 const ACTIVITY_TYPES = [
   { value: "business_meeting", label: "Business Meeting" },
@@ -50,7 +52,28 @@ export default function CreateTripDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { createTrip } = useTrips();
+  const { data: employees = [], isLoading: employeesLoading } = useEmployees();
   const navigate = useNavigate();
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
+
+  const handleEmployeeSelect = (emp: Employee | null) => {
+    setSelectedEmployeeId(emp?.id ?? null);
+    if (emp) {
+      setTravelerName(`${emp.first_name} ${emp.last_name}`);
+      setTravelerEmail(emp.email);
+      setEmployeeId(emp.employee_code);
+      if (emp.country) setResidencyCountry(emp.country);
+      if (emp.country) setPassportCountry(emp.country);
+      if (emp.country) setCitizenship(emp.country);
+    } else {
+      setTravelerName("");
+      setTravelerEmail("");
+      setEmployeeId("");
+      setResidencyCountry("");
+      setPassportCountry("");
+      setCitizenship("");
+    }
+  };
 
   const [travelerName, setTravelerName] = useState("");
   const [travelerEmail, setTravelerEmail] = useState("");
@@ -133,6 +156,15 @@ export default function CreateTripDialog({
           {/* Traveler Info */}
           <div>
             <h3 className="text-sm font-semibold text-foreground mb-3">Traveler Information</h3>
+            <div className="mb-3">
+              <Label className="text-xs">Select Employee</Label>
+              <EmployeeCombobox
+                employees={employees}
+                isLoading={employeesLoading}
+                selectedId={selectedEmployeeId}
+                onSelect={handleEmployeeSelect}
+              />
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Traveler Name *</Label>
