@@ -22,21 +22,23 @@ export interface Employee {
   status: string;
 }
 
-export function useEmployees() {
+export function useEmployees(options?: { activeOnly?: boolean }) {
   const { activeTenant } = useTenantContext();
   const tenantId = activeTenant?.tenant_id;
+  const activeOnly = options?.activeOnly ?? false;
 
   return useQuery({
-    queryKey: ["employees", tenantId],
+    queryKey: ["employees", tenantId, activeOnly],
     queryFn: async () => {
       if (!tenantId) return [];
-      const { data, error } = await supabase
+      let q = supabase
         .from("employees")
         .select("id, employee_code, first_name, last_name, email, phone, date_of_birth, job_title, job_grade, division, base_salary, currency, bonus_percent, bonus_amount, city, country, status")
         .eq("tenant_id", tenantId)
-        .eq("status", "active")
         .order("last_name")
         .limit(1000) as any;
+      if (activeOnly) q = q.eq("status", "active");
+      const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as Employee[];
     },

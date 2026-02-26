@@ -22,6 +22,7 @@ import {
   Cable,
   ClipboardList,
   Plane,
+  Contact,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,7 @@ const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/simulations", icon: Calculator, label: "Cost Simulations" },
   { to: "/pre-travel", icon: Plane, label: "Pre-Travel" },
+  { to: "/employees", icon: Contact, label: "Employees" },
   { to: "/policies", icon: FileText, label: "Policy Agent" },
   { to: "/analytics", icon: BarChart3, label: "Analytics" },
 ];

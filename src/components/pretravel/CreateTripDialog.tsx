@@ -52,7 +52,7 @@ export default function CreateTripDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { createTrip } = useTrips();
-  const { data: employees = [], isLoading: employeesLoading } = useEmployees();
+  const { data: employees = [], isLoading: employeesLoading } = useEmployees({ activeOnly: true });
   const navigate = useNavigate();
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
 
