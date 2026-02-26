@@ -148,6 +148,7 @@ export default function PreTravelDetail() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                  <InfoField label="Full Name" value={trip.traveler_name} />
                   <InfoField label="Email" value={trip.traveler_email} />
                   <InfoField label="Employee ID" value={trip.employee_id} />
                   <InfoField label="Passport Country" value={trip.passport_country} />
