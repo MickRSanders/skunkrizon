@@ -26,6 +26,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { usePublishedPolicies } from "@/hooks/usePolicies";
+import { useTaxConfig } from "@/contexts/TaxConfigContext";
 
 interface SimulationFormProps {
   onClose: () => void;
@@ -92,8 +93,12 @@ const COUNTRIES = [
 ];
 
 export default function SimulationForm({ onClose, onSubmit }: SimulationFormProps) {
+  const { simulationTaxApproach } = useTaxConfig();
   const [step, setStep] = useState(0);
-  const [data, setData] = useState<SimulationFormData>(initialData);
+  const [data, setData] = useState<SimulationFormData>(() => ({
+    ...initialData,
+    taxApproach: simulationTaxApproach,
+  }));
   const { data: publishedPolicies, isLoading: loadingPolicies } = usePublishedPolicies();
 
   const update = (field: keyof SimulationFormData, value: string | number | boolean) => {
