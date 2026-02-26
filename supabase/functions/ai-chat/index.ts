@@ -376,7 +376,7 @@ serve(async (req) => {
     } = await supabase.auth.getUser();
     if (userError || !user) throw new Error("Unauthorized");
 
-    const { messages, includeContext } = await req.json();
+    const { messages, includeContext, tenant_id: requestTenantId } = await req.json();
 
     // Fetch user context data
     let contextBlock = "";
@@ -559,15 +559,8 @@ ${contextBlock}`;
         if (tc.function.name === "create_draft_simulation") {
           const args = JSON.parse(tc.function.arguments);
 
-          // Get user's tenant_id
-          const { data: tenantUser } = await supabase
-            .from("tenant_users")
-            .select("tenant_id")
-            .eq("user_id", user.id)
-            .limit(1)
-            .single();
-
-          const tenantId = tenantUser?.tenant_id || null;
+          // Use the tenant_id from the frontend request
+          const tenantId = requestTenantId || null;
 
           const insertData: any = {
             employee_name: args.employee_name,
@@ -643,6 +636,10 @@ ${contextBlock}`;
             continue;
           }
 
+          // Use service role client for admin mutations to bypass RLS
+          const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+          const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
           if (tc.function.name === "add_lookup_table_row") {
           const args = JSON.parse(tc.function.arguments);
 
@@ -664,7 +661,7 @@ ${contextBlock}`;
           }
 
           // Get next row_order
-          const { data: lastRow } = await supabase
+          const { data: lastRow } = await adminClient
             .from("lookup_table_rows")
             .select("row_order")
             .eq("lookup_table_id", args.lookup_table_id)
@@ -674,7 +671,7 @@ ${contextBlock}`;
 
           const nextOrder = (lastRow?.row_order ?? -1) + 1;
 
-          const { data: newRow, error: rowError } = await supabase
+          const { data: newRow, error: rowError } = await adminClient
             .from("lookup_table_rows")
             .insert({
               lookup_table_id: args.lookup_table_id,
@@ -715,7 +712,7 @@ ${contextBlock}`;
           }
 
           // Fetch existing row first to merge
-          const { data: existingRow, error: fetchErr } = await supabase
+          const { data: existingRow, error: fetchErr } = await adminClient
             .from("lookup_table_rows")
             .select("row_data")
             .eq("id", args.row_id)
@@ -738,7 +735,7 @@ ${contextBlock}`;
             mergedData[key] = typeof v === "string" ? v.slice(0, 500) : v;
           }
 
-          const { error: updateErr } = await supabase
+          const { error: updateErr } = await adminClient
             .from("lookup_table_rows")
             .update({ row_data: mergedData })
             .eq("id", args.row_id);
@@ -779,7 +776,7 @@ ${contextBlock}`;
               continue;
             }
 
-            const { error: calcErr } = await supabase
+            const { error: calcErr } = await adminClient
               .from("calculations")
               .update(updateData)
               .eq("id", args.calculation_id);
@@ -818,7 +815,7 @@ ${contextBlock}`;
               continue;
             }
 
-            const { error: fieldErr } = await supabase
+            const { error: fieldErr } = await adminClient
               .from("calculation_fields")
               .update(updateData)
               .eq("id", args.field_id);
@@ -840,15 +837,8 @@ ${contextBlock}`;
           } else if (tc.function.name === "create_policy") {
             const args = JSON.parse(tc.function.arguments);
 
-            // Get user's tenant_id
-            const { data: tenantUser } = await supabase
-              .from("tenant_users")
-              .select("tenant_id")
-              .eq("user_id", user.id)
-              .limit(1)
-              .single();
-
-            const tenantId = tenantUser?.tenant_id || null;
+            // Use the tenant_id from the frontend request
+            const tenantId = requestTenantId || null;
 
             const policyData: Record<string, any> = {
               name: String(args.name).slice(0, 300),
@@ -861,7 +851,6 @@ ${contextBlock}`;
 
             if (args.description) policyData.description = String(args.description).slice(0, 2000);
             if (args.benefit_components && Array.isArray(args.benefit_components)) {
-              // Sanitize each component
               policyData.benefit_components = args.benefit_components.slice(0, 50).map((c: any) => ({
                 name: String(c.name || "").slice(0, 200),
                 type: String(c.type || "Allowance").slice(0, 100),
@@ -871,7 +860,7 @@ ${contextBlock}`;
               }));
             }
 
-            const { data: newPolicy, error: policyErr } = await supabase
+            const { data: newPolicy, error: policyErr } = await adminClient
               .from("policies")
               .insert(policyData)
               .select("id, name, status, tier")
@@ -927,7 +916,7 @@ ${contextBlock}`;
               continue;
             }
 
-            const { error: polErr } = await supabase
+            const { error: polErr } = await adminClient
               .from("policies")
               .update(updateData)
               .eq("id", args.policy_id);

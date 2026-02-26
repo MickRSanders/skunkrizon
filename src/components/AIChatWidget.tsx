@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "@/integrations/supabase/client";
+import { useTenantContext } from "@/contexts/TenantContext";
 
 type Msg = { role: "user" | "assistant"; content: string };
 type CreatedSim = { id: string; sim_code: string; employee_name: string };
@@ -37,6 +38,7 @@ export default function AIChatWidget() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const navigate = useNavigate();
+  const { activeTenant } = useTenantContext();
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -102,6 +104,7 @@ export default function AIChatWidget() {
           body: JSON.stringify({
             messages: newMessages,
             includeContext: messages.length === 0,
+            tenant_id: activeTenant?.tenant_id || null,
           }),
         });
 
