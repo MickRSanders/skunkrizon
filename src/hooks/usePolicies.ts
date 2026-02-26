@@ -18,6 +18,21 @@ export function usePolicies() {
   });
 }
 
+export function usePublishedPolicies() {
+  return useQuery({
+    queryKey: ["policies", "published"],
+    queryFn: async () => {
+      const { data, error } = await (supabase
+        .from("policies")
+        .select("*") as any)
+        .eq("status", "published")
+        .order("name");
+      if (error) throw error;
+      return data as Policy[];
+    },
+  });
+}
+
 export function useCreatePolicy() {
   const qc = useQueryClient();
   return useMutation({
