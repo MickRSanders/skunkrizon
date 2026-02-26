@@ -34,6 +34,7 @@ import {
   useUpdateCalculation,
   useDeleteCalculation,
   useCalculationFields,
+  useAllCalculationFields,
   useCreateField,
   useUpdateField,
   useDeleteField,
@@ -266,13 +267,14 @@ function CalculationEditor({
   onBack: () => void;
 }) {
   const { data: fieldsData, isLoading: loadingFields } = useCalculationFields(calculation.id);
+  const { data: allFieldsData } = useAllCalculationFields();
+  const { data: allCalcs } = useCalculations();
   const createField = useCreateField();
   const deleteField = useDeleteField();
   const updateCalc = useUpdateCalculation();
   const upsertSource = useUpsertDataSource();
 
   const [blocks, setBlocks] = useState<FormulaBlock[]>(() => {
-    // Parse existing formula into blocks if possible
     if (!calculation.formula) return [];
     return [];
   });
@@ -282,6 +284,12 @@ function CalculationEditor({
   const [showDataSource, setShowDataSource] = useState<CalculationField | null>(null);
 
   const fields = fieldsData || [];
+  const allFields = allFieldsData || [];
+  const otherFields = allFields.filter((f) => f.calculation_id !== calculation.id);
+
+  // Build a map of calculation names for grouping
+  const calcNameMap = new Map<string, string>();
+  allCalcs?.forEach((c) => calcNameMap.set(c.id, c.name));
 
   const handleAddField = async (name: string, label: string, fieldType: string) => {
     try {
@@ -390,7 +398,7 @@ function CalculationEditor({
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-bold text-foreground flex items-center gap-1.5">
                 <Variable className="w-4 h-4 text-accent" />
-                Fields
+                This Calculation
               </h2>
               <Button
                 variant="outline"
@@ -408,54 +416,49 @@ function CalculationEditor({
               </p>
             ) : (
               <div className="space-y-2">
-                {fields.map((f: any) => {
-                  const source = f.field_data_sources?.[0];
+                {fields.map((f: any) => (
+                  <FieldItem
+                    key={f.id}
+                    field={f}
+                    onDataSource={() => setShowDataSource(f)}
+                    onDelete={() => handleDeleteField(f.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Other Calculations' Fields */}
+          {otherFields.length > 0 && (
+            <div className="bg-card border border-border rounded-lg p-5 space-y-3">
+              <h2 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                <Database className="w-4 h-4 text-accent" />
+                All Fields
+              </h2>
+              <div className="space-y-3">
+                {Array.from(new Set(otherFields.map((f) => f.calculation_id))).map((calcId) => {
+                  const calcFields = otherFields.filter((f) => f.calculation_id === calcId);
                   return (
-                    <div
-                      key={f.id}
-                      className="flex items-center justify-between p-2.5 rounded-md border border-border bg-muted/10 group"
-                    >
-                      <div>
-                        <p className="text-xs font-medium text-foreground">
-                          {f.label}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                          <span className="font-mono">{f.name}</span>
-                          <span>·</span>
-                          <span>{f.field_type}</span>
-                          {source && (
-                            <>
-                              <span>·</span>
-                              <Database className="w-2.5 h-2.5" />
-                              <span className="capitalize">
-                                {source.source_type.replace("_", " ")}
-                              </span>
-                            </>
-                          )}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => setShowDataSource(f)}
-                          className="p-1 rounded hover:bg-accent/10 text-muted-foreground hover:text-accent"
-                          title="Configure data source"
-                        >
-                          <Database className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteField(f.id)}
-                          className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
-                          title="Delete field"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                    <div key={calcId}>
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1.5">
+                        {calcNameMap.get(calcId) || "Unknown"}
+                      </p>
+                      <div className="space-y-1.5">
+                        {calcFields.map((f: any) => (
+                          <FieldItem
+                            key={f.id}
+                            field={f}
+                            onDataSource={() => setShowDataSource(f)}
+                            readOnly
+                          />
+                        ))}
                       </div>
                     </div>
                   );
                 })}
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Data Source Editor */}
           {showDataSource && (
@@ -481,6 +484,59 @@ function CalculationEditor({
           isPending={createField.isPending}
         />
       )}
+    </div>
+  );
+}
+
+// ─── Field Item ────────────────────────────────────────────────
+
+function FieldItem({
+  field,
+  onDataSource,
+  onDelete,
+  readOnly,
+}: {
+  field: any;
+  onDataSource: () => void;
+  onDelete?: () => void;
+  readOnly?: boolean;
+}) {
+  const source = field.field_data_sources?.[0];
+  return (
+    <div className="flex items-center justify-between p-2.5 rounded-md border border-border bg-muted/10 group">
+      <div>
+        <p className="text-xs font-medium text-foreground">{field.label}</p>
+        <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
+          <span className="font-mono">{field.name}</span>
+          <span>·</span>
+          <span>{field.field_type}</span>
+          {source && (
+            <>
+              <span>·</span>
+              <Database className="w-2.5 h-2.5" />
+              <span className="capitalize">{source.source_type.replace("_", " ")}</span>
+            </>
+          )}
+        </p>
+      </div>
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          onClick={onDataSource}
+          className="p-1 rounded hover:bg-accent/10 text-muted-foreground hover:text-accent"
+          title="Configure data source"
+        >
+          <Database className="w-3.5 h-3.5" />
+        </button>
+        {!readOnly && onDelete && (
+          <button
+            onClick={onDelete}
+            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+            title="Delete field"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
     </div>
   );
 }
