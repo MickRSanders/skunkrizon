@@ -1,7 +1,11 @@
 import KPICard from "@/components/KPICard";
 import StatusBadge from "@/components/StatusBadge";
-import { Calculator, FileText, Users, TrendingUp, Globe, ArrowRight } from "lucide-react";
+import { Calculator, FileText, Users, TrendingUp, Globe, ArrowRight, Building2 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useTenantContext } from "@/contexts/TenantContext";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Badge } from "@/components/ui/badge";
 import {
   BarChart,
   Bar,
@@ -51,12 +55,55 @@ const recentSimulations = [
 ];
 
 export default function Dashboard() {
+  const { activeTenant, activeSubTenant } = useTenantContext();
+  const tenantId = activeTenant?.tenant_id;
+  const subTenantId = activeSubTenant?.id;
+
+  const { data: counts } = useQuery({
+    queryKey: ["sub_tenant_counts", tenantId, subTenantId],
+    enabled: !!subTenantId && !!tenantId,
+    queryFn: async () => {
+      const filter = (q: any) => q.eq("tenant_id", tenantId!).eq("sub_tenant_id", subTenantId!);
+      const [sims, pols, calcs] = await Promise.all([
+        filter(supabase.from("simulations").select("id", { count: "exact", head: true })),
+        filter(supabase.from("policies").select("id", { count: "exact", head: true })),
+        filter(supabase.from("calculations").select("id", { count: "exact", head: true })),
+      ]);
+      return {
+        simulations: sims.count ?? 0,
+        policies: pols.count ?? 0,
+        calculations: calcs.count ?? 0,
+      };
+    },
+  });
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
         <p className="text-sm text-muted-foreground mt-1">Horizon platform overview and key metrics</p>
       </div>
+
+      {activeSubTenant && (
+        <div className="flex items-center gap-3 rounded-lg border border-accent/20 bg-accent/5 px-4 py-3">
+          <Building2 className="w-5 h-5 text-accent shrink-0" />
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-foreground">
+              {activeSubTenant.name}
+            </span>
+            <Badge variant="outline" className="text-xs">
+              Active Sub-tenant
+            </Badge>
+          </div>
+          {counts && (
+            <div className="ml-auto flex items-center gap-4 text-xs text-muted-foreground">
+              <span><strong className="text-foreground">{counts.simulations}</strong> Simulations</span>
+              <span><strong className="text-foreground">{counts.policies}</strong> Policies</span>
+              <span><strong className="text-foreground">{counts.calculations}</strong> Calculations</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
