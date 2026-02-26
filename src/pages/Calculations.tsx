@@ -49,6 +49,7 @@ import {
 } from "@/hooks/useCalculations";
 import type { Json } from "@/integrations/supabase/types";
 import { evaluateFormula, type EvalResult } from "@/lib/formulaEngine";
+import { useFieldLibrary, type FieldLibraryItem } from "@/hooks/useFieldLibrary";
 
 export default function Calculations() {
   const { user } = useAuth();
@@ -269,10 +270,12 @@ function FormulaTestRunner({
   blocks,
   fields,
   allFields,
+  libraryFields,
 }: {
   blocks: FormulaBlock[];
   fields: CalculationField[];
   allFields: CalculationField[];
+  libraryFields: FieldLibraryItem[];
 }) {
   const [testInputs, setTestInputs] = useState<Record<string, string>>({});
   const [result, setResult] = useState<EvalResult | null>(null);
@@ -290,6 +293,7 @@ function FormulaTestRunner({
 
   const allFieldsList = allFields.length > 0 ? allFields : fields;
   const fieldLabelMap = new Map(allFieldsList.map((f) => [f.name, f.label]));
+  libraryFields.forEach((f) => fieldLabelMap.set(f.name, f.label));
 
   const buildFormula = () =>
     blocks
@@ -405,6 +409,7 @@ function CalculationEditor({
   const { data: allFieldsData } = useAllCalculationFields();
   const { data: allCalcs } = useCalculations();
   const { data: lookupTables } = useLookupTables();
+  const { data: libraryFields } = useFieldLibrary();
   const createField = useCreateField();
   const deleteField = useDeleteField();
   const updateCalc = useUpdateCalculation();
@@ -528,7 +533,8 @@ function CalculationEditor({
               onChange={setBlocks}
               fields={fields}
               allFields={allFields}
-              lookupTables={lookupTables || []}
+               lookupTables={lookupTables || []}
+               libraryFields={libraryFields || []}
               onAddField={() => setShowAddField(true)}
               onEditField={(field) => setShowDataSource(field)}
             />
@@ -537,7 +543,7 @@ function CalculationEditor({
 
         {/* Formula Test Runner */}
         <div className="col-span-8">
-          <FormulaTestRunner blocks={blocks} fields={fields} allFields={allFields} />
+          <FormulaTestRunner blocks={blocks} fields={fields} allFields={allFields} libraryFields={libraryFields || []} />
         </div>
 
         {/* Fields Panel */}

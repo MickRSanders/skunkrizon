@@ -38,6 +38,7 @@ import {
   TableIcon,
 } from "lucide-react";
 import type { CalculationField, LookupTable } from "@/hooks/useCalculations";
+import type { FieldLibraryItem } from "@/hooks/useFieldLibrary";
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -88,6 +89,7 @@ interface FormulaBuilderProps {
   fields: CalculationField[];
   allFields?: CalculationField[];
   lookupTables?: LookupTable[];
+  libraryFields?: FieldLibraryItem[];
   onAddField: () => void;
   onEditField: (field: CalculationField) => void;
 }
@@ -98,6 +100,7 @@ export default function FormulaBuilder({
   fields,
   allFields,
   lookupTables,
+  libraryFields,
   onAddField,
   onEditField,
 }: FormulaBuilderProps) {
@@ -178,6 +181,25 @@ export default function FormulaBuilder({
           </button>
         </div>
       </div>
+
+      {/* Library Fields Palette */}
+      {libraryFields && libraryFields.length > 0 && (
+        <div className="space-y-2">
+          <Label className="text-xs text-muted-foreground uppercase tracking-wide">Library Fields</Label>
+          <div className="flex flex-wrap gap-2">
+            {libraryFields.map((f) => (
+              <button
+                key={f.id}
+                onClick={() => addBlock("field", f.name, undefined, f.label)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-primary/30 bg-primary/5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+              >
+                <Database className="w-3 h-3" />
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Operator Palette */}
       <div className="space-y-2">
