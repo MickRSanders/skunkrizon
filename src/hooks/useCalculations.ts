@@ -17,20 +17,51 @@ export function useCalculations() {
   return useQuery({
     queryKey: ["calculations", activeTenant?.tenant_id, activeSubTenant?.id],
     queryFn: async () => {
-      let query = supabase.from("calculations").select("*").order("name");
+      if (!activeTenant) {
+        const { data, error } = await supabase.from("calculations").select("*").order("name");
+        if (error) throw error;
+        return data;
+      }
 
-      if (activeTenant) {
-        query = query.eq("tenant_id", activeTenant.tenant_id);
-      }
-      if (activeSubTenant) {
-        query = query.eq("sub_tenant_id", activeSubTenant.id);
-      }
+      // Fetch all calculations for this tenant (both parent-level and sub-tenant overrides)
+      let query = supabase
+        .from("calculations")
+        .select("*")
+        .eq("tenant_id", activeTenant.tenant_id)
+        .order("name");
 
       const { data, error } = await query;
       if (error) throw error;
-      return data;
+
+      if (!activeSubTenant) {
+        // At parent level, only show parent-level calculations (no sub_tenant_id)
+        return (data || []).filter((c) => !c.sub_tenant_id);
+      }
+
+      // At sub-tenant level: merge parent calculations with sub-tenant overrides
+      const parentCalcs = (data || []).filter((c) => !c.sub_tenant_id);
+      const subTenantCalcs = (data || []).filter((c) => c.sub_tenant_id === activeSubTenant.id);
+
+      // Sub-tenant overrides are keyed by name — sub-tenant version replaces parent version
+      const overrideNames = new Set(subTenantCalcs.map((c) => c.name));
+      const merged = [
+        ...parentCalcs.filter((c) => !overrideNames.has(c.name)),
+        ...subTenantCalcs,
+      ].sort((a, b) => a.name.localeCompare(b.name));
+
+      return merged;
     },
   });
+}
+
+/** Returns true if this calculation is inherited from the parent tenant (not overridden) */
+export function isInheritedCalc(calc: Calculation, activeSubTenantId: string | null): boolean {
+  return !!activeSubTenantId && !calc.sub_tenant_id;
+}
+
+/** Returns true if this calculation is a sub-tenant override */
+export function isOverriddenCalc(calc: Calculation, activeSubTenantId: string | null): boolean {
+  return !!activeSubTenantId && calc.sub_tenant_id === activeSubTenantId;
 }
 
 export function useCreateCalculation() {

@@ -48,9 +48,12 @@ import {
   useDeleteField,
   useUpsertDataSource,
   useLookupTables,
+  isInheritedCalc,
+  isOverriddenCalc,
   type Calculation,
   type CalculationField,
 } from "@/hooks/useCalculations";
+import { useTenantContext } from "@/contexts/TenantContext";
 import type { Json } from "@/integrations/supabase/types";
 import { evaluateFormula, type EvalResult } from "@/lib/formulaEngine";
 import { useFieldLibrary, useCreateFieldLibraryItem, type FieldLibraryItem } from "@/hooks/useFieldLibrary";
@@ -59,7 +62,9 @@ import { useCalcUsageMap } from "@/hooks/useCrossReferences";
 export default function Calculations() {
   const { user } = useAuth();
   const { data: currentTenant } = useCurrentTenant();
+  const { activeSubTenant } = useTenantContext();
   const { data: calculations, isLoading } = useCalculations();
+  const createCalc = useCreateCalculation();
   const calcUsageMap = useCalcUsageMap();
   const [editingCalc, setEditingCalc] = useState<Calculation | null>(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -169,6 +174,25 @@ export default function Calculations() {
               calc={calc}
               usage={calcUsageMap.get(calc.id)}
               onEdit={() => setEditingCalc(calc)}
+              activeSubTenantId={activeSubTenant?.id ?? null}
+              onCustomize={async (parentCalc) => {
+                if (!user) return;
+                try {
+                  const override = await createCalc.mutateAsync({
+                    name: parentCalc.name,
+                    category: parentCalc.category,
+                    description: parentCalc.description,
+                    formula: parentCalc.formula,
+                    created_by: user.id,
+                    tenant_id: parentCalc.tenant_id,
+                    sub_tenant_id: activeSubTenant?.id ?? null,
+                  });
+                  toast.success(`Created override for "${parentCalc.name}"`);
+                  setEditingCalc(override);
+                } catch (err: any) {
+                  toast.error(err.message || "Failed to create override");
+                }
+              }}
             />
           ))}
         </div>
@@ -192,17 +216,24 @@ function CalcCard({
   calc,
   usage,
   onEdit,
+  activeSubTenantId,
+  onCustomize,
 }: {
   calc: Calculation;
   usage?: import("@/hooks/useCrossReferences").CalcUsage;
   onEdit: () => void;
+  activeSubTenantId: string | null;
+  onCustomize: (parentCalc: Calculation) => void;
 }) {
+  const deleteCalc = useDeleteCalculation();
+  const inherited = isInheritedCalc(calc, activeSubTenantId);
+  const overridden = isOverriddenCalc(calc, activeSubTenantId);
   const uniquePolicies = usage
     ? [...new Map(usage.policies.map((p) => [p.id, p])).values()]
     : [];
 
   return (
-    <div className="bg-card rounded-lg border border-border p-5 hover:shadow-md transition-shadow">
+    <div className={`bg-card rounded-lg border p-5 hover:shadow-md transition-shadow ${inherited ? "border-border/60 opacity-90" : overridden ? "border-primary/40" : "border-border"}`}>
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
           <FunctionSquare className="w-4 h-4 text-accent" />
@@ -210,6 +241,16 @@ function CalcCard({
             {calc.category || "General"}
           </span>
         </div>
+        {inherited && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">
+            Inherited
+          </span>
+        )}
+        {overridden && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
+            Customized
+          </span>
+        )}
       </div>
       <h3 className="font-semibold text-foreground text-sm mb-1">
         {calc.name}
@@ -243,9 +284,32 @@ function CalcCard({
         </div>
       )}
       <div className="flex items-center gap-1 pt-2 border-t border-border">
-        <Button variant="ghost" size="sm" onClick={onEdit} className="text-xs gap-1">
-          <Edit className="w-3.5 h-3.5" /> Edit Formula
-        </Button>
+        {inherited ? (
+          <Button variant="ghost" size="sm" onClick={() => onCustomize(calc)} className="text-xs gap-1">
+            <Edit className="w-3.5 h-3.5" /> Customize
+          </Button>
+        ) : (
+          <Button variant="ghost" size="sm" onClick={onEdit} className="text-xs gap-1">
+            <Edit className="w-3.5 h-3.5" /> Edit Formula
+          </Button>
+        )}
+        {overridden && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs gap-1 text-destructive hover:text-destructive"
+            onClick={async () => {
+              try {
+                await deleteCalc.mutateAsync(calc.id);
+                toast.success(`Reset "${calc.name}" to inherited version`);
+              } catch (err: any) {
+                toast.error(err.message || "Failed to reset");
+              }
+            }}
+          >
+            <ArrowLeft className="w-3.5 h-3.5" /> Reset to Inherited
+          </Button>
+        )}
       </div>
     </div>
   );
