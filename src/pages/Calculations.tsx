@@ -28,6 +28,7 @@ import {
   CheckCircle2,
   AlertCircle,
   TableIcon,
+  BookOpen,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -49,7 +50,7 @@ import {
 } from "@/hooks/useCalculations";
 import type { Json } from "@/integrations/supabase/types";
 import { evaluateFormula, type EvalResult } from "@/lib/formulaEngine";
-import { useFieldLibrary, type FieldLibraryItem } from "@/hooks/useFieldLibrary";
+import { useFieldLibrary, useCreateFieldLibraryItem, type FieldLibraryItem } from "@/hooks/useFieldLibrary";
 
 export default function Calculations() {
   const { user } = useAuth();
@@ -405,6 +406,7 @@ function CalculationEditor({
   calculation: Calculation;
   onBack: () => void;
 }) {
+  const { user } = useAuth();
   const { data: fieldsData, isLoading: loadingFields } = useCalculationFields(calculation.id);
   const { data: allFieldsData } = useAllCalculationFields();
   const { data: allCalcs } = useCalculations();
@@ -414,6 +416,7 @@ function CalculationEditor({
   const deleteField = useDeleteField();
   const updateCalc = useUpdateCalculation();
   const upsertSource = useUpsertDataSource();
+  const createLibraryItem = useCreateFieldLibraryItem();
 
   const [blocks, setBlocks] = useState<FormulaBlock[]>(() => {
     if (!calculation.formula) return [];
@@ -428,9 +431,33 @@ function CalculationEditor({
   const allFields = allFieldsData || [];
   const otherFields = allFields.filter((f) => f.calculation_id !== calculation.id);
 
+  // Track which field names already exist in the library
+  const libraryFieldNames = new Set((libraryFields || []).map((f) => f.name));
+
   // Build a map of calculation names for grouping
   const calcNameMap = new Map<string, string>();
   allCalcs?.forEach((c) => calcNameMap.set(c.id, c.name));
+
+  const handleSaveToLibrary = async (field: CalculationField) => {
+    try {
+      await createLibraryItem.mutateAsync({
+        name: field.name,
+        label: field.label,
+        description: null,
+        field_type: field.field_type,
+        source_type: "manual",
+        db_table: null,
+        db_column: null,
+        lookup_table_id: null,
+        lookup_key_column: null,
+        lookup_value_column: null,
+        created_by: user?.id || "",
+      });
+      toast.success(`"${field.label}" saved to Field Library`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save to library");
+    }
+  };
 
   const handleAddField = async (name: string, label: string, fieldType: string) => {
     try {
@@ -576,6 +603,8 @@ function CalculationEditor({
                     field={f}
                     onDataSource={() => setShowDataSource(f)}
                     onDelete={() => handleDeleteField(f.id)}
+                    onSaveToLibrary={() => handleSaveToLibrary(f)}
+                    isInLibrary={libraryFieldNames.has(f.name)}
                   />
                 ))}
               </div>
@@ -648,12 +677,16 @@ function FieldItem({
   field,
   onDataSource,
   onDelete,
+  onSaveToLibrary,
   readOnly,
+  isInLibrary,
 }: {
   field: any;
   onDataSource: () => void;
   onDelete?: () => void;
+  onSaveToLibrary?: () => void;
   readOnly?: boolean;
+  isInLibrary?: boolean;
 }) {
   const source = field.field_data_sources?.[0];
   return (
@@ -671,9 +704,25 @@ function FieldItem({
               <span className="capitalize">{source.source_type.replace("_", " ")}</span>
             </>
           )}
+          {isInLibrary && (
+            <>
+              <span>·</span>
+              <BookOpen className="w-2.5 h-2.5 text-primary" />
+              <span className="text-primary">Library</span>
+            </>
+          )}
         </p>
       </div>
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {!readOnly && onSaveToLibrary && !isInLibrary && (
+          <button
+            onClick={onSaveToLibrary}
+            className="p-1 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary"
+            title="Save to Field Library"
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+          </button>
+        )}
         <button
           onClick={onDataSource}
           className="p-1 rounded hover:bg-accent/10 text-muted-foreground hover:text-accent"
