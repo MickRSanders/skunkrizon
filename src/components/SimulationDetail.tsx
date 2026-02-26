@@ -102,6 +102,12 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
   const createAuditEntry = useCreateAuditEntry();
   const updateSimulation = useUpdateSimulation();
   const [showAuditTrail, setShowAuditTrail] = useState(false);
+  const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
+
+  const toggleCategory = (scenarioId: string, category: string) => {
+    const key = `${scenarioId}:${category}`;
+    setCollapsedCategories((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const policyName = (simulation as any).policies?.name;
 
@@ -400,64 +406,75 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
               <div className="flex-1 p-4 space-y-4">
                 {Object.entries(grouped).map(([category, items]) => {
                   const categoryTotal = items.reduce((s, b) => s + b.amount, 0);
+                  const collapseKey = `${scenario.id}:${category}`;
+                  const isCollapsed = !!collapsedCategories[collapseKey];
                   return (
                     <div key={category}>
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">{category}</h4>
+                      <button
+                        type="button"
+                        onClick={() => toggleCategory(scenario.id, category)}
+                        className="flex items-center justify-between w-full mb-2 group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <ChevronDown className={`w-3 h-3 text-muted-foreground transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
+                          <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest group-hover:text-foreground transition-colors">{category}</h4>
+                        </div>
                         <span className="text-[10px] font-medium text-muted-foreground tabular-nums">{formatCurrency(categoryTotal, scenario.currency)}</span>
-                      </div>
-                      <div className="space-y-1">
-                        {items.map((benefit) => (
-                          <div
-                            key={benefit.id}
-                            className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition-all ${
-                              benefit.isOverridden
-                                ? "bg-warning/5 border border-warning/20 shadow-sm"
-                                : "bg-muted/20 hover:bg-muted/40"
-                            }`}
-                          >
-                            {benefit.category === "Custom" ? (
-                              <Input
-                                value={benefit.label}
-                                onChange={(e) => updateBenefitLabel(scenario.id, benefit.id, e.target.value)}
-                                className="h-6 text-[13px] bg-transparent border-none p-0 focus-visible:ring-0 flex-1 text-foreground tracking-tight"
-                              />
-                            ) : (
-                              <span className="flex-1 text-foreground text-[13px] tracking-tight">{benefit.label}</span>
-                            )}
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-muted-foreground/50 text-xs">{getCurrencySymbol(scenario.currency)}</span>
-                              <Input
-                                type="text"
-                                inputMode="numeric"
-                                value={formatNumber(benefit.amount)}
-                                onChange={(e) => {
-                                  const raw = e.target.value.replace(/,/g, "");
-                                  updateBenefitAmount(scenario.id, benefit.id, Number(raw) || 0);
-                                }}
-                                className="h-6 w-[100px] text-[13px] text-right bg-transparent border-none p-0 focus-visible:ring-0 text-foreground tabular-nums tracking-tight"
-                              />
-                              {benefit.isOverridden && benefit.category !== "Custom" && (
-                                <button
-                                  onClick={() => resetBenefit(scenario.id, benefit.id)}
-                                  className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                                  title="Reset to calculated value"
-                                >
-                                  <RefreshCw className="w-3 h-3" />
-                                </button>
+                      </button>
+                      {!isCollapsed && (
+                        <div className="space-y-1">
+                          {items.map((benefit) => (
+                            <div
+                              key={benefit.id}
+                              className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition-all ${
+                                benefit.isOverridden
+                                  ? "bg-warning/5 border border-warning/20 shadow-sm"
+                                  : "bg-muted/20 hover:bg-muted/40"
+                              }`}
+                            >
+                              {benefit.category === "Custom" ? (
+                                <Input
+                                  value={benefit.label}
+                                  onChange={(e) => updateBenefitLabel(scenario.id, benefit.id, e.target.value)}
+                                  className="h-6 text-[13px] bg-transparent border-none p-0 focus-visible:ring-0 flex-1 text-foreground tracking-tight"
+                                />
+                              ) : (
+                                <span className="flex-1 text-foreground text-[13px] tracking-tight">{benefit.label}</span>
                               )}
-                              {benefit.category === "Custom" && (
-                                <button
-                                  onClick={() => removeBenefit(scenario.id, benefit.id)}
-                                  className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              )}
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-muted-foreground/50 text-xs">{getCurrencySymbol(scenario.currency)}</span>
+                                <Input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={formatNumber(benefit.amount)}
+                                  onChange={(e) => {
+                                    const raw = e.target.value.replace(/,/g, "");
+                                    updateBenefitAmount(scenario.id, benefit.id, Number(raw) || 0);
+                                  }}
+                                  className="h-6 w-[100px] text-[13px] text-right bg-transparent border-none p-0 focus-visible:ring-0 text-foreground tabular-nums tracking-tight"
+                                />
+                                {benefit.isOverridden && benefit.category !== "Custom" && (
+                                  <button
+                                    onClick={() => resetBenefit(scenario.id, benefit.id)}
+                                    className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                    title="Reset to calculated value"
+                                  >
+                                    <RefreshCw className="w-3 h-3" />
+                                  </button>
+                                )}
+                                {benefit.category === "Custom" && (
+                                  <button
+                                    onClick={() => removeBenefit(scenario.id, benefit.id)}
+                                    className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
