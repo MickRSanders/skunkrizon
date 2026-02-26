@@ -111,3 +111,14 @@ export function useUpdateSimulation() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["simulations"] }),
   });
 }
+
+export function useDeleteSimulation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("simulations").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["simulations"] }),
+  });
+}

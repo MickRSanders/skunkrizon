@@ -3,6 +3,10 @@ import SimulationForm from "@/components/SimulationForm";
 import SimulationDetail from "@/components/SimulationDetail";
 import { Button } from "@/components/ui/button";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Plus,
   Search,
   ArrowRight,
@@ -17,10 +21,11 @@ import {
   Pencil,
   Check,
   X,
+  Trash2,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { useSimulations, useCreateSimulation, useUpdateSimulation } from "@/hooks/useSimulations";
+import { useSimulations, useCreateSimulation, useUpdateSimulation, useDeleteSimulation } from "@/hooks/useSimulations";
 import { useCurrentTenant } from "@/hooks/useCurrentTenant";
 import type { SimulationFormData } from "@/components/SimulationForm";
 import { format } from "date-fns";
@@ -38,9 +43,11 @@ export default function Simulations() {
   const { data: simulations, isLoading } = useSimulations();
   const createSimulation = useCreateSimulation();
   const updateSimulation = useUpdateSimulation();
+  const deleteSimulation = useDeleteSimulation();
   const currentTenant = useCurrentTenant();
   const tenantId = currentTenant.data?.tenant_id ?? null;
   const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
   const selectedSim = simulations?.find((s) => s.id === selectedSimId) ?? null;
@@ -290,6 +297,15 @@ export default function Simulations() {
                 <button className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Export">
                   <Download className="w-3.5 h-3.5" />
                 </button>
+                {sim.status === "draft" && (
+                  <button
+                    onClick={() => setDeleteTarget({ id: sim.id, name: sim.employee_name })}
+                    className="p-1.5 rounded-md hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
                 <span className="ml-auto text-[10px] text-muted-foreground">
                   {format(new Date(sim.updated_at), "MMM d, yyyy")}
                 </span>
@@ -360,6 +376,15 @@ export default function Simulations() {
                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                       <button className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Clone"><Copy className="w-3.5 h-3.5" /></button>
                       <button className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Export"><Download className="w-3.5 h-3.5" /></button>
+                      {sim.status === "draft" && (
+                        <button
+                          onClick={() => setDeleteTarget({ id: sim.id, name: sim.employee_name })}
+                          className="p-1.5 rounded hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -375,6 +400,37 @@ export default function Simulations() {
           onSubmit={handleCreate}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Simulation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              "{deleteTarget?.name}" will be permanently deleted. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                if (!deleteTarget) return;
+                try {
+                  await deleteSimulation.mutateAsync(deleteTarget.id);
+                  if (selectedSimId === deleteTarget.id) setSelectedSimId(null);
+                  toast.success(`"${deleteTarget.name}" deleted`);
+                } catch (err: any) {
+                  toast.error(err.message || "Failed to delete simulation");
+                }
+                setDeleteTarget(null);
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
