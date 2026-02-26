@@ -8,6 +8,7 @@ import {
   BarChart3,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Globe,
   Shield,
   FunctionSquare,
@@ -17,6 +18,7 @@ import {
   BookOpen,
   ChevronsUpDown,
   Check,
+  Database,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -28,14 +30,17 @@ const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/simulations", icon: Calculator, label: "Cost Simulations" },
   { to: "/policies", icon: FileText, label: "Policy Agent" },
-  { to: "/calculations", icon: FunctionSquare, label: "Calculations Engine" },
-  { to: "/lookup-tables", icon: Table2, label: "Lookup Tables" },
-  { to: "/field-library", icon: BookOpen, label: "Field Library" },
   { to: "/tax-engine", icon: Globe, label: "Tax Engine" },
   { to: "/analytics", icon: BarChart3, label: "Analytics" },
   { to: "/users", icon: Users, label: "User Management" },
-  { to: "/tenants", icon: Building2, label: "Tenants" },
+  { to: "/tenants", icon: Building2, label: "Organizations" },
   { to: "/settings", icon: Settings, label: "Settings" },
+];
+
+const dataMenuItems = [
+  { to: "/calculations", icon: FunctionSquare, label: "Calculations Engine" },
+  { to: "/lookup-tables", icon: Table2, label: "Lookup Tables" },
+  { to: "/field-library", icon: BookOpen, label: "Field Library" },
 ];
 
 export default function AppSidebar() {
@@ -45,6 +50,9 @@ export default function AppSidebar() {
   const { tenants, activeTenant, activeSubTenant, subTenants, switchTenant, switchSubTenant } = useTenantContext();
   const tenantName = activeTenant?.tenant_name;
   const [tenantMenuOpen, setTenantMenuOpen] = useState(false);
+  const [dataMenuOpen, setDataMenuOpen] = useState(
+    dataMenuItems.some((item) => location.pathname.startsWith(item.to))
+  );
 
   const handleSignOut = async () => {
     await signOut();
@@ -205,6 +213,75 @@ export default function AppSidebar() {
           const isActive =
             location.pathname === item.to ||
             (item.to !== "/" && location.pathname.startsWith(item.to));
+
+          // Insert Data menu after Policy Agent
+          if (item.to === "/tax-engine") {
+            const isDataActive = dataMenuItems.some((d) => location.pathname.startsWith(d.to));
+            return (
+              <div key="data-group">
+                {/* Data menu toggle */}
+                <button
+                  onClick={() => setDataMenuOpen(!dataMenuOpen)}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors w-full",
+                    isDataActive
+                      ? "bg-sidebar-accent text-sidebar-primary"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+                  )}
+                >
+                  <Database className="w-4 h-4 shrink-0" />
+                  {!collapsed && (
+                    <>
+                      <span className="flex-1 text-left">Data</span>
+                      <ChevronDown
+                        className={cn(
+                          "w-3.5 h-3.5 transition-transform",
+                          dataMenuOpen ? "rotate-0" : "-rotate-90"
+                        )}
+                      />
+                    </>
+                  )}
+                </button>
+                {/* Data sub-items */}
+                {dataMenuOpen && !collapsed && (
+                  <div className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-2">
+                    {dataMenuItems.map((sub) => {
+                      const subActive = location.pathname.startsWith(sub.to);
+                      return (
+                        <NavLink
+                          key={sub.to}
+                          to={sub.to}
+                          className={cn(
+                            "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                            subActive
+                              ? "bg-sidebar-accent text-sidebar-primary"
+                              : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+                          )}
+                        >
+                          <sub.icon className="w-4 h-4 shrink-0" />
+                          <span>{sub.label}</span>
+                        </NavLink>
+                      );
+                    })}
+                  </div>
+                )}
+                {/* Then render Tax Engine */}
+                <NavLink
+                  to={item.to}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-sidebar-accent text-sidebar-primary"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+                  )}
+                >
+                  <item.icon className="w-4 h-4 shrink-0" />
+                  {!collapsed && <span>{item.label}</span>}
+                </NavLink>
+              </div>
+            );
+          }
+
           return (
             <NavLink
               key={item.to}
