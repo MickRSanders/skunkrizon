@@ -2,11 +2,15 @@ import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
-  ArrowLeft, Users, Globe, DollarSign, Download, TrendingUp, ChevronDown, ChevronUp,
+  ArrowLeft, Users, Globe, DollarSign, Download, TrendingUp, ChevronDown, ChevronUp, BarChart3, PieChartIcon,
 } from "lucide-react";
 import { useSimulationGroupWithSims } from "@/hooks/useSimulationGroups";
 import { format } from "date-fns";
 import * as XLSX from "@e965/xlsx";
+import {
+  PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+} from "recharts";
 
 const formatCurrency = (amount: number, currency = "USD") =>
   new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
@@ -175,6 +179,113 @@ export default function GroupSimulationDetail({ groupId, onBack }: Props) {
           </div>
         </div>
       </div>
+
+      {/* Charts */}
+      {sims.length > 0 && (() => {
+        const CHART_COLORS = [
+          "hsl(var(--accent))",
+          "hsl(var(--primary))",
+          "hsl(210, 70%, 55%)",
+          "hsl(160, 60%, 45%)",
+          "hsl(30, 80%, 55%)",
+          "hsl(280, 60%, 55%)",
+          "hsl(350, 70%, 55%)",
+          "hsl(190, 65%, 50%)",
+        ];
+
+        const memberData = sims.map((sim, i) => ({
+          name: sim.employee_name || sim.sim_code,
+          value: Number(sim.total_cost) || 0,
+          fill: CHART_COLORS[i % CHART_COLORS.length],
+        }));
+
+        const categoryData = categoryRollup
+          .filter(([label]) => label !== "Total Cost")
+          .map(([label, amount], i) => ({
+            name: label,
+            amount,
+            fill: CHART_COLORS[i % CHART_COLORS.length],
+          }));
+
+        const CustomTooltip = ({ active, payload }: any) => {
+          if (!active || !payload?.[0]) return null;
+          const d = payload[0];
+          return (
+            <div className="bg-popover border border-border rounded-lg px-3 py-2 shadow-lg text-sm">
+              <p className="font-medium text-foreground">{d.name || d.payload?.name}</p>
+              <p className="text-accent font-semibold">{formatCurrency(d.value ?? d.payload?.amount)}</p>
+            </div>
+          );
+        };
+
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Pie: Cost by Member */}
+            <div className="bg-card rounded-xl border border-border p-5">
+              <h2 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+                <PieChartIcon className="w-4 h-4 text-accent" /> Cost Distribution by Member
+              </h2>
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <Pie
+                    data={memberData}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={3}
+                    strokeWidth={0}
+                  >
+                    {memberData.map((entry, i) => (
+                      <Cell key={i} fill={entry.fill} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend
+                    verticalAlign="bottom"
+                    formatter={(value: string) => <span className="text-xs text-muted-foreground">{value}</span>}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Bar: Cost by Category */}
+            <div className="bg-card rounded-xl border border-border p-5">
+              <h2 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-accent" /> Cost Breakdown by Category
+              </h2>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={categoryData} layout="vertical" margin={{ left: 20, right: 20, top: 5, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
+                  <XAxis
+                    type="number"
+                    tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={100}
+                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="amount" radius={[0, 6, 6, 0]} barSize={28}>
+                    {categoryData.map((entry, i) => (
+                      <Cell key={i} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Side-by-Side Comparison */}
       <div className="bg-card rounded-xl border border-border overflow-hidden">
