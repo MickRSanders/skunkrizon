@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { useTaxConfig, TAX_RATE_MAP } from "@/contexts/TaxConfigContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { useSimulationAuditLog, useCreateAuditEntry } from "@/hooks/useSimulations";
+import { useSimulationAuditLog, useCreateAuditEntry, useUpdateSimulation } from "@/hooks/useSimulations";
 import { format } from "date-fns";
 
 const CURRENCIES = ["USD", "EUR", "GBP", "JPY", "CHF", "SGD", "AUD", "CAD", "INR", "BRL"] as const;
@@ -91,18 +91,48 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
   const { grossUpMultiplier } = useTaxConfig();
   const { data: auditLog } = useSimulationAuditLog(simulation.id);
   const createAuditEntry = useCreateAuditEntry();
+  const updateSimulation = useUpdateSimulation();
   const [showAuditTrail, setShowAuditTrail] = useState(false);
 
   const policyName = (simulation as any).policies?.name;
 
-  const [scenarios, setScenarios] = useState<Scenario[]>(() => [
-    {
-      id: "primary",
-      name: simulation.employee_name || "Primary Scenario",
-      currency: simulation.currency || "USD",
-      benefits: generateBenefits(simulation, grossUpMultiplier),
-    },
-  ]);
+  const [scenarios, setScenarios] = useState<Scenario[]>(() => {
+    // Restore saved scenarios from cost_breakdown if available
+    const saved = simulation.cost_breakdown as any;
+    if (saved?.scenarios && Array.isArray(saved.scenarios) && saved.scenarios.length > 0) {
+      return saved.scenarios as Scenario[];
+    }
+    return [
+      {
+        id: "primary",
+        name: simulation.employee_name || "Primary Scenario",
+        currency: simulation.currency || "USD",
+        benefits: generateBenefits(simulation, grossUpMultiplier),
+      },
+    ];
+  });
+
+  // Auto-save scenarios to cost_breakdown whenever they change
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const persistScenarios = useCallback((updatedScenarios: Scenario[]) => {
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      updateSimulation.mutate({
+        id: simulation.id,
+        cost_breakdown: { scenarios: updatedScenarios } as any,
+      });
+    }, 800);
+  }, [simulation.id, updateSimulation]);
+
+  // Persist whenever scenarios state changes (skip initial mount with saved data)
+  const isInitialMount = useRef(true);
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    persistScenarios(scenarios);
+  }, [scenarios, persistScenarios]);
 
   const addScenario = () => {
     const base = scenarios[0];
