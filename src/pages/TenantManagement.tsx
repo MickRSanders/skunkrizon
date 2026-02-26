@@ -59,8 +59,8 @@ export default function TenantManagement() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Tenant Management</h1>
-          <p className="text-sm text-muted-foreground mt-1">Configure client tenants, sub-tenants, and SSO settings</p>
+          <h1 className="text-2xl font-bold text-foreground">Organization Management</h1>
+          <p className="text-sm text-muted-foreground mt-1">Configure client organizations, sub-tenants, and SSO settings</p>
         </div>
         <Button size="sm" onClick={() => setShowCreateForm(true)}>
           <Plus className="w-4 h-4 mr-1" /> New Tenant
