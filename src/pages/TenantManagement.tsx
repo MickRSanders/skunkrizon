@@ -60,10 +60,10 @@ export default function TenantManagement() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Organization Management</h1>
-          <p className="text-sm text-muted-foreground mt-1">Configure client organizations, sub-tenants, and SSO settings</p>
+          <p className="text-sm text-muted-foreground mt-1">Configure client organizations, sub-organizations, and SSO settings</p>
         </div>
         <Button size="sm" onClick={() => setShowCreateForm(true)}>
-          <Plus className="w-4 h-4 mr-1" /> New Tenant
+          <Plus className="w-4 h-4 mr-1" /> New Organization
         </Button>
       </div>
 
@@ -73,7 +73,7 @@ export default function TenantManagement() {
           <div className="p-3 border-b border-border">
             <div className="flex items-center gap-2 bg-background border border-border rounded-md px-3 py-2">
               <Search className="w-4 h-4 text-muted-foreground" />
-              <input type="text" placeholder="Search tenants..." className="bg-transparent text-sm outline-none w-full text-foreground placeholder:text-muted-foreground" />
+              <input type="text" placeholder="Search organizations..." className="bg-transparent text-sm outline-none w-full text-foreground placeholder:text-muted-foreground" />
             </div>
           </div>
           <div className="max-h-[60vh] overflow-y-auto">
@@ -109,7 +109,7 @@ export default function TenantManagement() {
               ))
             ) : (
               <div className="p-8 text-center text-sm text-muted-foreground">
-                No tenants configured yet.
+                No organizations configured yet.
               </div>
             )}
           </div>
@@ -127,7 +127,7 @@ export default function TenantManagement() {
           ) : (
             <div className="bg-card rounded-lg border border-border p-12 text-center">
               <Building2 className="w-10 h-10 mx-auto text-muted-foreground/30 mb-3" />
-              <p className="text-sm text-muted-foreground">Select a tenant or create a new one</p>
+              <p className="text-sm text-muted-foreground">Select an organization or create a new one</p>
             </div>
           )}
         </div>
@@ -149,7 +149,7 @@ function TenantUrl({ slug }: { slug: string }) {
 
   const handleCopy = () => {
     navigator.clipboard.writeText(tenantUrl);
-    toast.success("Tenant URL copied to clipboard");
+    toast.success("Organization URL copied to clipboard");
   };
 
   return (
@@ -209,7 +209,7 @@ function TenantDetail({
       <Tabs defaultValue="sub-tenants" className="p-0">
         <TabsList className="w-full justify-start rounded-none border-b border-border bg-transparent px-5 h-auto">
           <TabsTrigger value="sub-tenants" className="data-[state=active]:border-b-2 data-[state=active]:border-accent rounded-none py-3 text-xs">
-            <Network className="w-3.5 h-3.5 mr-1" /> Sub-Tenants
+            <Network className="w-3.5 h-3.5 mr-1" /> Sub-Organizations
           </TabsTrigger>
           <TabsTrigger value="sso" className="data-[state=active]:border-b-2 data-[state=active]:border-accent rounded-none py-3 text-xs">
             <Shield className="w-3.5 h-3.5 mr-1" /> SSO Configuration
@@ -227,7 +227,7 @@ function TenantDetail({
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">Reseller clients under {tenant.name}</p>
             <Button size="sm" variant="outline" onClick={onShowSubTenantForm}>
-              <Plus className="w-4 h-4 mr-1" /> Add Sub-Tenant
+              <Plus className="w-4 h-4 mr-1" /> Add Sub-Organization
             </Button>
           </div>
           {loadingSubs ? (
@@ -249,7 +249,7 @@ function TenantDetail({
                     <button
                       onClick={() => {
                         deleteSubTenant.mutate({ id: s.id, tenantId: tenant.id });
-                        toast.success("Sub-tenant removed");
+                        toast.success("Sub-organization removed");
                       }}
                       className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
                     >
@@ -260,7 +260,7 @@ function TenantDetail({
               ))}
             </div>
           ) : (
-            <div className="py-8 text-center text-sm text-muted-foreground">No sub-tenants yet.</div>
+            <div className="py-8 text-center text-sm text-muted-foreground">No sub-organizations yet.</div>
           )}
           {showSubTenantForm && (
             <CreateSubTenantForm tenantId={tenant.id} onClose={onCloseSubTenantForm} />
@@ -323,7 +323,7 @@ function TenantDetail({
                       <button
                         onClick={() => {
                           removeTenantUser.mutate({ id: tu.id, tenantId: tenant.id });
-                          toast.success("User removed from tenant");
+                          toast.success("User removed from organization");
                         }}
                         className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
                       >
@@ -405,7 +405,7 @@ function SSOConfigPanel({ tenant, onUpdate }: { tenant: Tenant; onUpdate: Return
       <div className="flex items-center justify-between rounded-md border border-border px-4 py-3">
         <div>
           <p className="text-sm font-medium text-foreground">Enable SSO</p>
-          <p className="text-xs text-muted-foreground">Allow users to sign in via the tenant's identity provider</p>
+          <p className="text-xs text-muted-foreground">Allow users to sign in via the organization's identity provider</p>
         </div>
         <Switch checked={enabled} onCheckedChange={setEnabled} />
       </div>
@@ -475,7 +475,7 @@ function SSOConfigPanel({ tenant, onUpdate }: { tenant: Tenant; onUpdate: Return
       {!enabled && (
         <div className="rounded-md bg-muted/30 border border-border p-4 text-center">
           <Shield className="w-8 h-8 mx-auto text-muted-foreground/40 mb-2" />
-          <p className="text-sm text-muted-foreground">SSO is disabled for this tenant. Enable it to configure SAML or OIDC.</p>
+          <p className="text-sm text-muted-foreground">SSO is disabled for this organization. Enable it to configure SAML or OIDC.</p>
         </div>
       )}
     </div>
@@ -502,17 +502,17 @@ function CreateTenantDialog({ onClose }: { onClose: () => void }) {
         contact_name: contactName || null,
         contact_email: contactEmail || null,
       });
-      toast.success(`Tenant "${name}" created`);
+      toast.success(`Organization "${name}" created`);
       onClose();
     } catch (err: any) {
-      toast.error(err.message || "Failed to create tenant");
+      toast.error(err.message || "Failed to create organization");
     }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
       <div className="w-full max-w-md bg-card rounded-xl border border-border shadow-xl p-6 space-y-4">
-        <h2 className="text-lg font-bold text-foreground">New Tenant</h2>
+        <h2 className="text-lg font-bold text-foreground">New Organization</h2>
         <div className="space-y-3">
           <ConfigField label="Company Name *" value={name} onChange={(v) => { setName(v); if (!slug) setSlug(v.toLowerCase().replace(/[^a-z0-9]+/g, "-")); }} placeholder="Acme Corporation" />
           <ConfigField label="Slug *" value={slug} onChange={setSlug} placeholder="acme-corp" />
@@ -524,7 +524,7 @@ function CreateTenantDialog({ onClose }: { onClose: () => void }) {
           <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
           <Button size="sm" onClick={handleCreate} disabled={createTenant.isPending}>
             {createTenant.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
-            Create Tenant
+            Create Organization
           </Button>
         </div>
       </div>
@@ -549,16 +549,16 @@ function CreateSubTenantForm({ tenantId, onClose }: { tenantId: string; onClose:
         slug: slug.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
         domain: domain || null,
       });
-      toast.success(`Sub-tenant "${name}" created`);
+      toast.success(`Sub-organization "${name}" created`);
       onClose();
     } catch (err: any) {
-      toast.error(err.message || "Failed to create sub-tenant");
+      toast.error(err.message || "Failed to create sub-organization");
     }
   };
 
   return (
     <div className="rounded-md border border-accent/30 bg-accent/5 p-4 space-y-3">
-      <h4 className="text-sm font-semibold text-foreground">Add Sub-Tenant</h4>
+      <h4 className="text-sm font-semibold text-foreground">Add Sub-Organization</h4>
       <div className="grid grid-cols-3 gap-3">
         <ConfigField label="Name *" value={name} onChange={(v) => { setName(v); if (!slug) setSlug(v.toLowerCase().replace(/[^a-z0-9]+/g, "-")); }} placeholder="Client name" />
         <ConfigField label="Slug *" value={slug} onChange={setSlug} placeholder="client-slug" />
@@ -600,7 +600,7 @@ function AssignUserForm({ tenantId, existingUserIds, onClose }: { tenantId: stri
   return (
     <div className="rounded-md border border-accent/30 bg-accent/5 p-4 space-y-3">
       <h4 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
-        <Users className="w-4 h-4 text-accent" /> Assign User to Tenant
+        <Users className="w-4 h-4 text-accent" /> Assign User to Organization
       </h4>
       <div className="grid grid-cols-3 gap-3 items-end">
         <div className="space-y-1.5 relative">

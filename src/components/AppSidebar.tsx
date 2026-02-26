@@ -93,7 +93,7 @@ export default function AppSidebar() {
         </button>
       </div>
 
-      {/* Tenant & Sub-tenant Switcher */}
+      {/* Organization Switcher */}
       {activeTenant && !collapsed && (
         <div className="px-3 py-2 border-b border-sidebar-border">
           <div className="relative">
@@ -124,7 +124,7 @@ export default function AppSidebar() {
                 {tenants.length > 1 && (
                   <>
                     <div className="px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                      Tenants
+                      Organizations
                     </div>
                     {tenants
                       .filter((t, i, arr) => arr.findIndex((a) => a.tenant_id === t.tenant_id) === i)
@@ -158,7 +158,7 @@ export default function AppSidebar() {
                 {subTenants.length > 0 && (
                   <>
                     <div className="px-3 py-1 mt-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider border-t border-border pt-2">
-                      Sub-tenants
+                      Sub-organizations
                     </div>
                     {/* "All / Parent" option */}
                     <button

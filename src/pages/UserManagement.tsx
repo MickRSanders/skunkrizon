@@ -120,8 +120,8 @@ function useUpdateUser() {
 // ─── Role descriptions ─────────────────────────────────────────
 
 const ROLE_DESCRIPTIONS: Record<string, string> = {
-  superadmin: "Topia staff — full platform access across all tenants",
-  admin: "Full access to all features, user and tenant management",
+  superadmin: "Topia staff — full platform access across all organizations",
+  admin: "Full access to all features, user and organization management",
   analyst: "Calculations, simulations, policy config, and reporting",
   viewer: "View assigned simulations and reports only",
 };
