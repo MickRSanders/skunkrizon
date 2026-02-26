@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { X, Send, Loader2, Bot, User, Sparkles, Trash2, ExternalLink } from "lucide-react";
-import topiaIcon from "@/assets/topia-icon.jpg";
+import { Brain, X, Send, Loader2, Bot, User, Sparkles, Trash2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
@@ -237,7 +236,7 @@ export default function AIChatWidget() {
           open && "scale-0 opacity-0 pointer-events-none"
         )}
       >
-        <img src={topiaIcon} alt="Topia AI" className="w-8 h-8 rounded-full object-cover" />
+        <Brain className="w-6 h-6" />
       </button>
 
       {/* Chat panel */}
