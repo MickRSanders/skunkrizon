@@ -30,10 +30,28 @@ import {
   Loader2,
   Plus,
   Trash2,
+  GripVertical,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import PageTransition from "@/components/PageTransition";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 const outcomeColors: Record<AssessmentOutcome, string> = {
   green: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30",
@@ -73,7 +91,7 @@ export default function PreTravelDetail() {
     enabled: !!id,
   });
 
-  const { segments, assessments, addSegment, updateSegment, deleteSegment } = useTripDetail(id);
+  const { segments, assessments, addSegment, updateSegment, deleteSegment, reorderSegments } = useTripDetail(id);
   const trip = tripQuery.data;
 
   const runAssessment = useMutation({
@@ -160,6 +178,7 @@ export default function PreTravelDetail() {
               addSegment={addSegment}
               updateSegment={updateSegment}
               deleteSegment={deleteSegment}
+              reorderSegments={reorderSegments}
             />
           </TabsContent>
 
@@ -381,15 +400,43 @@ function SegmentsSection({
   addSegment,
   updateSegment,
   deleteSegment,
+  reorderSegments,
 }: {
   segments: TripSegment[];
   tripId: string;
   addSegment: any;
   updateSegment: any;
   deleteSegment: any;
+  reorderSegments: any;
 }) {
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ ...emptySegmentForm });
+  const [orderedSegments, setOrderedSegments] = useState<TripSegment[]>(segments);
+
+  // Keep local state in sync with server data
+  useState(() => { setOrderedSegments(segments); });
+  if (segments !== orderedSegments && !reorderSegments.isPending) {
+    // Only sync when segments ref changes (new data from server)
+    if (JSON.stringify(segments.map(s => s.id)) !== JSON.stringify(orderedSegments.map(s => s.id)) || segments.length !== orderedSegments.length) {
+      setOrderedSegments(segments);
+    }
+  }
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = orderedSegments.findIndex((s) => s.id === active.id);
+    const newIndex = orderedSegments.findIndex((s) => s.id === over.id);
+    const newOrder = arrayMove(orderedSegments, oldIndex, newIndex);
+    setOrderedSegments(newOrder);
+    reorderSegments.mutate(newOrder.map((s) => s.id));
+  };
 
   const handleAdd = () => {
     if (!form.origin_country.trim() || !form.destination_country.trim() || !form.start_date || !form.end_date) {
@@ -416,6 +463,9 @@ function SegmentsSection({
     );
   };
 
+  // Use orderedSegments for display
+  const displaySegments = orderedSegments.length === segments.length ? orderedSegments : segments;
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -432,15 +482,19 @@ function SegmentsSection({
         {segments.length === 0 && !adding && (
           <p className="text-sm text-muted-foreground">No segments defined.</p>
         )}
-        {segments.map((seg, i) => (
-          <SegmentCard
-            key={seg.id}
-            segment={seg}
-            index={i}
-            updateSegment={updateSegment}
-            deleteSegment={deleteSegment}
-          />
-        ))}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={displaySegments.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+            {displaySegments.map((seg, i) => (
+              <SortableSegmentCard
+                key={seg.id}
+                segment={seg}
+                index={i}
+                updateSegment={updateSegment}
+                deleteSegment={deleteSegment}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
         {adding && (
           <div className="border rounded-lg p-4 bg-muted/20 space-y-3">
             <div className="flex items-center justify-between">
@@ -518,7 +572,7 @@ function SegmentFormFields({
   );
 }
 
-function SegmentCard({
+function SortableSegmentCard({
   segment,
   index,
   updateSegment,
@@ -529,6 +583,21 @@ function SegmentCard({
   updateSegment: any;
   deleteSegment: any;
 }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: segment.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ ...emptySegmentForm });
 
@@ -571,7 +640,7 @@ function SegmentCard({
 
   if (editing) {
     return (
-      <div className="border rounded-lg p-4 bg-muted/20 space-y-3">
+      <div ref={setNodeRef} style={style} className="border rounded-lg p-4 bg-muted/20 space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-muted-foreground">Editing Segment {index + 1}</span>
           <div className="flex gap-1.5">
@@ -590,9 +659,18 @@ function SegmentCard({
   }
 
   return (
-    <div className="border rounded-lg p-4 bg-muted/20">
+    <div ref={setNodeRef} style={style} className="border rounded-lg p-4 bg-muted/20">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold text-muted-foreground">Segment {index + 1}</span>
+        <div className="flex items-center gap-2">
+          <button
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing touch-none text-muted-foreground hover:text-foreground"
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+          <span className="text-xs font-semibold text-muted-foreground">Segment {index + 1}</span>
+        </div>
         <div className="flex items-center gap-1.5">
           <Badge variant="outline" className="text-xs capitalize">
             {segment.activity_type.replace(/_/g, " ")}
