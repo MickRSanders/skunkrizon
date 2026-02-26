@@ -27,6 +27,8 @@ import {
   Key,
   CheckCircle2,
   XCircle,
+  Copy,
+  Link,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -139,6 +141,32 @@ export default function TenantManagement() {
   );
 }
 
+// ─── Tenant URL ─────────────────────────────────────────────────
+
+function TenantUrl({ slug }: { slug: string }) {
+  const baseUrl = window.location.origin;
+  const tenantUrl = `${baseUrl}/t/${slug}`;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(tenantUrl);
+    toast.success("Tenant URL copied to clipboard");
+  };
+
+  return (
+    <div className="flex items-center gap-2 bg-muted/30 border border-border rounded-md px-3 py-2">
+      <Link className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+      <code className="text-xs font-mono text-foreground truncate flex-1">{tenantUrl}</code>
+      <button
+        onClick={handleCopy}
+        className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
+        title="Copy URL"
+      >
+        <Copy className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+}
+
 // ─── Tenant Detail ──────────────────────────────────────────────
 
 function TenantDetail({
@@ -162,17 +190,20 @@ function TenantDetail({
 
   return (
     <div className="bg-card rounded-lg border border-border">
-      <div className="p-5 border-b border-border flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-bold text-foreground">{tenant.name}</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {tenant.domain && <span className="mr-3"><Globe className="w-3 h-3 inline mr-1" />{tenant.domain}</span>}
-            Slug: <span className="font-mono">{tenant.slug}</span>
-          </p>
+      <div className="p-5 border-b border-border space-y-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-foreground">{tenant.name}</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {tenant.domain && <span className="mr-3"><Globe className="w-3 h-3 inline mr-1" />{tenant.domain}</span>}
+              Slug: <span className="font-mono">{tenant.slug}</span>
+            </p>
+          </div>
+          <span className={`px-2 py-1 rounded-full text-xs font-medium ${tenant.is_active ? "bg-green-500/10 text-green-600" : "bg-muted text-muted-foreground"}`}>
+            {tenant.is_active ? "Active" : "Inactive"}
+          </span>
         </div>
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${tenant.is_active ? "bg-green-500/10 text-green-600" : "bg-muted text-muted-foreground"}`}>
-          {tenant.is_active ? "Active" : "Inactive"}
-        </span>
+        <TenantUrl slug={tenant.slug} />
       </div>
 
       <Tabs defaultValue="sub-tenants" className="p-0">
