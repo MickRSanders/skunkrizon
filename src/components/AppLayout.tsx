@@ -4,7 +4,8 @@ import Breadcrumbs from "./Breadcrumbs";
 import ThemeToggle from "./ThemeToggle";
 import PageTransition from "./PageTransition";
 import NotificationDropdown from "./NotificationDropdown";
-import { Menu, User, X } from "lucide-react";
+import UserProfileDropdown from "./UserProfileDropdown";
+import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -51,15 +52,7 @@ export default function AppLayout() {
           <div className="flex items-center gap-2">
             <ThemeToggle />
             <NotificationDropdown />
-            <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-border">
-              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
-                <User className="w-4 h-4 text-primary-foreground" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-foreground">Admin User</p>
-                <p className="text-xs text-muted-foreground">Cartus Global</p>
-              </div>
-            </div>
+            <UserProfileDropdown />
           </div>
         </header>
         {/* Page Content */}
