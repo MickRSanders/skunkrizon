@@ -192,6 +192,16 @@ export default function Calculations() {
             <SelectItem value="end of assignment">End of Assignment ({countByStage("end of assignment")})</SelectItem>
           </SelectContent>
         </Select>
+        {(searchTerm || typeFilter !== "all" || stageFilter !== "all") && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 text-xs text-muted-foreground"
+            onClick={() => { setSearchTerm(""); setTypeFilter("all"); setStageFilter("all"); }}
+          >
+            <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Reset Filters
+          </Button>
+        )}
       </div>
 
       {isLoading ? (
