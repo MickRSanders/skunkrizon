@@ -106,6 +106,58 @@ const CREATE_SIMULATION_TOOL = {
   },
 };
 
+const ADD_LOOKUP_ROW_TOOL = {
+  type: "function",
+  function: {
+    name: "add_lookup_table_row",
+    description:
+      "Add a new row to an existing lookup table. Use this when the user wants to add an entry (e.g. a new exchange rate, a new COLA rate). You must know the lookup_table_id from context and provide the row data as key-value pairs matching the table's columns.",
+    parameters: {
+      type: "object",
+      properties: {
+        lookup_table_id: {
+          type: "string",
+          description: "UUID of the lookup table to add the row to",
+        },
+        row_data: {
+          type: "object",
+          description:
+            "Key-value pairs for the row, where keys are column names and values are the cell values. Must match the table's column schema.",
+          additionalProperties: true,
+        },
+      },
+      required: ["lookup_table_id", "row_data"],
+      additionalProperties: false,
+    },
+  },
+};
+
+const UPDATE_LOOKUP_ROW_TOOL = {
+  type: "function",
+  function: {
+    name: "update_lookup_table_row",
+    description:
+      "Update an existing row in a lookup table. Use this when the user wants to change a value (e.g. update an exchange rate). You need the row_id (from context data) and the fields to update.",
+    parameters: {
+      type: "object",
+      properties: {
+        row_id: {
+          type: "string",
+          description: "UUID of the lookup_table_rows record to update",
+        },
+        row_data: {
+          type: "object",
+          description:
+            "Key-value pairs to merge into the existing row_data. Only provided keys are updated; others are preserved.",
+          additionalProperties: true,
+        },
+      },
+      required: ["row_id", "row_data"],
+      additionalProperties: false,
+    },
+  },
+};
+
 function handleAIError(status: number) {
   if (status === 429) {
     return new Response(
@@ -184,7 +236,7 @@ serve(async (req) => {
         const rowPromises = lookupTables.map((lt) =>
           supabase
             .from("lookup_table_rows")
-            .select("row_data")
+            .select("id, row_data")
             .eq("lookup_table_id", lt.id)
             .order("row_order", { ascending: true })
             .limit(30)
@@ -201,7 +253,7 @@ serve(async (req) => {
               ? rows
                   .map((r) => {
                     const d = r.row_data as Record<string, any>;
-                    return "  " + Object.entries(d).map(([k, v]) => `${k}=${v}`).join(", ");
+                    return `  [row_id=${r.id}] ` + Object.entries(d).map(([k, v]) => `${k}=${v}`).join(", ");
                   })
                   .join("\n")
               : "  (no rows)";
@@ -243,6 +295,12 @@ You have a tool called \`create_draft_simulation\` to create draft simulations. 
 3. Once you have enough info (at least the 4 required fields), call the tool immediately.
 4. If the user says something like "use defaults for the rest", go ahead and create with what you have.
 
+You also have tools to manage lookup table data:
+- \`add_lookup_table_row\`: Add a new row to a lookup table. Requires the lookup_table_id (from context) and row_data matching the table's columns.
+- \`update_lookup_table_row\`: Update an existing row. Requires the row_id (shown as [row_id=...] in context) and the fields to change. Only provided fields are updated; others are preserved.
+
+When adding or updating lookup data, confirm the action with the user before calling the tool. Each row in the context includes its row_id for reference.
+
 Be concise, professional, and helpful. Use bullet points and formatting for clarity.
 ${contextBlock}`;
 
@@ -258,7 +316,7 @@ ${contextBlock}`;
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: [{ role: "system", content: systemPrompt }, ...messages],
-        tools: [CREATE_SIMULATION_TOOL],
+        tools: [CREATE_SIMULATION_TOOL, ADD_LOOKUP_ROW_TOOL, UPDATE_LOOKUP_ROW_TOOL],
         stream: false,
       }),
     });
@@ -346,6 +404,124 @@ ${contextBlock}`;
                 simulation_id: sim.id,
                 sim_code: sim.sim_code,
                 employee_name: sim.employee_name,
+              }),
+            });
+          }
+        } else if (tc.function.name === "add_lookup_table_row") {
+          const args = JSON.parse(tc.function.arguments);
+
+          // Validate row_data is a plain object
+          if (!args.row_data || typeof args.row_data !== "object" || Array.isArray(args.row_data)) {
+            toolResults.push({
+              tool_call_id: tc.id,
+              role: "tool",
+              content: JSON.stringify({ success: false, error: "row_data must be a JSON object" }),
+            });
+            continue;
+          }
+
+          // Sanitize values: trim strings, limit length
+          const sanitized: Record<string, any> = {};
+          for (const [k, v] of Object.entries(args.row_data)) {
+            const key = String(k).slice(0, 100);
+            sanitized[key] = typeof v === "string" ? v.slice(0, 500) : v;
+          }
+
+          // Get next row_order
+          const { data: lastRow } = await supabase
+            .from("lookup_table_rows")
+            .select("row_order")
+            .eq("lookup_table_id", args.lookup_table_id)
+            .order("row_order", { ascending: false })
+            .limit(1)
+            .single();
+
+          const nextOrder = (lastRow?.row_order ?? -1) + 1;
+
+          const { data: newRow, error: rowError } = await supabase
+            .from("lookup_table_rows")
+            .insert({
+              lookup_table_id: args.lookup_table_id,
+              row_data: sanitized,
+              row_order: nextOrder,
+            })
+            .select("id")
+            .single();
+
+          if (rowError) {
+            console.error("Lookup row insert error:", rowError);
+            toolResults.push({
+              tool_call_id: tc.id,
+              role: "tool",
+              content: JSON.stringify({ success: false, error: rowError.message }),
+            });
+          } else {
+            toolResults.push({
+              tool_call_id: tc.id,
+              role: "tool",
+              content: JSON.stringify({
+                success: true,
+                row_id: newRow.id,
+                row_data: sanitized,
+              }),
+            });
+          }
+        } else if (tc.function.name === "update_lookup_table_row") {
+          const args = JSON.parse(tc.function.arguments);
+
+          if (!args.row_data || typeof args.row_data !== "object" || Array.isArray(args.row_data)) {
+            toolResults.push({
+              tool_call_id: tc.id,
+              role: "tool",
+              content: JSON.stringify({ success: false, error: "row_data must be a JSON object" }),
+            });
+            continue;
+          }
+
+          // Fetch existing row first to merge
+          const { data: existingRow, error: fetchErr } = await supabase
+            .from("lookup_table_rows")
+            .select("row_data")
+            .eq("id", args.row_id)
+            .single();
+
+          if (fetchErr || !existingRow) {
+            toolResults.push({
+              tool_call_id: tc.id,
+              role: "tool",
+              content: JSON.stringify({ success: false, error: fetchErr?.message || "Row not found" }),
+            });
+            continue;
+          }
+
+          // Merge: existing values + new values (new overwrites)
+          const existingData = (existingRow.row_data as Record<string, any>) || {};
+          const mergedData: Record<string, any> = { ...existingData };
+          for (const [k, v] of Object.entries(args.row_data)) {
+            const key = String(k).slice(0, 100);
+            mergedData[key] = typeof v === "string" ? v.slice(0, 500) : v;
+          }
+
+          const { error: updateErr } = await supabase
+            .from("lookup_table_rows")
+            .update({ row_data: mergedData })
+            .eq("id", args.row_id);
+
+          if (updateErr) {
+            console.error("Lookup row update error:", updateErr);
+            toolResults.push({
+              tool_call_id: tc.id,
+              role: "tool",
+              content: JSON.stringify({ success: false, error: updateErr.message }),
+            });
+          } else {
+            toolResults.push({
+              tool_call_id: tc.id,
+              role: "tool",
+              content: JSON.stringify({
+                success: true,
+                row_id: args.row_id,
+                updated_data: mergedData,
               }),
             });
           }
