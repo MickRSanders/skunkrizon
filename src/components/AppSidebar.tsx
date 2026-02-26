@@ -40,7 +40,7 @@ export default function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const { signOut, profile } = useAuth();
-  const { tenants, activeTenant, switchTenant } = useTenantContext();
+  const { tenants, activeTenant, activeSubTenant, subTenants, switchTenant, switchSubTenant } = useTenantContext();
   const tenantName = activeTenant?.tenant_name;
   const [tenantMenuOpen, setTenantMenuOpen] = useState(false);
 
@@ -81,7 +81,7 @@ export default function AppSidebar() {
         </button>
       </div>
 
-      {/* Tenant Switcher */}
+      {/* Tenant & Sub-tenant Switcher */}
       {activeTenant && !collapsed && (
         <div className="px-3 py-2 border-b border-sidebar-border">
           <div className="relative">
@@ -89,49 +89,110 @@ export default function AppSidebar() {
               onClick={() => setTenantMenuOpen(!tenantMenuOpen)}
               className="flex items-center justify-between w-full gap-2 px-2 py-1.5 rounded-md text-left hover:bg-sidebar-accent/50 transition-colors"
             >
-              <div className="flex items-center gap-2 min-w-0">
-                <Building2 className="w-3.5 h-3.5 text-sidebar-foreground/50 shrink-0" />
-                <span className="text-[11px] font-medium text-sidebar-foreground/70 truncate">
-                  {tenantName}
-                </span>
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Building2 className="w-3.5 h-3.5 text-sidebar-foreground/50 shrink-0" />
+                  <span className="text-[11px] font-medium text-sidebar-foreground/70 truncate">
+                    {tenantName}
+                  </span>
+                </div>
+                {activeSubTenant && (
+                  <span className="ml-5.5 text-[10px] text-sidebar-foreground/50 truncate">
+                    ↳ {activeSubTenant.name}
+                  </span>
+                )}
               </div>
-              {tenants.length > 1 && (
+              {(tenants.length > 1 || subTenants.length > 0) && (
                 <ChevronsUpDown className="w-3 h-3 text-sidebar-foreground/40 shrink-0" />
               )}
             </button>
-            {tenantMenuOpen && tenants.length > 1 && (
-              <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-popover border border-border rounded-md shadow-lg py-1">
-                {tenants.map((t) => (
-                  <button
-                    key={t.tenant_id}
-                    onClick={() => {
-                      switchTenant(t.tenant_id);
-                      setTenantMenuOpen(false);
-                      toast.success(`Switched to ${t.tenant_name}`);
-                    }}
-                    className={cn(
-                      "flex items-center gap-2 w-full px-3 py-1.5 text-[11px] text-left transition-colors",
-                      t.tenant_id === activeTenant.tenant_id
-                        ? "text-primary font-semibold bg-accent/50"
-                        : "text-popover-foreground hover:bg-accent"
-                    )}
-                  >
-                    <Check
+            {tenantMenuOpen && (
+              <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-popover border border-border rounded-md shadow-lg py-1 max-h-64 overflow-y-auto">
+                {/* Tenants */}
+                {tenants.length > 1 && (
+                  <>
+                    <div className="px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                      Tenants
+                    </div>
+                    {tenants
+                      .filter((t, i, arr) => arr.findIndex((a) => a.tenant_id === t.tenant_id) === i)
+                      .map((t) => (
+                        <button
+                          key={t.tenant_id}
+                          onClick={() => {
+                            switchTenant(t.tenant_id);
+                            setTenantMenuOpen(false);
+                            toast.success(`Switched to ${t.tenant_name}`);
+                          }}
+                          className={cn(
+                            "flex items-center gap-2 w-full px-3 py-1.5 text-[11px] text-left transition-colors",
+                            t.tenant_id === activeTenant.tenant_id
+                              ? "text-primary font-semibold bg-accent/50"
+                              : "text-popover-foreground hover:bg-accent"
+                          )}
+                        >
+                          <Check
+                            className={cn(
+                              "w-3 h-3 shrink-0",
+                              t.tenant_id === activeTenant.tenant_id && !activeSubTenant ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          <span className="truncate">{t.tenant_name}</span>
+                        </button>
+                      ))}
+                  </>
+                )}
+                {/* Sub-tenants */}
+                {subTenants.length > 0 && (
+                  <>
+                    <div className="px-3 py-1 mt-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider border-t border-border pt-2">
+                      Sub-tenants
+                    </div>
+                    {/* "All / Parent" option */}
+                    <button
+                      onClick={() => {
+                        switchSubTenant(null);
+                        setTenantMenuOpen(false);
+                        toast.success(`Viewing all of ${activeTenant.tenant_name}`);
+                      }}
                       className={cn(
-                        "w-3 h-3 shrink-0",
-                        t.tenant_id === activeTenant.tenant_id ? "opacity-100" : "opacity-0"
+                        "flex items-center gap-2 w-full px-3 py-1.5 text-[11px] text-left transition-colors",
+                        !activeSubTenant
+                          ? "text-primary font-semibold bg-accent/50"
+                          : "text-popover-foreground hover:bg-accent"
                       )}
-                    />
-                    <span className="truncate">{t.tenant_name}</span>
-                  </button>
-                ))}
+                    >
+                      <Check className={cn("w-3 h-3 shrink-0", !activeSubTenant ? "opacity-100" : "opacity-0")} />
+                      <span className="truncate">All ({activeTenant.tenant_name})</span>
+                    </button>
+                    {subTenants.map((st) => (
+                      <button
+                        key={st.id}
+                        onClick={() => {
+                          switchSubTenant(st.id);
+                          setTenantMenuOpen(false);
+                          toast.success(`Switched to ${st.name}`);
+                        }}
+                        className={cn(
+                          "flex items-center gap-2 w-full px-3 py-1.5 text-[11px] text-left transition-colors",
+                          st.id === activeSubTenant?.id
+                            ? "text-primary font-semibold bg-accent/50"
+                            : "text-popover-foreground hover:bg-accent"
+                        )}
+                      >
+                        <Check className={cn("w-3 h-3 shrink-0", st.id === activeSubTenant?.id ? "opacity-100" : "opacity-0")} />
+                        <span className="truncate">{st.name}</span>
+                      </button>
+                    ))}
+                  </>
+                )}
               </div>
             )}
           </div>
         </div>
       )}
       {activeTenant && collapsed && (
-        <div className="flex justify-center py-2 border-b border-sidebar-border" title={tenantName ?? ""}>
+        <div className="flex justify-center py-2 border-b border-sidebar-border" title={`${tenantName}${activeSubTenant ? ` → ${activeSubTenant.name}` : ""}`}>
           <Building2 className="w-3.5 h-3.5 text-sidebar-foreground/50" />
         </div>
       )}

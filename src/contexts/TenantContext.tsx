@@ -3,6 +3,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
+type SubTenant = {
+  id: string;
+  name: string;
+  slug: string;
+};
+
 type TenantMembership = {
   tenant_id: string;
   sub_tenant_id: string | null;
@@ -15,19 +21,26 @@ type TenantMembership = {
 type TenantContextValue = {
   tenants: TenantMembership[];
   activeTenant: TenantMembership | null;
+  activeSubTenant: SubTenant | null;
+  subTenants: SubTenant[];
   isLoading: boolean;
   switchTenant: (tenantId: string) => void;
+  switchSubTenant: (subTenantId: string | null) => void;
 };
 
 const TenantContext = createContext<TenantContextValue | undefined>(undefined);
 
 const ACTIVE_TENANT_KEY = "horizon_active_tenant_id";
+const ACTIVE_SUB_TENANT_KEY = "horizon_active_sub_tenant_id";
 
 export function TenantProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [activeTenantId, setActiveTenantId] = useState<string | null>(() =>
     localStorage.getItem(ACTIVE_TENANT_KEY)
+  );
+  const [activeSubTenantId, setActiveSubTenantId] = useState<string | null>(() =>
+    localStorage.getItem(ACTIVE_SUB_TENANT_KEY)
   );
 
   const { data: tenants = [], isLoading } = useQuery({
@@ -61,6 +74,23 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  // Fetch sub-tenants for the active tenant
+  const { data: subTenants = [] } = useQuery({
+    queryKey: ["sub_tenants_for_tenant", activeTenantId],
+    enabled: !!activeTenantId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("sub_tenants")
+        .select("id, name, slug")
+        .eq("tenant_id", activeTenantId!)
+        .eq("is_active", true)
+        .order("name");
+
+      if (error) throw error;
+      return (data ?? []) as SubTenant[];
+    },
+  });
+
   // Auto-select first tenant if none selected or selection is invalid
   useEffect(() => {
     if (!tenants.length) return;
@@ -71,20 +101,45 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     }
   }, [tenants, activeTenantId]);
 
+  // Clear sub-tenant if it doesn't belong to the active tenant
+  useEffect(() => {
+    if (!activeSubTenantId) return;
+    if (subTenants.length && !subTenants.some((s) => s.id === activeSubTenantId)) {
+      setActiveSubTenantId(null);
+      localStorage.removeItem(ACTIVE_SUB_TENANT_KEY);
+    }
+  }, [subTenants, activeSubTenantId]);
+
   const activeTenant = tenants.find((t) => t.tenant_id === activeTenantId) ?? tenants[0] ?? null;
+  const activeSubTenant = subTenants.find((s) => s.id === activeSubTenantId) ?? null;
 
   const switchTenant = useCallback(
     (tenantId: string) => {
       setActiveTenantId(tenantId);
       localStorage.setItem(ACTIVE_TENANT_KEY, tenantId);
-      // Invalidate all tenant-scoped queries
+      // Clear sub-tenant when switching tenant
+      setActiveSubTenantId(null);
+      localStorage.removeItem(ACTIVE_SUB_TENANT_KEY);
+      queryClient.invalidateQueries();
+    },
+    [queryClient]
+  );
+
+  const switchSubTenant = useCallback(
+    (subTenantId: string | null) => {
+      setActiveSubTenantId(subTenantId);
+      if (subTenantId) {
+        localStorage.setItem(ACTIVE_SUB_TENANT_KEY, subTenantId);
+      } else {
+        localStorage.removeItem(ACTIVE_SUB_TENANT_KEY);
+      }
       queryClient.invalidateQueries();
     },
     [queryClient]
   );
 
   return (
-    <TenantContext.Provider value={{ tenants, activeTenant, isLoading, switchTenant }}>
+    <TenantContext.Provider value={{ tenants, activeTenant, activeSubTenant, subTenants, isLoading, switchTenant, switchSubTenant }}>
       {children}
     </TenantContext.Provider>
   );
