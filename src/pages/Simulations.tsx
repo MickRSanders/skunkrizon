@@ -28,7 +28,8 @@ import {
   Users,
   ChevronDown,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useSimulations, useCreateSimulation, useUpdateSimulation, useDeleteSimulation } from "@/hooks/useSimulations";
 import { useSimulationGroups, useCreateSimulationGroup, useDeleteSimulationGroup } from "@/hooks/useSimulationGroups";
@@ -51,13 +52,30 @@ const getSimTitle = (sim: { origin_city?: string | null; origin_country: string;
 };
 
 export default function Simulations() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [showForm, setShowForm] = useState(false);
   const [showGroupForm, setShowGroupForm] = useState(false);
-  const [selectedSimId, setSelectedSimId] = useState<string | null>(null);
+  const [selectedSimId, setSelectedSimId] = useState<string | null>(searchParams.get("sim"));
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const { data: simulations, isLoading } = useSimulations();
+
+  // Sync query param on mount / URL change
+  useEffect(() => {
+    const simParam = searchParams.get("sim");
+    if (simParam && simParam !== selectedSimId) {
+      setSelectedSimId(simParam);
+    }
+  }, [searchParams]);
+
+  // Clean up query param when navigating back
+  useEffect(() => {
+    if (!selectedSimId && searchParams.has("sim")) {
+      searchParams.delete("sim");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [selectedSimId]);
   const { data: groups, isLoading: groupsLoading } = useSimulationGroups();
   const createSimulation = useCreateSimulation();
   const updateSimulation = useUpdateSimulation();
