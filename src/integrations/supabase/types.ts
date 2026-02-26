@@ -738,6 +738,30 @@ export type Database = {
           },
         ]
       }
+      superadmin_audit_log: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json
+          id: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json
+          id?: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       tenant_tax_settings: {
         Row: {
           created_at: string
