@@ -3,13 +3,15 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowRightLeft, DollarSign, FileSpreadsheet, Home, MapPin,
-  Receipt, TrendingUp, Building2, Calculator,
+  Receipt, TrendingUp, Building2, Calculator, Download,
 } from "lucide-react";
 import { format } from "date-fns";
 import StatusBadge from "@/components/StatusBadge";
+import { downloadCostEstimatePdf } from "@/lib/generateCostEstimatePdf";
 
 interface CostEstimateDetailViewerProps {
   estimate: any;
@@ -51,16 +53,27 @@ export default function CostEstimateDetailViewer({ estimate, open, onOpenChange 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-              <FileSpreadsheet className="w-5 h-5 text-accent" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+                <FileSpreadsheet className="w-5 h-5 text-accent" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg">Cost Estimate — {estimate.employee_name}</DialogTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Version {estimate.version} · Created {format(new Date(estimate.created_at), "MMM d, yyyy")}
+                </p>
+              </div>
             </div>
-            <div>
-              <DialogTitle className="text-lg">Cost Estimate — {estimate.employee_name}</DialogTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Version {estimate.version} · Created {format(new Date(estimate.created_at), "MMM d, yyyy")}
-              </p>
-            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => downloadCostEstimatePdf(estimate)}
+            >
+              <Download className="w-3.5 h-3.5" />
+              Download PDF
+            </Button>
           </div>
         </DialogHeader>
 

@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { downloadCostEstimatePdf } from "@/lib/generateCostEstimatePdf";
 import { useLoaTemplates, useCreateLoaTemplate, useLoaDocuments, useBalanceSheets, usePayInstructions } from "@/hooks/useDocuments";
 import { useCostEstimates } from "@/hooks/useCostEstimates";
 import { useSimulations } from "@/hooks/useSimulations";
@@ -201,7 +202,15 @@ export default function Documents() {
           {loadingCE ? <LoadingState /> : !costEstimates || costEstimates.length === 0 ? (
             <EmptyState icon={FileSpreadsheet} title="No cost estimates yet" description="Generate cost estimates from approved simulations using the Generate button." />
           ) : (
-            <DocumentTable items={costEstimates} type="cost_estimate" onView={(item) => setSelectedEstimate(item)} />
+            <DocumentTable
+              items={costEstimates}
+              type="cost_estimate"
+              onView={(item) => setSelectedEstimate(item)}
+              onDownload={(item) => {
+                downloadCostEstimatePdf(item);
+                toast.success(`PDF downloaded for ${item.employee_name}`);
+              }}
+            />
           )}
         </TabsContent>
       </Tabs>
@@ -278,7 +287,7 @@ function EmptyState({ icon: Icon, title, description, action, actionLabel }: { i
   );
 }
 
-function DocumentTable({ items, type, onView }: { items: any[]; type: string; onView?: (item: any) => void }) {
+function DocumentTable({ items, type, onView, onDownload }: { items: any[]; type: string; onView?: (item: any) => void; onDownload?: (item: any) => void }) {
   return (
     <div className="bg-card rounded-xl border border-border overflow-hidden">
       <table className="w-full text-sm">
@@ -321,7 +330,15 @@ function DocumentTable({ items, type, onView }: { items: any[]; type: string; on
                   >
                     <Eye className="w-3.5 h-3.5" />
                   </button>
-                  <button className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Export"><Download className="w-3.5 h-3.5" /></button>
+                  {onDownload && (
+                    <button
+                      className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                      title="Download PDF"
+                      onClick={(e) => { e.stopPropagation(); onDownload(item); }}
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </td>
             </tr>
