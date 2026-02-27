@@ -313,7 +313,7 @@ export default function UserManagement() {
                       <td className="px-5 py-3 text-muted-foreground">{u.company || "—"}</td>
                       <td className="px-5 py-3 text-muted-foreground">{u.department || "—"}</td>
                       <td className="px-5 py-3 text-muted-foreground">
-                        {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Never"}
+                        {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "2-digit" }) : "Never"}
                       </td>
                       <td className="px-5 py-3 text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</td>
                       <td className="px-5 py-3">
