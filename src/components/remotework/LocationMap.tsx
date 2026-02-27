@@ -40,12 +40,10 @@ export const SAMPLE_LOCATIONS: LocationPoint[] = [
 const W = 960;
 const H = 500;
 
-// Mercator projection
+// Equirectangular (flat) projection
 function projectMerc(lat: number, lng: number): [number, number] {
   const x = ((lng + 180) / 360) * W;
-  const latRad = (lat * Math.PI) / 180;
-  const mercN = Math.log(Math.tan(Math.PI / 4 + latRad / 2));
-  const y = H / 2 - (mercN / Math.PI) * (H / 2) * 0.82;
+  const y = ((90 - lat) / 180) * H;
   return [x, y];
 }
 
