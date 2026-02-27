@@ -266,6 +266,7 @@ export function useCreateCostEstimate() {
       template_id: string;
       template_version_id: string;
       employee_name: string;
+      employee_id?: string;
       display_currency: string;
       line_items: any;
       details_snapshot: any;
@@ -283,5 +284,23 @@ export function useCreateCostEstimate() {
       return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["cost_estimates"] }),
+  });
+}
+
+// ─── Cost Estimates by Employee ─────────────────────────────
+export function useEmployeeCostEstimates(employeeId?: string) {
+  const { activeTenant } = useTenantContext();
+  return useQuery({
+    queryKey: ["cost_estimates", "employee", employeeId],
+    enabled: !!activeTenant && !!employeeId,
+    queryFn: async () => {
+      const { data, error } = await (supabase.from("cost_estimates" as any) as any)
+        .select("*")
+        .eq("tenant_id", activeTenant!.tenant_id)
+        .eq("employee_id", employeeId!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as any[];
+    },
   });
 }

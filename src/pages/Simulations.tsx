@@ -4,6 +4,7 @@ import SimulationDetail from "@/components/SimulationDetail";
 import GroupSimulationForm from "@/components/GroupSimulationForm";
 import type { GroupSimulationFormData } from "@/components/GroupSimulationForm";
 import GroupSimulationDetail from "@/components/GroupSimulationDetail";
+import GenerateCostEstimateDialog from "@/components/GenerateCostEstimateDialog";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -13,6 +14,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  FileSpreadsheet,
   Plus,
   Search,
   Copy,
@@ -87,6 +89,7 @@ export default function Simulations() {
   const { user } = useAuth();
   const { activeTenant, activeSubTenant } = useTenantContext();
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [costEstimateSim, setCostEstimateSim] = useState<any>(null);
 
   const selectedSim = simulations?.find((s) => s.id === selectedSimId) ?? null;
 
@@ -413,6 +416,13 @@ export default function Simulations() {
                     <Play className="w-3 h-3" /> Run
                   </button>
                 )}
+                <button
+                  onClick={() => setCostEstimateSim(sim)}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-primary/10 hover:bg-primary/20 transition-colors text-primary text-xs font-medium"
+                  title="Generate Cost Estimate"
+                >
+                  <FileSpreadsheet className="w-3 h-3" /> Estimate
+                </button>
                 <button className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Clone">
                   <Copy className="w-3.5 h-3.5" />
                 </button>
@@ -483,6 +493,13 @@ export default function Simulations() {
                           <Play className="w-3 h-3" /> Run
                         </button>
                       )}
+                      <button
+                        onClick={() => setCostEstimateSim(sim)}
+                        className="flex items-center gap-1 px-2 py-1 rounded-md bg-primary/10 hover:bg-primary/20 transition-colors text-primary text-xs font-medium"
+                        title="Generate Cost Estimate"
+                      >
+                        <FileSpreadsheet className="w-3 h-3" /> Estimate
+                      </button>
                       <button className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Clone"><Copy className="w-3.5 h-3.5" /></button>
                       <button className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Export"><Download className="w-3.5 h-3.5" /></button>
                       {sim.status === "draft" && (
@@ -547,6 +564,14 @@ export default function Simulations() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {costEstimateSim && (
+        <GenerateCostEstimateDialog
+          open={!!costEstimateSim}
+          onOpenChange={(open) => !open && setCostEstimateSim(null)}
+          simulation={costEstimateSim}
+        />
+      )}
     </div>
   );
 }

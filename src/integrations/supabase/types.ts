@@ -496,6 +496,7 @@ export type Database = {
           created_at: string
           details_snapshot: Json
           display_currency: string
+          employee_id: string | null
           employee_name: string
           generated_by: string
           id: string
@@ -515,6 +516,7 @@ export type Database = {
           created_at?: string
           details_snapshot?: Json
           display_currency?: string
+          employee_id?: string | null
           employee_name: string
           generated_by: string
           id?: string
@@ -534,6 +536,7 @@ export type Database = {
           created_at?: string
           details_snapshot?: Json
           display_currency?: string
+          employee_id?: string | null
           employee_name?: string
           generated_by?: string
           id?: string
@@ -550,6 +553,13 @@ export type Database = {
           version?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "cost_estimates_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "cost_estimates_simulation_id_fkey"
             columns: ["simulation_id"]
