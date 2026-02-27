@@ -4,6 +4,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -24,6 +29,7 @@ import {
   History,
   FileText,
   Pencil,
+  Calculator,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTaxConfig, TAX_RATE_MAP } from "@/contexts/TaxConfigContext";
@@ -45,6 +51,10 @@ interface BenefitLine {
   amount: number;
   isOverridden: boolean;
   originalAmount: number;
+  calcInfo?: {
+    method: string;
+    inputs: { label: string; value: string }[];
+  };
 }
 
 interface Scenario {
@@ -56,29 +66,73 @@ interface Scenario {
 
 function generateBenefits(sim: any, grossUpMultiplier: number): BenefitLine[] {
   const baseSalary = Number(sim.base_salary) || 0;
-  const cola = baseSalary * (Number(sim.cola_percent) || 0) / 100;
+  const colaPercent = Number(sim.cola_percent) || 0;
+  const cola = baseSalary * colaPercent / 100;
   const housingMonthly = Number(sim.housing_cap) || 0;
-  const housingTotal = housingMonthly * (Number(sim.duration_months) || 24);
-  const fxBuffer = baseSalary * (Number(sim.exchange_rate_buffer) || 0) / 100;
+  const durationMonths = Number(sim.duration_months) || 24;
+  const housingTotal = housingMonthly * durationMonths;
+  const fxBufferPct = Number(sim.exchange_rate_buffer) || 0;
+  const fxBuffer = baseSalary * fxBufferPct / 100;
   const relocation = sim.include_relocation_lump_sum ? (Number(sim.relocation_lump_sum) || 0) : 0;
   const schooling = sim.include_schooling ? Math.round(baseSalary * 0.12) : 0;
   const spouseSupport = sim.include_spouse_support ? Math.round(baseSalary * 0.05) : 0;
 
-  const taxRate = TAX_RATE_MAP[sim.tax_approach] ?? 0.22;
+  const taxApproach = sim.tax_approach || "tax-equalization";
+  const taxRate = TAX_RATE_MAP[taxApproach] ?? 0.22;
   const baseTaxCost = Math.round(baseSalary * taxRate);
   const taxCost = Math.round(baseTaxCost * grossUpMultiplier);
 
+  const fmt = (n: number) => new Intl.NumberFormat("en-US").format(n);
+  const fmtPct = (n: number) => `${n}%`;
+
   const lines: BenefitLine[] = [
     { id: "base", category: "Compensation", label: "Base Salary", amount: baseSalary, isOverridden: false, originalAmount: baseSalary },
-    { id: "cola", category: "Compensation", label: "COLA Adjustment", amount: Math.round(cola), isOverridden: false, originalAmount: Math.round(cola) },
-    { id: "fx", category: "Compensation", label: "FX Rate Buffer", amount: Math.round(fxBuffer), isOverridden: false, originalAmount: Math.round(fxBuffer) },
-    { id: "housing", category: "Allowances", label: "Housing Allowance", amount: Math.round(housingTotal), isOverridden: false, originalAmount: Math.round(housingTotal) },
-    { id: "tax", category: "Tax & Social", label: "Tax Costs (incl. Gross-Up)", amount: taxCost, isOverridden: false, originalAmount: taxCost },
+    { id: "cola", category: "Compensation", label: "COLA Adjustment", amount: Math.round(cola), isOverridden: false, originalAmount: Math.round(cola),
+      calcInfo: { method: "Base Salary × COLA %", inputs: [
+        { label: "Base Salary", value: fmt(baseSalary) },
+        { label: "COLA %", value: fmtPct(colaPercent) },
+        { label: "Result", value: fmt(Math.round(cola)) },
+      ]}
+    },
+    { id: "fx", category: "Compensation", label: "FX Rate Buffer", amount: Math.round(fxBuffer), isOverridden: false, originalAmount: Math.round(fxBuffer),
+      calcInfo: { method: "Base Salary × FX Buffer %", inputs: [
+        { label: "Base Salary", value: fmt(baseSalary) },
+        { label: "FX Buffer %", value: fmtPct(fxBufferPct) },
+        { label: "Result", value: fmt(Math.round(fxBuffer)) },
+      ]}
+    },
+    { id: "housing", category: "Allowances", label: "Housing Allowance", amount: Math.round(housingTotal), isOverridden: false, originalAmount: Math.round(housingTotal),
+      calcInfo: { method: "Monthly Cap × Duration", inputs: [
+        { label: "Monthly Cap", value: fmt(housingMonthly) },
+        { label: "Duration (months)", value: String(durationMonths) },
+        { label: "Result", value: fmt(Math.round(housingTotal)) },
+      ]}
+    },
+    { id: "tax", category: "Tax & Social", label: "Tax Costs (incl. Gross-Up)", amount: taxCost, isOverridden: false, originalAmount: taxCost,
+      calcInfo: { method: "Base Salary × Tax Rate × Gross-Up Multiplier", inputs: [
+        { label: "Base Salary", value: fmt(baseSalary) },
+        { label: "Tax Rate", value: fmtPct(Math.round(taxRate * 100)) },
+        { label: "Gross-Up Multiplier", value: `${grossUpMultiplier.toFixed(2)}×` },
+        { label: "Result", value: fmt(taxCost) },
+      ]}
+    },
     { id: "relocation", category: "Relocation", label: "Relocation Lump Sum", amount: relocation, isOverridden: false, originalAmount: relocation },
   ];
 
-  if (schooling > 0) lines.push({ id: "schooling", category: "Allowances", label: "Schooling Allowance", amount: schooling, isOverridden: false, originalAmount: schooling });
-  if (spouseSupport > 0) lines.push({ id: "spouse", category: "Allowances", label: "Spouse / Partner Support", amount: spouseSupport, isOverridden: false, originalAmount: spouseSupport });
+  if (schooling > 0) lines.push({ id: "schooling", category: "Allowances", label: "Schooling Allowance", amount: schooling, isOverridden: false, originalAmount: schooling,
+    calcInfo: { method: "Base Salary × 12%", inputs: [
+      { label: "Base Salary", value: fmt(baseSalary) },
+      { label: "Rate", value: "12%" },
+      { label: "Result", value: fmt(schooling) },
+    ]}
+  });
+  if (spouseSupport > 0) lines.push({ id: "spouse", category: "Allowances", label: "Spouse / Partner Support", amount: spouseSupport, isOverridden: false, originalAmount: spouseSupport,
+    calcInfo: { method: "Base Salary × 5%", inputs: [
+      { label: "Base Salary", value: fmt(baseSalary) },
+      { label: "Rate", value: "5%" },
+      { label: "Result", value: fmt(spouseSupport) },
+    ]}
+  });
 
   return lines;
 }
@@ -505,7 +559,38 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
                   className="grid items-center border-b border-border/50 hover:bg-muted/10 transition-colors"
                   style={{ gridTemplateColumns: `200px repeat(${scenarios.length}, 1fr)` }}
                 >
-                  <div className="px-5 py-2.5 pl-10 text-sm text-muted-foreground">{label}</div>
+                  <div className="px-5 py-2.5 pl-10 text-sm text-muted-foreground flex items-center gap-1.5">
+                    <span>{label}</span>
+                    {(() => {
+                      const firstBenefitWithCalc = scenarios.find((s) => s.benefits.find((b) => b.label === label && b.category === category && b.calcInfo))
+                        ?.benefits.find((b) => b.label === label && b.category === category && b.calcInfo);
+                      if (!firstBenefitWithCalc?.calcInfo) return null;
+                      const info = firstBenefitWithCalc.calcInfo;
+                      return (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button className="p-0.5 rounded hover:bg-muted text-muted-foreground/50 hover:text-primary transition-colors" title="View calculation">
+                              <Calculator className="w-3.5 h-3.5" />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-72 p-0" align="start">
+                            <div className="px-4 py-3 border-b border-border bg-muted/30">
+                              <p className="text-xs font-semibold text-foreground">{label}</p>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">{info.method}</p>
+                            </div>
+                            <div className="px-4 py-3 space-y-2">
+                              {info.inputs.map((inp, idx) => (
+                                <div key={idx} className={`flex items-center justify-between text-xs ${idx === info.inputs.length - 1 ? "pt-2 border-t border-border font-semibold text-foreground" : "text-muted-foreground"}`}>
+                                  <span>{inp.label}</span>
+                                  <span className="tabular-nums">{inp.value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      );
+                    })()}
+                  </div>
                   {scenarios.map((scenario) => {
                     const benefit = scenario.benefits.find((b) => b.label === label && b.category === category);
                     if (!benefit) {
