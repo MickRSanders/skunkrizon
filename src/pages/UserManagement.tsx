@@ -39,27 +39,34 @@ interface UserWithRole {
   created_at: string;
   role: string;
   user_id: string;
+  email: string | null;
+  last_sign_in_at: string | null;
 }
 
 function useAllUsers() {
   return useQuery({
     queryKey: ["all-users"],
     queryFn: async () => {
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (profilesError) throw profilesError;
-
-      const { data: roles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("*");
-      if (rolesError) throw rolesError;
+      // Fetch profiles, roles, and auth metadata in parallel
+      const [profilesRes, rolesRes, authRes] = await Promise.all([
+        supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+        supabase.from("user_roles").select("*"),
+        supabase.functions.invoke("invite-user", { body: { action: "list-auth-users" } }),
+      ]);
+      if (profilesRes.error) throw profilesRes.error;
+      if (rolesRes.error) throw rolesRes.error;
 
       const roleMap = new Map<string, string>();
-      roles?.forEach((r) => roleMap.set(r.user_id, r.role));
+      (rolesRes.data || []).forEach((r) => roleMap.set(r.user_id, r.role));
 
-      return (profiles || []).map((p) => ({
+      const authMap = new Map<string, { email: string | null; last_sign_in_at: string | null }>();
+      if (authRes.data?.users) {
+        for (const u of authRes.data.users) {
+          authMap.set(u.id, { email: u.email, last_sign_in_at: u.last_sign_in_at });
+        }
+      }
+
+      return (profilesRes.data || []).map((p) => ({
         id: p.id,
         display_name: p.display_name,
         company: p.company,
@@ -68,6 +75,8 @@ function useAllUsers() {
         created_at: p.created_at,
         role: roleMap.get(p.id) || "viewer",
         user_id: p.id,
+        email: authMap.get(p.id)?.email || null,
+        last_sign_in_at: authMap.get(p.id)?.last_sign_in_at || null,
       })) as UserWithRole[];
     },
   });
@@ -276,6 +285,7 @@ export default function UserManagement() {
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Role</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Company</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Department</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Last Login</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Joined</th>
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider"></th>
                 </tr>
@@ -283,7 +293,7 @@ export default function UserManagement() {
               <tbody>
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-5 py-8 text-center text-sm text-muted-foreground">
+                    <td colSpan={7} className="px-5 py-8 text-center text-sm text-muted-foreground">
                       {search ? "No users match your search." : "No users yet. Invite someone to get started."}
                     </td>
                   </tr>
@@ -292,7 +302,7 @@ export default function UserManagement() {
                     <tr key={u.id} className="data-table-row">
                       <td className="px-5 py-3">
                         <p className="font-medium text-foreground">{u.display_name || "Unnamed"}</p>
-                        <p className="text-xs text-muted-foreground">{u.job_title || "—"}</p>
+                        <p className="text-xs text-muted-foreground">{u.email || u.job_title || "—"}</p>
                       </td>
                       <td className="px-5 py-3">
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-accent/10 text-accent capitalize">
@@ -302,6 +312,9 @@ export default function UserManagement() {
                       </td>
                       <td className="px-5 py-3 text-muted-foreground">{u.company || "—"}</td>
                       <td className="px-5 py-3 text-muted-foreground">{u.department || "—"}</td>
+                      <td className="px-5 py-3 text-muted-foreground">
+                        {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Never"}
+                      </td>
                       <td className="px-5 py-3 text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</td>
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-1">
