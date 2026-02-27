@@ -274,7 +274,7 @@ export default function UserManagement() {
                       <td className="px-5 py-3 text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</td>
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-1">
-                          {isSuperadmin && u.id !== user?.id && (
+                          {isSuperadmin && u.id !== user?.id && u.role !== "superadmin" && (
                             <button
                               onClick={() => handleImpersonate(u)}
                               className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-accent"
