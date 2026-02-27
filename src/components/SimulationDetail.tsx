@@ -578,8 +578,7 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
                 {simulation.duration_months > 0 && (() => {
                   const months = simulation.duration_months as number;
                   const years = Math.ceil(months / 12);
-                  if (years <= 1) return null;
-                  const annualCost = total / months * 12;
+                  const annualCost = months >= 12 ? total / months * 12 : total;
                   const rows: { label: string; amount: number }[] = [];
                   for (let y = 1; y <= years; y++) {
                     const monthsInYear = y < years ? 12 : (months % 12 || 12);
@@ -590,7 +589,7 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
                   }
                   return (
                     <div className="pt-2 border-t border-border/50 space-y-1.5">
-                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Year-by-Year</p>
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Year-by-Year Breakdown</p>
                       {rows.map((r) => (
                         <div key={r.label} className="flex items-center justify-between text-xs">
                           <span className="text-muted-foreground">{r.label}</span>
