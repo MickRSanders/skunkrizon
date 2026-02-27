@@ -52,11 +52,11 @@ const dataMenuItems = [
 const settingsMenuItems = [
   { to: "/settings", icon: Settings, label: "General" },
   { to: "/documents", icon: ClipboardList, label: "Documents" },
+  { to: "/cost-estimate-templates", icon: FileText, label: "Cost Estimate Templates" },
   { to: "/settings/roles", icon: Shield, label: "Roles & Permissions" },
   { to: "/tax-engine", icon: Globe, label: "Tax Engine" },
   { to: "/users", icon: Users, label: "User Management" },
   { to: "/tenants", icon: Building2, label: "Organizations" },
-  { to: "/cost-estimate-templates", icon: FileText, label: "Cost Estimates" },
   { to: "/audit-log", icon: ClipboardList, label: "Audit Log" },
 ];
 
