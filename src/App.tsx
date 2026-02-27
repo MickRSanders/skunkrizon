@@ -29,6 +29,8 @@ import PreTravel from "./pages/PreTravel";
 import PreTravelDetail from "./pages/PreTravelDetail";
 import ResetPassword from "./pages/ResetPassword";
 import EmployeeDirectory from "./pages/EmployeeDirectory";
+import Documents from "./pages/Documents";
+import FieldMappings from "./pages/FieldMappings";
 
 const queryClient = new QueryClient();
 
@@ -63,6 +65,8 @@ const App = () => (
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/audit-log" element={<AuditLog />} />
               <Route path="/employees" element={<EmployeeDirectory />} />
+              <Route path="/documents" element={<Documents />} />
+              <Route path="/field-mappings" element={<FieldMappings />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

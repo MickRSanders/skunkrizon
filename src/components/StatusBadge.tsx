@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
 
 interface StatusBadgeProps {
-  status: "active" | "draft" | "archived" | "pending" | "completed" | "running";
+  status: "active" | "draft" | "archived" | "pending" | "completed" | "running" | "approved";
   className?: string;
 }
 
@@ -13,6 +13,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   pending: { label: "Pending", className: "bg-info/10 text-info" },
   completed: { label: "Completed", className: "bg-success/10 text-success" },
   running: { label: "Running", className: "bg-accent/10 text-accent" },
+  approved: { label: "Approved", className: "bg-primary/10 text-primary" },
 };
 
 export default function StatusBadge({ status, className }: StatusBadgeProps) {
