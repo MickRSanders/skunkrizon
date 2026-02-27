@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,9 +11,11 @@ import { Switch } from "@/components/ui/switch";
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  prefillHostCountry?: string;
+  prefillHostCity?: string;
 }
 
-export default function CreateRemoteWorkDialog({ open, onOpenChange }: Props) {
+export default function CreateRemoteWorkDialog({ open, onOpenChange, prefillHostCountry, prefillHostCity }: Props) {
   const { createRequest } = useRemoteWorkRequests();
   const [requestType, setRequestType] = useState<RequestType>("employee_remote");
   const [employeeName, setEmployeeName] = useState("");
@@ -54,6 +56,13 @@ export default function CreateRemoteWorkDialog({ open, onOpenChange }: Props) {
     setIsPrecursor(false);
     setNotes("");
   };
+
+  useEffect(() => {
+    if (open && prefillHostCountry) {
+      setHostCountry(prefillHostCountry);
+      setHostCity(prefillHostCity ?? "");
+    }
+  }, [open, prefillHostCountry, prefillHostCity]);
 
   const handleSubmit = () => {
     if (!employeeName.trim() || !homeCountry.trim() || !hostCountry.trim() || !startDate) return;
