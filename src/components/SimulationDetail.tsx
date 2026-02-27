@@ -16,6 +16,7 @@ import {
   Plus,
   Trash2,
   DollarSign,
+  Download,
   RefreshCw,
   ArrowRight,
   Globe,
@@ -33,8 +34,11 @@ import { toast } from "sonner";
 import { useTaxConfig, TAX_RATE_MAP } from "@/contexts/TaxConfigContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSimulationAuditLog, useCreateAuditEntry, useUpdateSimulation } from "@/hooks/useSimulations";
-import { useCostEstimateTemplates, useCostEstimateVersions, useCompensationItems, useCreateCostEstimate } from "@/hooks/useCostEstimates";
+import { useCostEstimateTemplates, useCostEstimateVersions, useCompensationItems, useCreateCostEstimate, useCostEstimates } from "@/hooks/useCostEstimates";
+import { downloadCostEstimatePdf } from "@/lib/generateCostEstimatePdf";
 import { format } from "date-fns";
+import StatusBadge from "@/components/StatusBadge";
+import CostEstimateDetailViewer from "@/components/CostEstimateDetailViewer";
 
 const CURRENCIES = ["USD", "EUR", "GBP", "JPY", "CHF", "SGD", "AUD", "CAD", "INR", "BRL"] as const;
 
@@ -108,6 +112,8 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
   const updateSimulation = useUpdateSimulation();
   const { data: ceTemplates } = useCostEstimateTemplates();
   const createCostEstimate = useCreateCostEstimate();
+  const { data: linkedEstimates } = useCostEstimates(simulation.id);
+  const [selectedEstimate, setSelectedEstimate] = useState<any>(null);
   const [showAuditTrail, setShowAuditTrail] = useState(false);
   const [generatingCE, setGeneratingCE] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
@@ -638,6 +644,71 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
         </div>
       )}
 
+      {/* Linked Cost Estimates */}
+      {linkedEstimates && linkedEstimates.length > 0 && (
+        <div className="bg-card rounded-xl border border-border overflow-hidden">
+          <div className="px-5 py-4 border-b border-border bg-gradient-to-r from-muted/30 to-transparent">
+            <div className="flex items-center gap-2">
+              <FileSpreadsheet className="w-4 h-4 text-accent" />
+              <h3 className="text-sm font-bold text-foreground">Linked Cost Estimates</h3>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent font-medium">
+                {linkedEstimates.length}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">Cost estimates generated from this simulation</p>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/20">
+                <th className="text-left px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Employee</th>
+                <th className="text-left px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Version</th>
+                <th className="text-left px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                <th className="text-right px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Total</th>
+                <th className="text-left px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Created</th>
+                <th className="text-right px-5 py-2.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {linkedEstimates.map((est: any) => (
+                <tr
+                  key={est.id}
+                  className="border-b border-border/50 hover:bg-muted/20 transition-colors cursor-pointer"
+                  onClick={() => setSelectedEstimate(est)}
+                >
+                  <td className="px-5 py-3 font-medium text-foreground">{est.employee_name}</td>
+                  <td className="px-5 py-3 text-muted-foreground">v{est.version}</td>
+                  <td className="px-5 py-3"><StatusBadge status={est.status === "active" ? "active" : "draft"} /></td>
+                  <td className="px-5 py-3 text-right font-medium text-foreground tabular-nums">
+                    {est.total_cost != null
+                      ? new Intl.NumberFormat("en-US", { style: "currency", currency: est.display_currency || "USD", minimumFractionDigits: 0 }).format(est.total_cost)
+                      : "—"}
+                  </td>
+                  <td className="px-5 py-3 text-muted-foreground text-xs">{format(new Date(est.created_at), "MMM d, yyyy")}</td>
+                  <td className="px-5 py-3 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                        title="View"
+                        onClick={(e) => { e.stopPropagation(); setSelectedEstimate(est); }}
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                        title="Download PDF"
+                        onClick={(e) => { e.stopPropagation(); downloadCostEstimatePdf(est); }}
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Audit Trail */}
       <div className="bg-card rounded-xl border border-border overflow-hidden">
         <button
@@ -690,6 +761,12 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
           </div>
         )}
       </div>
+      {/* Cost Estimate Detail Viewer */}
+      <CostEstimateDetailViewer
+        estimate={selectedEstimate}
+        open={!!selectedEstimate}
+        onOpenChange={(open) => { if (!open) setSelectedEstimate(null); }}
+      />
     </div>
   );
 }
