@@ -59,6 +59,35 @@ serve(async (req) => {
 
     const { action, email, displayName, role, userId: targetUserId, password } = await req.json();
 
+    // ─── Delete User ───────────────────────────────────────────────
+    if (action === "delete-user") {
+      if (!targetUserId || typeof targetUserId !== "string") {
+        return new Response(JSON.stringify({ error: "A valid user ID is required" }), {
+          status: 400, headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+
+      // Prevent deleting yourself
+      if (targetUserId === callerId) {
+        return new Response(JSON.stringify({ error: "You cannot delete your own account" }), {
+          status: 400, headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+
+      const { error: deleteError } = await adminClient.auth.admin.deleteUser(targetUserId);
+      if (deleteError) {
+        console.error("Delete user error:", deleteError);
+        return new Response(JSON.stringify({ error: deleteError.message || "Failed to delete user" }), {
+          status: 500, headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
     // ─── Admin Password Reset ────────────────────────────────────
     if (action === "reset-password") {
       if (!targetUserId || typeof targetUserId !== "string") {
