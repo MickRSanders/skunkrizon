@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
-export type AppRole = "superadmin" | "admin" | "analyst" | "viewer";
+export type AppRole = "superadmin" | "admin" | "analyst" | "viewer" | "employee";
 
 export const ALL_MODULES = [
   "simulations",
@@ -100,7 +100,8 @@ export function useCurrentUserRole() {
       if (roles.includes("superadmin")) return "superadmin" as AppRole;
       if (roles.includes("admin")) return "admin" as AppRole;
       if (roles.includes("analyst")) return "analyst" as AppRole;
-      return "viewer" as AppRole;
+      if (roles.includes("viewer")) return "viewer" as AppRole;
+      return "employee" as AppRole;
     },
   });
 }

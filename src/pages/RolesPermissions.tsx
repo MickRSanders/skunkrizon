@@ -17,6 +17,7 @@ const ROLES: { value: AppRole; label: string; description: string }[] = [
   { value: "admin", label: "Admin", description: "Organization admin with full access within their scope" },
   { value: "analyst", label: "Analyst", description: "Can view, create, and update most data but cannot delete" },
   { value: "viewer", label: "Viewer", description: "Read-only access to permitted modules" },
+  { value: "employee", label: "Employee", description: "Limited access to Pre-Travel, Remote Work, and assigned Documents" },
 ];
 
 const ACTIONS = [
