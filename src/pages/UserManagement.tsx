@@ -21,6 +21,7 @@ import {
   Pencil,
   KeyRound,
   Eye,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTenantContext } from "@/contexts/TenantContext";
@@ -133,6 +134,21 @@ function useResetPassword() {
   });
 }
 
+function useDeleteUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      const { data, error } = await supabase.functions.invoke("invite-user", {
+        body: { action: "delete-user", userId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["all-users"] }),
+  });
+}
+
 // ─── Role descriptions ─────────────────────────────────────────
 
 const ROLE_DESCRIPTIONS: Record<string, string> = {
@@ -154,6 +170,7 @@ export default function UserManagement() {
   const { startImpersonation } = useImpersonation();
   const { user } = useAuth();
   const resetPassword = useResetPassword();
+  const deleteUser = useDeleteUser();
 
   const handleImpersonate = (u: UserWithRole) => {
     if (u.id === user?.id) {
@@ -174,6 +191,20 @@ export default function UserManagement() {
       toast.success(`Password reset email sent to ${user.display_name || "user"}`);
     } catch (err: any) {
       toast.error(err.message || "Failed to send reset email");
+    }
+  };
+
+  const handleDeleteUser = async (u: UserWithRole) => {
+    if (u.id === user?.id) {
+      toast.error("You cannot delete your own account");
+      return;
+    }
+    if (!confirm(`Are you sure you want to delete ${u.display_name || "this user"}? This action cannot be undone.`)) return;
+    try {
+      await deleteUser.mutateAsync(u.id);
+      toast.success(`User ${u.display_name || ""} deleted`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete user");
     }
   };
 
@@ -297,6 +328,15 @@ export default function UserManagement() {
                           >
                             <Pencil className="w-4 h-4" />
                           </button>
+                          {u.id !== user?.id && (
+                            <button
+                              onClick={() => handleDeleteUser(u)}
+                              className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-destructive"
+                              title="Delete user"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
