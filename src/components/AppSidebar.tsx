@@ -32,7 +32,11 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenantContext } from "@/contexts/TenantContext";
 import { useTenantModulesForTenant, isModuleEnabled, type ModuleKey } from "@/hooks/useTenantModules";
+import { useCurrentUserRole } from "@/hooks/usePermissions";
 import { toast } from "sonner";
+
+// Modules accessible to the employee role
+const EMPLOYEE_ALLOWED_ROUTES = new Set(["/", "/pre-travel", "/remote-work", "/documents"]);
 
 const navItems: { to: string; icon: any; label: string; moduleKey?: ModuleKey }[] = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
@@ -40,6 +44,7 @@ const navItems: { to: string; icon: any; label: string; moduleKey?: ModuleKey }[
   { to: "/pre-travel", icon: Plane, label: "Pre-Travel", moduleKey: "pre_travel" },
   { to: "/remote-work", icon: Globe, label: "Remote Work", moduleKey: "remote_work" },
   { to: "/employees", icon: Contact, label: "Employees", moduleKey: "employees" },
+  { to: "/documents", icon: ClipboardList, label: "Documents", moduleKey: "documents" },
   { to: "/policies", icon: FileText, label: "Policy Agent", moduleKey: "policies" },
   { to: "/analytics", icon: BarChart3, label: "Analytics", moduleKey: "analytics" },
 ];
@@ -54,7 +59,6 @@ const dataMenuItems: { to: string; icon: any; label: string; moduleKey: ModuleKe
 
 const settingsMenuItems: { to: string; icon: any; label: string; moduleKey: ModuleKey }[] = [
   { to: "/settings", icon: Settings, label: "General", moduleKey: "settings" },
-  { to: "/documents", icon: ClipboardList, label: "Documents", moduleKey: "documents" },
   { to: "/cost-estimate-templates", icon: FileText, label: "Cost Estimate Templates", moduleKey: "cost_estimate_templates" },
   { to: "/settings/roles", icon: Shield, label: "Roles & Permissions", moduleKey: "roles_permissions" },
   { to: "/tax-engine", icon: Globe, label: "Tax Engine", moduleKey: "tax_engine" },
@@ -69,16 +73,23 @@ export default function AppSidebar() {
   const { signOut, profile } = useAuth();
   const { tenants, activeTenant, activeSubTenant, subTenants, switchTenant, switchSubTenant, isSuperadmin } = useTenantContext();
   const { data: tenantModules } = useTenantModulesForTenant(activeTenant?.tenant_id);
+  const { data: currentRole } = useCurrentUserRole();
   const tenantName = activeTenant?.tenant_name;
+  const isEmployee = currentRole === "employee";
 
   const isModEnabled = (moduleKey?: ModuleKey) => {
     if (!moduleKey) return true; // Dashboard always visible
     return isModuleEnabled(tenantModules, moduleKey);
   };
 
-  const filteredNavItems = navItems.filter((item) => isModEnabled(item.moduleKey));
-  const filteredDataItems = dataMenuItems.filter((item) => isModEnabled(item.moduleKey));
-  const filteredSettingsItems = settingsMenuItems.filter((item) => isModEnabled(item.moduleKey));
+  const isRoleAllowed = (to: string) => {
+    if (!isEmployee) return true;
+    return EMPLOYEE_ALLOWED_ROUTES.has(to);
+  };
+
+  const filteredNavItems = navItems.filter((item) => isModEnabled(item.moduleKey) && isRoleAllowed(item.to));
+  const filteredDataItems = isEmployee ? [] : dataMenuItems.filter((item) => isModEnabled(item.moduleKey));
+  const filteredSettingsItems = isEmployee ? [] : settingsMenuItems.filter((item) => isModEnabled(item.moduleKey));
   const [tenantMenuOpen, setTenantMenuOpen] = useState(false);
   const [dataMenuOpen, setDataMenuOpen] = useState(
     dataMenuItems.some((item) => location.pathname.startsWith(item.to))

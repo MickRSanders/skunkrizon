@@ -1,18 +1,30 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useTenantContext } from "@/contexts/TenantContext";
 import { useTenantModulesForTenant, ROUTE_TO_MODULE, isModuleEnabled } from "@/hooks/useTenantModules";
+import { useCurrentUserRole } from "@/hooks/usePermissions";
+
+const EMPLOYEE_ALLOWED_ROUTES = new Set(["/pre-travel", "/remote-work", "/documents"]);
 
 /**
  * Wraps protected routes and redirects to dashboard if the module
- * corresponding to the current route is disabled for the active tenant.
+ * corresponding to the current route is disabled for the active tenant,
+ * or if the user's role doesn't permit the route.
  */
 export default function ModuleGuard({ children }: { children: React.ReactNode }) {
   const { activeTenant } = useTenantContext();
   const { data: modules } = useTenantModulesForTenant(activeTenant?.tenant_id);
+  const { data: role } = useCurrentUserRole();
   const location = useLocation();
 
+  // Employee role restriction: only allow specific routes
+  if (role === "employee") {
+    const allowed = Array.from(EMPLOYEE_ALLOWED_ROUTES).some(
+      (route) => location.pathname === route || location.pathname.startsWith(route + "/")
+    );
+    if (!allowed) return <Navigate to="/" replace />;
+  }
+
   // Find the module key for the current path
-  // Try exact match first, then prefix match for nested routes like /pre-travel/:id
   const moduleKey =
     ROUTE_TO_MODULE[location.pathname] ??
     Object.entries(ROUTE_TO_MODULE).find(
