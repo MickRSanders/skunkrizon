@@ -25,7 +25,9 @@ import {
   History,
   ChevronDown,
   ChevronUp,
+  CheckCircle,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useTaxConfig, TAX_RATE_MAP } from "@/contexts/TaxConfigContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSimulationAuditLog, useCreateAuditEntry, useUpdateSimulation } from "@/hooks/useSimulations";
@@ -354,9 +356,27 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
                 )}
               </div>
             </div>
-            <Button onClick={addScenario} className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 shadow-lg">
-              <Plus className="w-4 h-4 mr-2" /> Add Scenario
-            </Button>
+            <div className="flex items-center gap-2">
+              {(simulation.status === "completed" || simulation.status === "running") && (
+                <Button
+                  onClick={async () => {
+                    try {
+                      await updateSimulation.mutateAsync({ id: simulation.id, status: "approved" as any });
+                      toast.success("Simulation approved");
+                    } catch (err: any) {
+                      toast.error(err.message || "Failed to approve");
+                    }
+                  }}
+                  className="bg-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/30 border border-primary-foreground/20"
+                  size="sm"
+                >
+                  <CheckCircle className="w-4 h-4 mr-1" /> Approve
+                </Button>
+              )}
+              <Button onClick={addScenario} className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 shadow-lg">
+                <Plus className="w-4 h-4 mr-2" /> Add Scenario
+              </Button>
+            </div>
           </div>
         </div>
       </div>

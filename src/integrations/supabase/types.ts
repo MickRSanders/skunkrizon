@@ -14,6 +14,81 @@ export type Database = {
   }
   public: {
     Tables: {
+      balance_sheets: {
+        Row: {
+          created_at: string
+          display_mode: string
+          employee_name: string
+          exchange_rate: number | null
+          exchange_rate_date: string | null
+          format_type: string
+          generated_by: string
+          home_currency: string
+          host_currency: string
+          id: string
+          line_items: Json
+          policy_explanations: Json
+          simulation_id: string
+          source_snapshot: Json
+          tenant_id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          display_mode?: string
+          employee_name: string
+          exchange_rate?: number | null
+          exchange_rate_date?: string | null
+          format_type?: string
+          generated_by: string
+          home_currency?: string
+          host_currency?: string
+          id?: string
+          line_items?: Json
+          policy_explanations?: Json
+          simulation_id: string
+          source_snapshot?: Json
+          tenant_id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          display_mode?: string
+          employee_name?: string
+          exchange_rate?: number | null
+          exchange_rate_date?: string | null
+          format_type?: string
+          generated_by?: string
+          home_currency?: string
+          host_currency?: string
+          id?: string
+          line_items?: Json
+          policy_explanations?: Json
+          simulation_id?: string
+          source_snapshot?: Json
+          tenant_id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "balance_sheets_simulation_id_fkey"
+            columns: ["simulation_id"]
+            isOneToOne: false
+            referencedRelation: "simulations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "balance_sheets_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       calculation_fields: {
         Row: {
           calculation_id: string
@@ -406,6 +481,182 @@ export type Database = {
           },
         ]
       }
+      field_mappings: {
+        Row: {
+          created_at: string
+          created_by: string
+          fallback_value: string | null
+          id: string
+          is_required: boolean
+          source_field: string
+          source_system: string
+          target_field: string
+          tenant_id: string
+          transform_rule: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          fallback_value?: string | null
+          id?: string
+          is_required?: boolean
+          source_field: string
+          source_system?: string
+          target_field: string
+          tenant_id: string
+          transform_rule?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          fallback_value?: string | null
+          id?: string
+          is_required?: boolean
+          source_field?: string
+          source_system?: string
+          target_field?: string
+          tenant_id?: string
+          transform_rule?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "field_mappings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      loa_documents: {
+        Row: {
+          content: Json
+          created_at: string
+          employee_name: string
+          generated_by: string
+          id: string
+          signature_status: string | null
+          simulation_id: string
+          source_snapshot: Json
+          status: string
+          template_id: string | null
+          template_version: number | null
+          tenant_id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          content?: Json
+          created_at?: string
+          employee_name: string
+          generated_by: string
+          id?: string
+          signature_status?: string | null
+          simulation_id: string
+          source_snapshot?: Json
+          status?: string
+          template_id?: string | null
+          template_version?: number | null
+          tenant_id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          content?: Json
+          created_at?: string
+          employee_name?: string
+          generated_by?: string
+          id?: string
+          signature_status?: string | null
+          simulation_id?: string
+          source_snapshot?: Json
+          status?: string
+          template_id?: string | null
+          template_version?: number | null
+          tenant_id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loa_documents_simulation_id_fkey"
+            columns: ["simulation_id"]
+            isOneToOne: false
+            referencedRelation: "simulations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loa_documents_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "loa_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loa_documents_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      loa_templates: {
+        Row: {
+          conditional_rules: Json
+          content: Json
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          name: string
+          placeholders: Json
+          status: string
+          tenant_id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          conditional_rules?: Json
+          content?: Json
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          name: string
+          placeholders?: Json
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          conditional_rules?: Json
+          content?: Json
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          name?: string
+          placeholders?: Json
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loa_templates_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lookup_table_rows: {
         Row: {
           created_at: string
@@ -524,6 +775,72 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      pay_instructions: {
+        Row: {
+          cost_center: string | null
+          created_at: string
+          employee_name: string
+          generated_by: string
+          gl_code: string | null
+          id: string
+          line_items: Json
+          payment_currency: string
+          simulation_id: string
+          source_snapshot: Json
+          status: string
+          tenant_id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          cost_center?: string | null
+          created_at?: string
+          employee_name: string
+          generated_by: string
+          gl_code?: string | null
+          id?: string
+          line_items?: Json
+          payment_currency?: string
+          simulation_id: string
+          source_snapshot?: Json
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          cost_center?: string | null
+          created_at?: string
+          employee_name?: string
+          generated_by?: string
+          gl_code?: string | null
+          id?: string
+          line_items?: Json
+          payment_currency?: string
+          simulation_id?: string
+          source_snapshot?: Json
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pay_instructions_simulation_id_fkey"
+            columns: ["simulation_id"]
+            isOneToOne: false
+            referencedRelation: "simulations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pay_instructions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       policies: {
         Row: {
@@ -1546,7 +1863,12 @@ export type Database = {
         | "user_provided"
         | "api_ingested"
         | "system_generated"
-      simulation_status: "draft" | "running" | "completed" | "pending"
+      simulation_status:
+        | "draft"
+        | "running"
+        | "completed"
+        | "pending"
+        | "approved"
       tenant_role: "tenant_admin" | "tenant_user"
       trip_status:
         | "draft"
@@ -1698,7 +2020,13 @@ export const Constants = {
         "api_ingested",
         "system_generated",
       ],
-      simulation_status: ["draft", "running", "completed", "pending"],
+      simulation_status: [
+        "draft",
+        "running",
+        "completed",
+        "pending",
+        "approved",
+      ],
       tenant_role: ["tenant_admin", "tenant_user"],
       trip_status: [
         "draft",

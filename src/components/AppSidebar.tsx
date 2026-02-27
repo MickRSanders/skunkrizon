@@ -24,6 +24,7 @@ import {
   ClipboardList,
   Plane,
   Contact,
+  Link2,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,7 @@ const navItems = [
   { to: "/pre-travel", icon: Plane, label: "Pre-Travel" },
   { to: "/employees", icon: Contact, label: "Employees" },
   { to: "/policies", icon: FileText, label: "Policy Agent" },
+  { to: "/documents", icon: ClipboardList, label: "Documents" },
   { to: "/analytics", icon: BarChart3, label: "Analytics" },
 ];
 
@@ -44,6 +46,7 @@ const dataMenuItems = [
   { to: "/calculations", icon: FunctionSquare, label: "Calculations" },
   { to: "/lookup-tables", icon: Table2, label: "Lookup Tables" },
   { to: "/field-library", icon: BookOpen, label: "Field Library" },
+  { to: "/field-mappings", icon: Link2, label: "Field Mappings" },
   { to: "/data-sources", icon: Cable, label: "Data Sources" },
 ];
 
