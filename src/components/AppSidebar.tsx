@@ -38,7 +38,6 @@ const navItems = [
   { to: "/pre-travel", icon: Plane, label: "Pre-Travel" },
   { to: "/employees", icon: Contact, label: "Employees" },
   { to: "/policies", icon: FileText, label: "Policy Agent" },
-  { to: "/documents", icon: ClipboardList, label: "Documents" },
   { to: "/analytics", icon: BarChart3, label: "Analytics" },
 ];
 
@@ -52,6 +51,7 @@ const dataMenuItems = [
 
 const settingsMenuItems = [
   { to: "/settings", icon: Settings, label: "General" },
+  { to: "/documents", icon: ClipboardList, label: "Documents" },
   { to: "/settings/roles", icon: Shield, label: "Roles & Permissions" },
   { to: "/tax-engine", icon: Globe, label: "Tax Engine" },
   { to: "/users", icon: Users, label: "User Management" },
@@ -326,7 +326,7 @@ export default function AppSidebar() {
                 <Settings className="w-4 h-4 shrink-0" />
                 {!collapsed && (
                   <>
-                    <span className="flex-1 text-left">Settings</span>
+                    <span className="flex-1 text-left">Configuration</span>
                     <ChevronDown
                       className={cn(
                         "w-3.5 h-3.5 transition-transform",
