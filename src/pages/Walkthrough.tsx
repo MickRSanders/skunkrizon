@@ -148,12 +148,14 @@ const sections: WalkthroughSection[] = [
     icon: Users,
     title: "User Management",
     description:
-      "Role-based access control (RBAC), user invitations, and activity monitoring. Four roles — Superadmin, Admin, Analyst, Viewer — each with distinct permission levels. Superadmins can impersonate users to see their experience. Multi-tenant architecture supports organization-level and sub-tenant-level user assignments.",
+      "Role-based access control (RBAC), user creation, invitations, and activity monitoring. Five roles — Superadmin, Admin, Analyst, Viewer, Employee — each with distinct permission levels. Superadmins can impersonate non-superadmin users to see their experience. Multi-tenant architecture supports organization-level and sub-tenant-level user assignments.",
     features: [
       "Role summary cards with user counts",
-      "Invite users via email with role assignment",
-      "Impersonate users (Superadmin only)",
+      "Create users with password or invite via email link",
+      "Delete users with confirmation safeguards",
+      "Impersonate users (Superadmin only, not other superadmins)",
       "Edit user roles and profile information",
+      "Last login tracking per user",
       "Search and filter user table",
       "Multi-tenant and sub-tenant user assignment",
     ],
