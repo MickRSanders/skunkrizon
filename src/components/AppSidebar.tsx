@@ -25,6 +25,7 @@ import {
   Plane,
   Contact,
   Link2,
+  BookOpenCheck,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -376,6 +377,18 @@ export default function AppSidebar() {
 
       {/* User & Sign Out */}
       <div className="p-2 border-t border-sidebar-border space-y-1">
+        <NavLink
+          to="/walkthrough"
+          className={cn(
+            "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+            location.pathname === "/walkthrough"
+              ? "bg-sidebar-accent text-sidebar-primary"
+              : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+          )}
+        >
+          <BookOpenCheck className="w-4 h-4 shrink-0" />
+          {!collapsed && <span>Walkthrough</span>}
+        </NavLink>
         {!collapsed && profile && (
           <div className="px-3 py-2 text-xs text-sidebar-foreground/60 truncate">
             {profile.display_name}
