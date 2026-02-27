@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Users, TrendingUp, Send, X, Building2, AlertTriangle } from "lucide-react";
+import { MapPin, Users, TrendingUp, Send, X, Building2, AlertTriangle, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
+import * as topojson from "topojson-client";
 
 export interface LocationPoint {
   city: string;
@@ -15,7 +16,6 @@ export interface LocationPoint {
   type: "origin" | "destination" | "both";
 }
 
-// Sample popular remote work locations with real coordinates
 export const SAMPLE_LOCATIONS: LocationPoint[] = [
   { city: "London", country: "United Kingdom", lat: 51.5, lng: -0.12, activeWorkers: 14, availableAssignments: 3, riskLevel: "low", type: "both" },
   { city: "Berlin", country: "Germany", lat: 52.52, lng: 13.4, activeWorkers: 9, availableAssignments: 5, riskLevel: "low", type: "destination" },
@@ -37,12 +37,36 @@ export const SAMPLE_LOCATIONS: LocationPoint[] = [
   { city: "Bangkok", country: "Thailand", lat: 13.76, lng: 100.5, activeWorkers: 4, availableAssignments: 0, riskLevel: "high", type: "destination" },
 ];
 
-function project(lat: number, lng: number, width: number, height: number): [number, number] {
-  const x = ((lng + 180) / 360) * width;
+const W = 960;
+const H = 500;
+
+// Mercator projection
+function projectMerc(lat: number, lng: number): [number, number] {
+  const x = ((lng + 180) / 360) * W;
   const latRad = (lat * Math.PI) / 180;
   const mercN = Math.log(Math.tan(Math.PI / 4 + latRad / 2));
-  const y = height / 2 - (mercN / Math.PI) * (height / 2) * 0.8;
+  const y = H / 2 - (mercN / Math.PI) * (H / 2) * 0.82;
   return [x, y];
+}
+
+// Convert GeoJSON coordinates to SVG path string
+function geoToPath(coords: number[][][]): string {
+  return coords
+    .map((ring) => {
+      const pts = ring.map(([lng, lat]) => projectMerc(lat, lng));
+      return "M" + pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join("L") + "Z";
+    })
+    .join("");
+}
+
+function featureToPath(geometry: any): string {
+  if (geometry.type === "Polygon") {
+    return geoToPath(geometry.coordinates);
+  }
+  if (geometry.type === "MultiPolygon") {
+    return geometry.coordinates.map((poly: number[][][]) => geoToPath(poly)).join("");
+  }
+  return "";
 }
 
 const riskDotColors: Record<string, string> = {
@@ -64,13 +88,32 @@ interface LocationMapProps {
 export default function LocationMap({ onRequestFromLocation }: LocationMapProps) {
   const [hovered, setHovered] = useState<LocationPoint | null>(null);
   const [selected, setSelected] = useState<LocationPoint | null>(null);
-  const width = 900;
-  const height = 460;
+  const [countryPaths, setCountryPaths] = useState<string[]>([]);
+
+  // Zoom / pan state
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Load TopoJSON
+  useEffect(() => {
+    fetch("/world-110m.json")
+      .then((r) => r.json())
+      .then((topo) => {
+        const geo = topojson.feature(topo, topo.objects.countries) as any;
+        const paths = geo.features.map((f: any) => featureToPath(f.geometry));
+        setCountryPaths(paths);
+      })
+      .catch(() => {});
+  }, []);
 
   const totalWorkers = useMemo(() => SAMPLE_LOCATIONS.reduce((s, l) => s + l.activeWorkers, 0), []);
   const totalAssignments = useMemo(() => SAMPLE_LOCATIONS.reduce((s, l) => s + l.availableAssignments, 0), []);
 
-  const handleDotClick = (loc: LocationPoint) => {
+  const handleDotClick = (e: React.MouseEvent, loc: LocationPoint) => {
+    e.stopPropagation();
     setSelected(selected?.city === loc.city ? null : loc);
   };
 
@@ -80,6 +123,64 @@ export default function LocationMap({ onRequestFromLocation }: LocationMapProps)
       setSelected(null);
     }
   };
+
+  const handleZoom = useCallback((delta: number) => {
+    setZoom((z) => Math.max(0.8, Math.min(6, z + delta)));
+  }, []);
+
+  const resetView = useCallback(() => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }, []);
+
+  // Mouse wheel zoom
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    handleZoom(e.deltaY > 0 ? -0.2 : 0.2);
+  }, [handleZoom]);
+
+  // Pan handlers
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    setIsPanning(true);
+    panStart.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
+  }, [pan]);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isPanning) return;
+    const dx = e.clientX - panStart.current.x;
+    const dy = e.clientY - panStart.current.y;
+    setPan({ x: panStart.current.panX + dx / zoom, y: panStart.current.panY + dy / zoom });
+  }, [isPanning, zoom]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsPanning(false);
+  }, []);
+
+  // Touch pan/zoom
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      setIsPanning(true);
+      panStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, panX: pan.x, panY: pan.y };
+    }
+  }, [pan]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isPanning || e.touches.length !== 1) return;
+    const dx = e.touches[0].clientX - panStart.current.x;
+    const dy = e.touches[0].clientY - panStart.current.y;
+    setPan({ x: panStart.current.panX + dx / zoom, y: panStart.current.panY + dy / zoom });
+  }, [isPanning, zoom]);
+
+  const handleTouchEnd = useCallback(() => {
+    setIsPanning(false);
+  }, []);
+
+  // Compute viewBox based on zoom/pan
+  const vbW = W / zoom;
+  const vbH = H / zoom;
+  const vbX = (W - vbW) / 2 - pan.x;
+  const vbY = (H - vbH) / 2 - pan.y;
 
   return (
     <Card className="overflow-hidden">
@@ -108,86 +209,139 @@ export default function LocationMap({ onRequestFromLocation }: LocationMapProps)
         </div>
       </CardHeader>
       <CardContent className="p-0 relative">
+        {/* Zoom controls */}
+        <div className="absolute top-3 right-3 z-20 flex flex-col gap-1">
+          <Button variant="secondary" size="icon" className="h-7 w-7 shadow-sm" onClick={() => handleZoom(0.4)}>
+            <ZoomIn className="w-3.5 h-3.5" />
+          </Button>
+          <Button variant="secondary" size="icon" className="h-7 w-7 shadow-sm" onClick={() => handleZoom(-0.4)}>
+            <ZoomOut className="w-3.5 h-3.5" />
+          </Button>
+          <Button variant="secondary" size="icon" className="h-7 w-7 shadow-sm" onClick={resetView}>
+            <Maximize2 className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+
         {/* SVG Map */}
-        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto" style={{ minHeight: 280 }}>
-          <rect width={width} height={height} className="fill-muted/30" />
-          <WorldOutline width={width} height={height} />
-          <Arcs width={width} height={height} selected={selected} />
+        <div
+          ref={containerRef}
+          className="select-none"
+          style={{ cursor: isPanning ? "grabbing" : "grab" }}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onWheel={handleWheel}
+        >
+          <svg
+            viewBox={`${vbX.toFixed(1)} ${vbY.toFixed(1)} ${vbW.toFixed(1)} ${vbH.toFixed(1)}`}
+            className="w-full h-auto"
+            style={{ minHeight: 320 }}
+            preserveAspectRatio="xMidYMid meet"
+          >
+            {/* Ocean background */}
+            <rect x={-200} y={-200} width={W + 400} height={H + 400} fill="hsl(var(--muted))" opacity={0.25} />
 
-          {SAMPLE_LOCATIONS.map((loc) => {
-            const [x, y] = project(loc.lat, loc.lng, width, height);
-            const r = Math.max(5, Math.min(12, loc.activeWorkers * 0.6));
-            const isHovered = hovered?.city === loc.city;
-            const isSelected = selected?.city === loc.city;
-            const hasAssignments = loc.availableAssignments > 0;
+            {/* Country outlines */}
+            {countryPaths.map((d, i) => (
+              <path
+                key={i}
+                d={d}
+                fill="hsl(var(--card))"
+                stroke="hsl(var(--muted-foreground))"
+                strokeWidth={0.5}
+                strokeLinejoin="round"
+                opacity={0.9}
+              />
+            ))}
 
-            return (
-              <g
-                key={loc.city}
-                onMouseEnter={() => setHovered(loc)}
-                onMouseLeave={() => setHovered(null)}
-                onClick={() => handleDotClick(loc)}
-                className="cursor-pointer"
-              >
-                {/* Selection ring */}
-                {isSelected && (
-                  <circle cx={x} cy={y} r={r + 8} fill="none" stroke="hsl(var(--primary))" strokeWidth={2} strokeDasharray="4,2">
-                    <animate attributeName="stroke-dashoffset" from="0" to="-12" dur="1s" repeatCount="indefinite" />
-                  </circle>
-                )}
-                {/* Pulse ring */}
-                <circle cx={x} cy={y} r={r + 4} fill={riskDotColors[loc.riskLevel]} opacity={isHovered || isSelected ? 0.3 : 0.1}>
-                  {!isHovered && !isSelected && (
-                    <animate attributeName="r" from={r + 2} to={r + 8} dur="2.5s" repeatCount="indefinite" />
+            {/* Graticule lines */}
+            <Graticule />
+
+            {/* Connection arcs */}
+            <Arcs selected={selected} />
+
+            {/* Location dots */}
+            {SAMPLE_LOCATIONS.map((loc) => {
+              const [x, y] = projectMerc(loc.lat, loc.lng);
+              const baseR = Math.max(5, Math.min(12, loc.activeWorkers * 0.55));
+              // Scale radius inversely with zoom so dots stay usable
+              const r = baseR / Math.max(1, zoom * 0.6);
+              const isHovered = hovered?.city === loc.city;
+              const isSelected = selected?.city === loc.city;
+              const hasAssignments = loc.availableAssignments > 0;
+
+              return (
+                <g
+                  key={loc.city}
+                  onMouseEnter={() => setHovered(loc)}
+                  onMouseLeave={() => setHovered(null)}
+                  onClick={(e) => handleDotClick(e, loc)}
+                  className="cursor-pointer"
+                >
+                  {/* Selection ring */}
+                  {isSelected && (
+                    <circle cx={x} cy={y} r={r + 6 / zoom} fill="none" stroke="hsl(var(--primary))" strokeWidth={2 / zoom} strokeDasharray={`${4 / zoom},${2 / zoom}`}>
+                      <animate attributeName="stroke-dashoffset" from="0" to={`${-12 / zoom}`} dur="1s" repeatCount="indefinite" />
+                    </circle>
                   )}
-                  <animate attributeName="opacity" from={isHovered || isSelected ? 0.3 : 0.15} to="0" dur="2.5s" repeatCount="indefinite" />
-                </circle>
-                {/* Main dot */}
-                <circle
-                  cx={x}
-                  cy={y}
-                  r={isHovered || isSelected ? r + 2 : r}
-                  fill={riskDotColors[loc.riskLevel]}
-                  stroke={isSelected ? "hsl(var(--primary))" : "hsl(var(--background))"}
-                  strokeWidth={isSelected ? 2.5 : 1.5}
-                  opacity={0.9}
-                  style={{ transition: "all 0.15s ease" }}
-                />
-                {/* Available assignments badge */}
-                {hasAssignments && (
-                  <>
-                    <circle cx={x + r} cy={y - r} r={6} fill="hsl(var(--primary))" stroke="hsl(var(--background))" strokeWidth={1} />
-                    <text x={x + r} y={y - r + 3.5} textAnchor="middle" fontSize={7} fontWeight={700} fill="hsl(var(--primary-foreground))">
-                      {loc.availableAssignments}
-                    </text>
-                  </>
-                )}
-                {/* Tooltip on hover */}
-                {(isHovered || isSelected) && (
-                  <>
-                    <rect
-                      x={x - 70}
-                      y={y - r - 42}
-                      width={140}
-                      height={34}
-                      rx={6}
-                      fill="hsl(var(--popover))"
-                      stroke="hsl(var(--border))"
-                      strokeWidth={0.8}
-                      filter="drop-shadow(0 2px 4px rgba(0,0,0,0.1))"
-                    />
-                    <text x={x} y={y - r - 27} textAnchor="middle" fontSize={10} fontWeight={600} fill="hsl(var(--foreground))">
-                      {loc.city}, {loc.country}
-                    </text>
-                    <text x={x} y={y - r - 15} textAnchor="middle" fontSize={8} fill="hsl(var(--muted-foreground))">
-                      {loc.activeWorkers} workers · {loc.availableAssignments} open{loc.availableAssignments !== 1 ? "" : ""} · {riskLabels[loc.riskLevel]}
-                    </text>
-                  </>
-                )}
-              </g>
-            );
-          })}
-        </svg>
+                  {/* Pulse */}
+                  <circle cx={x} cy={y} r={r + 3 / zoom} fill={riskDotColors[loc.riskLevel]} opacity={isHovered || isSelected ? 0.3 : 0.1}>
+                    {!isHovered && !isSelected && (
+                      <animate attributeName="r" from={r + 2 / zoom} to={r + 8 / zoom} dur="2.5s" repeatCount="indefinite" />
+                    )}
+                    <animate attributeName="opacity" from={isHovered || isSelected ? 0.3 : 0.15} to="0" dur="2.5s" repeatCount="indefinite" />
+                  </circle>
+                  {/* Main dot */}
+                  <circle
+                    cx={x}
+                    cy={y}
+                    r={isHovered || isSelected ? r + 1.5 / zoom : r}
+                    fill={riskDotColors[loc.riskLevel]}
+                    stroke={isSelected ? "hsl(var(--primary))" : "hsl(var(--background))"}
+                    strokeWidth={(isSelected ? 2.5 : 1.5) / zoom}
+                    opacity={0.92}
+                    style={{ transition: "all 0.15s ease" }}
+                  />
+                  {/* Badge for open assignments */}
+                  {hasAssignments && (
+                    <>
+                      <circle cx={x + r * 0.9} cy={y - r * 0.9} r={5 / zoom} fill="hsl(var(--primary))" stroke="hsl(var(--background))" strokeWidth={1 / zoom} />
+                      <text x={x + r * 0.9} y={y - r * 0.9 + 3 / zoom} textAnchor="middle" fontSize={6 / zoom} fontWeight={700} fill="hsl(var(--primary-foreground))">
+                        {loc.availableAssignments}
+                      </text>
+                    </>
+                  )}
+                  {/* Tooltip */}
+                  {(isHovered || isSelected) && (
+                    <>
+                      <rect
+                        x={x - 65 / zoom}
+                        y={y - r - 38 / zoom}
+                        width={130 / zoom}
+                        height={30 / zoom}
+                        rx={5 / zoom}
+                        fill="hsl(var(--popover))"
+                        stroke="hsl(var(--border))"
+                        strokeWidth={0.6 / zoom}
+                        filter="drop-shadow(0 1px 3px rgba(0,0,0,0.12))"
+                      />
+                      <text x={x} y={y - r - 24 / zoom} textAnchor="middle" fontSize={9 / zoom} fontWeight={600} fill="hsl(var(--foreground))">
+                        {loc.city}, {loc.country}
+                      </text>
+                      <text x={x} y={y - r - 13 / zoom} textAnchor="middle" fontSize={7 / zoom} fill="hsl(var(--muted-foreground))">
+                        {loc.activeWorkers} workers · {loc.availableAssignments} open · {riskLabels[loc.riskLevel]}
+                      </text>
+                    </>
+                  )}
+                </g>
+              );
+            })}
+          </svg>
+        </div>
 
         {/* Selected location detail panel */}
         {selected && (
@@ -254,52 +408,51 @@ export default function LocationMap({ onRequestFromLocation }: LocationMapProps)
               Open assignments
             </span>
           </div>
-          <p className="ml-auto text-[10px] text-muted-foreground">Click a location to request an assignment</p>
+          <p className="ml-auto text-[10px] text-muted-foreground">Scroll to zoom · Drag to pan · Click a location to request</p>
         </div>
       </CardContent>
     </Card>
   );
 }
 
-function WorldOutline({ width, height }: { width: number; height: number }) {
-  const continentPoints = [
-    { lat: 60, lng: -130 }, { lat: 55, lng: -120 }, { lat: 50, lng: -100 }, { lat: 45, lng: -90 },
-    { lat: 40, lng: -80 }, { lat: 35, lng: -85 }, { lat: 30, lng: -90 }, { lat: 25, lng: -100 },
-    { lat: 20, lng: -105 }, { lat: 48, lng: -55 }, { lat: 45, lng: -65 }, { lat: 42, lng: -72 },
-    { lat: 10, lng: -75 }, { lat: 0, lng: -50 }, { lat: -10, lng: -40 }, { lat: -15, lng: -48 },
-    { lat: -23, lng: -43 }, { lat: -33, lng: -70 }, { lat: -40, lng: -65 }, { lat: -50, lng: -70 },
-    { lat: 60, lng: 10 }, { lat: 55, lng: 15 }, { lat: 50, lng: 5 }, { lat: 48, lng: 10 },
-    { lat: 45, lng: 15 }, { lat: 40, lng: -5 }, { lat: 38, lng: 25 }, { lat: 55, lng: 25 },
-    { lat: 65, lng: 25 }, { lat: 60, lng: 30 },
-    { lat: 35, lng: 10 }, { lat: 30, lng: 30 }, { lat: 15, lng: 40 }, { lat: 5, lng: 35 },
-    { lat: 0, lng: 30 }, { lat: -10, lng: 35 }, { lat: -25, lng: 30 }, { lat: -33, lng: 25 },
-    { lat: 5, lng: -5 }, { lat: 15, lng: -15 },
-    { lat: 60, lng: 60 }, { lat: 55, lng: 80 }, { lat: 50, lng: 100 }, { lat: 45, lng: 90 },
-    { lat: 40, lng: 75 }, { lat: 30, lng: 80 }, { lat: 25, lng: 90 }, { lat: 20, lng: 100 },
-    { lat: 35, lng: 105 }, { lat: 40, lng: 120 }, { lat: 35, lng: 130 }, { lat: 45, lng: 140 },
-    { lat: 10, lng: 105 }, { lat: 5, lng: 115 },
-    { lat: -15, lng: 130 }, { lat: -20, lng: 140 }, { lat: -25, lng: 150 }, { lat: -35, lng: 145 },
-    { lat: -30, lng: 115 }, { lat: -20, lng: 120 },
-  ];
-
+/** Subtle graticule grid lines */
+function Graticule() {
+  const lines: string[] = [];
+  // Latitude lines every 30°
+  for (let lat = -60; lat <= 80; lat += 30) {
+    const pts: string[] = [];
+    for (let lng = -180; lng <= 180; lng += 5) {
+      const [x, y] = projectMerc(lat, lng);
+      pts.push(`${x.toFixed(1)},${y.toFixed(1)}`);
+    }
+    lines.push("M" + pts.join("L"));
+  }
+  // Longitude lines every 30°
+  for (let lng = -180; lng <= 180; lng += 30) {
+    const pts: string[] = [];
+    for (let lat = -80; lat <= 84; lat += 5) {
+      const [x, y] = projectMerc(lat, lng);
+      pts.push(`${x.toFixed(1)},${y.toFixed(1)}`);
+    }
+    lines.push("M" + pts.join("L"));
+  }
   return (
     <>
-      {continentPoints.map((p, i) => {
-        const [x, y] = project(p.lat, p.lng, width, height);
-        return <circle key={i} cx={x} cy={y} r={1.2} className="fill-muted-foreground/15" />;
-      })}
+      {lines.map((d, i) => (
+        <path key={i} d={d} fill="none" stroke="hsl(var(--border))" strokeWidth={0.3} opacity={0.4} />
+      ))}
     </>
   );
 }
 
-function Arcs({ width, height, selected }: { width: number; height: number; selected: LocationPoint | null }) {
+/** Draw curved arcs between origin and destination cities */
+function Arcs({ selected }: { selected: LocationPoint | null }) {
   const origins = SAMPLE_LOCATIONS.filter((l) => l.type === "origin" || l.type === "both");
   const destinations = SAMPLE_LOCATIONS.filter((l) => l.type === "destination" || l.type === "both");
 
   const arcs: [LocationPoint, LocationPoint][] = [];
-  
+
   if (selected) {
-    // Show arcs from all origins to the selected location
     origins.forEach((o) => {
       if (o.city !== selected.city) arcs.push([o, selected]);
     });
@@ -314,8 +467,8 @@ function Arcs({ width, height, selected }: { width: number; height: number; sele
   return (
     <>
       {arcs.slice(0, 12).map(([from, to], i) => {
-        const [x1, y1] = project(from.lat, from.lng, width, height);
-        const [x2, y2] = project(to.lat, to.lng, width, height);
+        const [x1, y1] = projectMerc(from.lat, from.lng);
+        const [x2, y2] = projectMerc(to.lat, to.lng);
         const midX = (x1 + x2) / 2;
         const midY = Math.min(y1, y2) - Math.abs(x2 - x1) * 0.12;
         return (
@@ -324,9 +477,9 @@ function Arcs({ width, height, selected }: { width: number; height: number; sele
             d={`M${x1},${y1} Q${midX},${midY} ${x2},${y2}`}
             fill="none"
             stroke={selected ? "hsl(var(--primary))" : "hsl(var(--accent))"}
-            strokeWidth={selected ? 1 : 0.6}
-            opacity={selected ? 0.3 : 0.15}
-            strokeDasharray="3,3"
+            strokeWidth={selected ? 1.2 : 0.7}
+            opacity={selected ? 0.35 : 0.18}
+            strokeDasharray="4,3"
           />
         );
       })}
