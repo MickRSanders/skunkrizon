@@ -405,8 +405,88 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
         </div>
       </div>
 
-      {/* Scenarios Grid */}
-      <div className={`grid gap-5 ${scenarios.length === 1 ? "grid-cols-1 max-w-2xl" : scenarios.length === 2 ? "grid-cols-2" : "grid-cols-1 lg:grid-cols-3"}`}>
+      {/* Side-by-side: Details + Scenarios */}
+      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-5">
+        {/* Simulation Details Panel */}
+        <div className="bg-card rounded-xl border border-border p-5 space-y-5 h-fit lg:sticky lg:top-4">
+          <div>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Assignment Details</h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Scenario Name</span>
+                <span className="text-sm font-medium text-foreground">{simulation.employee_name}</span>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Origin</span>
+                <span className="text-sm font-medium text-foreground">{simulation.origin_city || simulation.origin_country}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Destination</span>
+                <span className="text-sm font-medium text-foreground">{simulation.destination_city || simulation.destination_country}</span>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Assignment Type</span>
+                <span className="text-sm font-medium text-foreground capitalize">{simulation.assignment_type}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Duration</span>
+                <span className="text-sm font-medium text-foreground">
+                  {simulation.duration_months >= 12
+                    ? `${Math.floor(simulation.duration_months / 12)}y ${simulation.duration_months % 12 ? `${simulation.duration_months % 12}mo` : ""}`
+                    : `${simulation.duration_months}mo`}
+                </span>
+              </div>
+              {simulation.start_date && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Start Date</span>
+                  <span className="text-sm font-medium text-foreground">{format(new Date(simulation.start_date), "MMM d, yyyy")}</span>
+                </div>
+              )}
+              <Separator />
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Base Salary</span>
+                <span className="text-sm font-medium text-foreground">{formatCurrency(simulation.base_salary, simulation.currency)}</span>
+              </div>
+              {simulation.cola_percent > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">COLA</span>
+                  <span className="text-sm font-medium text-foreground">{simulation.cola_percent}%</span>
+                </div>
+              )}
+              {simulation.housing_cap > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Housing Cap / mo</span>
+                  <span className="text-sm font-medium text-foreground">{formatCurrency(simulation.housing_cap, simulation.currency)}</span>
+                </div>
+              )}
+              {policyName && (
+                <>
+                  <Separator />
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">Policy</span>
+                    <span className="text-sm font-medium text-foreground">{policyName}</span>
+                  </div>
+                </>
+              )}
+              {simulation.tax_approach && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Tax Approach</span>
+                  <span className="text-sm font-medium text-foreground capitalize">{simulation.tax_approach.replace(/-/g, " ")}</span>
+                </div>
+              )}
+              <Separator />
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Status</span>
+                <StatusBadge status={simulation.status} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Scenarios */}
+        <div className={`grid gap-5 ${scenarios.length === 1 ? "grid-cols-1" : scenarios.length === 2 ? "grid-cols-1 xl:grid-cols-2" : "grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3"}`}>
         {scenarios.map((scenario) => {
           const grouped = groupByCategory(scenario.benefits);
           const total = scenario.benefits.reduce((sum, b) => sum + b.amount, 0);
@@ -575,6 +655,7 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
             </div>
           );
         })}
+        </div>
       </div>
 
       {/* Comparison Table */}
