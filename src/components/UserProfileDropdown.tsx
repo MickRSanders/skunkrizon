@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { User, Settings, Shield, LogOut, ChevronRight } from "lucide-react";
+import { User, Settings, Shield, LogOut, ChevronRight, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenantContext } from "@/contexts/TenantContext";
+import { useImpersonation } from "@/contexts/ImpersonationContext";
 import { toast } from "sonner";
 
 export default function UserProfileDropdown() {
@@ -12,8 +13,11 @@ export default function UserProfileDropdown() {
   const navigate = useNavigate();
   const { signOut, profile } = useAuth();
   const { activeTenant } = useTenantContext();
+  const { impersonatedUser, isImpersonating, stopImpersonation } = useImpersonation();
 
-  const displayName = profile?.display_name || "Admin User";
+  const displayName = isImpersonating
+    ? impersonatedUser?.display_name || "Unknown User"
+    : profile?.display_name || "Admin User";
   const initials = displayName
     .split(" ")
     .map((w) => w[0])
@@ -53,16 +57,25 @@ export default function UserProfileDropdown() {
         onClick={() => setOpen(!open)}
         className="flex items-center gap-2 pl-3 border-l border-border hover:opacity-80 transition-opacity cursor-pointer"
       >
-        <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
-          {profile?.avatar_url ? (
+        <div className={cn(
+          "w-8 h-8 rounded-full flex items-center justify-center relative",
+          isImpersonating ? "bg-amber-500" : "bg-primary"
+        )}>
+          {isImpersonating ? (
+            <Eye className="w-4 h-4 text-amber-950" />
+          ) : profile?.avatar_url ? (
             <img src={profile.avatar_url} alt={displayName} className="w-8 h-8 rounded-full object-cover" />
           ) : (
             <span className="text-xs font-semibold text-primary-foreground">{initials}</span>
           )}
         </div>
         <div className="hidden sm:block text-left">
-          <p className="text-sm font-medium text-foreground leading-tight">{displayName}</p>
-          <p className="text-xs text-muted-foreground leading-tight">{tenantName}</p>
+          <p className={cn("text-sm font-medium leading-tight", isImpersonating ? "text-amber-600 dark:text-amber-400" : "text-foreground")}>
+            {displayName}
+          </p>
+          <p className="text-xs text-muted-foreground leading-tight">
+            {isImpersonating ? `Viewing as · ${impersonatedUser?.role}` : tenantName}
+          </p>
         </div>
       </button>
 
@@ -100,6 +113,19 @@ export default function UserProfileDropdown() {
               </button>
             ))}
           </div>
+
+          {/* Stop impersonation */}
+          {isImpersonating && (
+            <div className="border-t border-border py-1">
+              <button
+                onClick={() => { setOpen(false); stopImpersonation(); toast.info("Impersonation ended"); }}
+                className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 transition-colors group"
+              >
+                <Eye className="w-4 h-4" />
+                <span className="flex-1 text-left">Stop Impersonating</span>
+              </button>
+            </div>
+          )}
 
           {/* Sign out */}
           <div className="border-t border-border py-1">
