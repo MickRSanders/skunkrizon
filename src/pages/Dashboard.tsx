@@ -230,6 +230,7 @@ export default function Dashboard() {
           changeType="positive"
           icon={<Calculator className="w-5 h-5" />}
           subtitle={draftSims > 0 ? `${draftSims} drafts` : undefined}
+          link="/simulations"
         />
         <KPICard
           title="Active Policies"
@@ -238,6 +239,7 @@ export default function Dashboard() {
           changeType="neutral"
           icon={<FileText className="w-5 h-5" />}
           subtitle={`${policies?.length ?? 0} total`}
+          link="/policies"
         />
         <KPICard
           title="Trips"
@@ -246,6 +248,7 @@ export default function Dashboard() {
           changeType={attentionTrips > 0 ? "negative" : "neutral"}
           icon={<Plane className="w-5 h-5" />}
           subtitle="Pre-travel assessments"
+          link="/pre-travel"
         />
         <KPICard
           title="Avg. Cost/Move"
@@ -254,6 +257,7 @@ export default function Dashboard() {
           changeType="neutral"
           icon={<TrendingUp className="w-5 h-5" />}
           subtitle="All assignments"
+          link="/simulations"
         />
       </div>
 

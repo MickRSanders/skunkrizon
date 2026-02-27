@@ -1,4 +1,5 @@
 import { ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 interface KPICardProps {
@@ -8,11 +9,18 @@ interface KPICardProps {
   changeType?: "positive" | "negative" | "neutral";
   icon: ReactNode;
   subtitle?: string;
+  link?: string;
 }
 
-export default function KPICard({ title, value, change, changeType = "neutral", icon, subtitle }: KPICardProps) {
+export default function KPICard({ title, value, change, changeType = "neutral", icon, subtitle, link }: KPICardProps) {
+  const navigate = useNavigate();
+
   return (
-    <div className="kpi-card animate-fade-in">
+    <div
+      className={cn("kpi-card animate-fade-in", link && "cursor-pointer hover:shadow-md hover:border-accent/30 transition-all")}
+      onClick={link ? () => navigate(link) : undefined}
+      role={link ? "link" : undefined}
+    >
       <div className="flex items-start justify-between">
         <div>
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{title}</p>
