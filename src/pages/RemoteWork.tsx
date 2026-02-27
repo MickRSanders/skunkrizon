@@ -55,6 +55,7 @@ export default function RemoteWork() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState<"all" | "employee_remote" | "virtual_assignment">("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [prefillLocation, setPrefillLocation] = useState<{ country: string; city: string } | null>(null);
 
   const handleRequestFromMap = (location: LocationPoint) => {
@@ -70,7 +71,12 @@ export default function RemoteWork() {
       r.host_country.toLowerCase().includes(q) ||
       (r.purpose ?? "").toLowerCase().includes(q);
     const matchesType = typeFilter === "all" || r.request_type === typeFilter;
-    return matchesSearch && matchesType;
+    const matchesStatus =
+      statusFilter === "all" ||
+      (statusFilter === "active" && (r.status === "active" || r.status === "approved")) ||
+      (statusFilter === "pending" && (r.status === "submitted" || r.status === "under_review")) ||
+      (statusFilter === "high_risk" && (r.overall_risk_level === "high" || r.overall_risk_level === "blocker"));
+    return matchesSearch && matchesType && matchesStatus;
   });
 
   const handleDelete = (e: React.MouseEvent, id: string) => {
@@ -102,19 +108,31 @@ export default function RemoteWork() {
 
         {/* KPI cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card><CardContent className="p-4">
+          <Card
+            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === "all" ? "ring-2 ring-primary" : ""}`}
+            onClick={() => setStatusFilter(statusFilter === "all" ? "all" : "all")}
+          ><CardContent className="p-4">
             <p className="text-xs text-muted-foreground uppercase tracking-wide">Total Requests</p>
             <p className="text-2xl font-bold text-foreground mt-1">{total}</p>
           </CardContent></Card>
-          <Card><CardContent className="p-4">
+          <Card
+            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === "active" ? "ring-2 ring-primary" : ""}`}
+            onClick={() => setStatusFilter(statusFilter === "active" ? "all" : "active")}
+          ><CardContent className="p-4">
             <p className="text-xs text-muted-foreground uppercase tracking-wide">Active</p>
-            <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{activeCount}</p>
+            <p className="text-2xl font-bold text-accent mt-1">{activeCount}</p>
           </CardContent></Card>
-          <Card><CardContent className="p-4">
+          <Card
+            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === "pending" ? "ring-2 ring-primary" : ""}`}
+            onClick={() => setStatusFilter(statusFilter === "pending" ? "all" : "pending")}
+          ><CardContent className="p-4">
             <p className="text-xs text-muted-foreground uppercase tracking-wide">Pending Review</p>
-            <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400 mt-1">{pendingCount}</p>
+            <p className="text-2xl font-bold text-warning mt-1">{pendingCount}</p>
           </CardContent></Card>
-          <Card><CardContent className="p-4 flex items-start gap-2">
+          <Card
+            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === "high_risk" ? "ring-2 ring-primary" : ""}`}
+            onClick={() => setStatusFilter(statusFilter === "high_risk" ? "all" : "high_risk")}
+          ><CardContent className="p-4 flex items-start gap-2">
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wide">High Risk</p>
               <p className="text-2xl font-bold text-destructive mt-1">{highRiskCount}</p>
