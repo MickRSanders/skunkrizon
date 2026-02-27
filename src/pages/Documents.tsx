@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import StatusBadge from "@/components/StatusBadge";
+import CostEstimateDetailViewer from "@/components/CostEstimateDetailViewer";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -28,6 +29,7 @@ export default function Documents() {
   const [templateName, setTemplateName] = useState("");
   const [templateDesc, setTemplateDesc] = useState("");
   const [search, setSearch] = useState("");
+  const [selectedEstimate, setSelectedEstimate] = useState<any>(null);
 
   const { data: templates, isLoading: loadingTemplates } = useLoaTemplates();
   const { data: loaDocs, isLoading: loadingDocs } = useLoaDocuments();
@@ -199,7 +201,7 @@ export default function Documents() {
           {loadingCE ? <LoadingState /> : !costEstimates || costEstimates.length === 0 ? (
             <EmptyState icon={FileSpreadsheet} title="No cost estimates yet" description="Generate cost estimates from approved simulations using the Generate button." />
           ) : (
-            <DocumentTable items={costEstimates} type="cost_estimate" />
+            <DocumentTable items={costEstimates} type="cost_estimate" onView={(item) => setSelectedEstimate(item)} />
           )}
         </TabsContent>
       </Tabs>
@@ -228,6 +230,12 @@ export default function Documents() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Cost Estimate Detail Viewer */}
+      <CostEstimateDetailViewer
+        estimate={selectedEstimate}
+        open={!!selectedEstimate}
+        onOpenChange={(open) => { if (!open) setSelectedEstimate(null); }}
+      />
     </div>
   );
 }
@@ -270,7 +278,7 @@ function EmptyState({ icon: Icon, title, description, action, actionLabel }: { i
   );
 }
 
-function DocumentTable({ items, type }: { items: any[]; type: string }) {
+function DocumentTable({ items, type, onView }: { items: any[]; type: string; onView?: (item: any) => void }) {
   return (
     <div className="bg-card rounded-xl border border-border overflow-hidden">
       <table className="w-full text-sm">
@@ -279,20 +287,40 @@ function DocumentTable({ items, type }: { items: any[]; type: string }) {
             <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Employee</th>
             <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Version</th>
             <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+            {type === "cost_estimate" && (
+              <th className="text-right px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Total</th>
+            )}
             <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Created</th>
             <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
           </tr>
         </thead>
         <tbody>
           {items.map((item: any) => (
-            <tr key={item.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
+            <tr
+              key={item.id}
+              className={`border-b border-border/50 hover:bg-muted/20 transition-colors ${onView ? "cursor-pointer" : ""}`}
+              onClick={() => onView?.(item)}
+            >
               <td className="px-5 py-3.5 font-medium text-foreground">{item.employee_name}</td>
               <td className="px-5 py-3.5 text-muted-foreground">v{item.version}</td>
               <td className="px-5 py-3.5"><StatusBadge status={item.status === "active" ? "active" : "draft"} /></td>
+              {type === "cost_estimate" && (
+                <td className="px-5 py-3.5 text-right font-medium text-foreground">
+                  {item.total_cost != null
+                    ? new Intl.NumberFormat("en-US", { style: "currency", currency: item.display_currency || "USD", minimumFractionDigits: 0 }).format(item.total_cost)
+                    : "—"}
+                </td>
+              )}
               <td className="px-5 py-3.5 text-muted-foreground text-xs">{format(new Date(item.created_at), "MMM d, yyyy")}</td>
               <td className="px-5 py-3.5">
                 <div className="flex items-center gap-1">
-                  <button className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="View"><Eye className="w-3.5 h-3.5" /></button>
+                  <button
+                    className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                    title="View"
+                    onClick={(e) => { e.stopPropagation(); onView?.(item); }}
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                  </button>
                   <button className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground" title="Export"><Download className="w-3.5 h-3.5" /></button>
                 </div>
               </td>
