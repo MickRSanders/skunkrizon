@@ -10,6 +10,8 @@ import { useTenantContext } from "@/contexts/TenantContext";
 type Msg = { role: "user" | "assistant"; content: string };
 type CreatedSim = { id: string; sim_code: string; employee_name: string };
 type CreatedPolicy = { id: string; name: string; status: string; tier: string };
+type CreatedRemoteWork = { id: string; request_code: string; employee_name: string };
+type CreatedTrip = { id: string; trip_code: string; traveler_name: string };
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`;
 const STORAGE_KEY = "ai-chat-history";
@@ -17,8 +19,10 @@ const STORAGE_KEY = "ai-chat-history";
 const SUGGESTIONS = [
   "What policies do I have?",
   "Summarize my active simulations",
-  "Create a new Gold Tier assignment policy",
-  "Create a simulation for John Smith relocating from US to Germany",
+  "Create a remote work request for an employee going to Portugal",
+  "What are the tax implications of working remotely in Germany?",
+  "Create a business trip to Singapore for compliance review",
+  "Show my pending remote work requests",
 ];
 
 export default function AIChatWidget() {
@@ -35,6 +39,8 @@ export default function AIChatWidget() {
   const [isLoading, setIsLoading] = useState(false);
   const [createdSims, setCreatedSims] = useState<CreatedSim[]>([]);
   const [createdPolicies, setCreatedPolicies] = useState<CreatedPolicy[]>([]);
+  const [createdRemoteWork, setCreatedRemoteWork] = useState<CreatedRemoteWork[]>([]);
+  const [createdTrips, setCreatedTrips] = useState<CreatedTrip[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const navigate = useNavigate();
@@ -44,7 +50,7 @@ export default function AIChatWidget() {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, open, createdSims, createdPolicies]);
+  }, [messages, open, createdSims, createdPolicies, createdRemoteWork, createdTrips]);
 
   useEffect(() => {
     if (open && inputRef.current) inputRef.current.focus();
@@ -60,6 +66,8 @@ export default function AIChatWidget() {
     setMessages([]);
     setCreatedSims([]);
     setCreatedPolicies([]);
+    setCreatedRemoteWork([]);
+    setCreatedTrips([]);
     localStorage.removeItem(STORAGE_KEY);
   }, []);
 
@@ -134,7 +142,6 @@ export default function AIChatWidget() {
             textBuffer = textBuffer.slice(newlineIndex + 1);
             if (line.endsWith("\r")) line = line.slice(0, -1);
 
-            // Track SSE event type
             if (line.startsWith("event: ")) {
               currentEvent = line.slice(7).trim();
               continue;
@@ -148,7 +155,6 @@ export default function AIChatWidget() {
 
             const jsonStr = line.slice(6).trim();
 
-            // Handle custom simulation_created event
             if (currentEvent === "simulation_created") {
               try {
                 const simData = JSON.parse(jsonStr) as CreatedSim;
@@ -162,6 +168,24 @@ export default function AIChatWidget() {
               try {
                 const polData = JSON.parse(jsonStr) as CreatedPolicy;
                 setCreatedPolicies((prev) => [...prev, polData]);
+              } catch { /* ignore */ }
+              currentEvent = "";
+              continue;
+            }
+
+            if (currentEvent === "remote_work_created") {
+              try {
+                const rwData = JSON.parse(jsonStr) as CreatedRemoteWork;
+                setCreatedRemoteWork((prev) => [...prev, rwData]);
+              } catch { /* ignore */ }
+              currentEvent = "";
+              continue;
+            }
+
+            if (currentEvent === "trip_created") {
+              try {
+                const tripData = JSON.parse(jsonStr) as CreatedTrip;
+                setCreatedTrips((prev) => [...prev, tripData]);
               } catch { /* ignore */ }
               currentEvent = "";
               continue;
@@ -225,6 +249,16 @@ export default function AIChatWidget() {
     navigate(`/policies?highlight=${policyId}`);
   };
 
+  const goToRemoteWork = (rwId: string) => {
+    setOpen(false);
+    navigate(`/remote-work/${rwId}`);
+  };
+
+  const goToTrip = (tripId: string) => {
+    setOpen(false);
+    navigate(`/pre-travel/${tripId}`);
+  };
+
   return (
     <>
       {/* Floating button */}
@@ -254,7 +288,7 @@ export default function AIChatWidget() {
             </div>
             <div>
               <p className="text-sm font-semibold text-foreground">AI Assistant</p>
-              <p className="text-xs text-muted-foreground">Ask about policies, tax & simulations</p>
+              <p className="text-xs text-muted-foreground">Mobility, remote work & travel compliance</p>
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -366,6 +400,44 @@ export default function AIChatWidget() {
             </div>
           ))}
 
+          {/* Remote work created cards */}
+          {createdRemoteWork.map((rw) => (
+            <div key={rw.id} className="flex gap-2 justify-start">
+              <div className="w-6 h-6 rounded-full bg-primary/10 flex-shrink-0 flex items-center justify-center mt-1">
+                <Bot className="w-3 h-3 text-primary" />
+              </div>
+              <button
+                onClick={() => goToRemoteWork(rw.id)}
+                className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm bg-primary/10 border border-primary/20 hover:bg-primary/20 transition-colors text-foreground text-left"
+              >
+                <div>
+                  <p className="font-medium text-primary">{rw.request_code}</p>
+                  <p className="text-xs text-muted-foreground">{rw.employee_name} — Remote work request created</p>
+                </div>
+                <ExternalLink className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+              </button>
+            </div>
+          ))}
+
+          {/* Trip created cards */}
+          {createdTrips.map((trip) => (
+            <div key={trip.id} className="flex gap-2 justify-start">
+              <div className="w-6 h-6 rounded-full bg-primary/10 flex-shrink-0 flex items-center justify-center mt-1">
+                <Bot className="w-3 h-3 text-primary" />
+              </div>
+              <button
+                onClick={() => goToTrip(trip.id)}
+                className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm bg-primary/10 border border-primary/20 hover:bg-primary/20 transition-colors text-foreground text-left"
+              >
+                <div>
+                  <p className="font-medium text-primary">{trip.trip_code}</p>
+                  <p className="text-xs text-muted-foreground">{trip.traveler_name} — Trip created for assessment</p>
+                </div>
+                <ExternalLink className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+              </button>
+            </div>
+          ))}
+
           {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
             <div className="flex gap-2 items-center">
               <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
@@ -384,7 +456,7 @@ export default function AIChatWidget() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask anything..."
+              placeholder="Ask about remote work, travel compliance, or locations..."
               rows={1}
               className="flex-1 resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring max-h-24"
             />
