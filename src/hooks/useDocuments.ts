@@ -225,3 +225,17 @@ export function useUpsertFieldMapping() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["field_mappings"] }),
   });
 }
+
+export function useDeleteFieldMapping() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("field_mappings" as any)
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["field_mappings"] }),
+  });
+}

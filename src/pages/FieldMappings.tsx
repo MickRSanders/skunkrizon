@@ -12,11 +12,11 @@ import {
 } from "@/components/ui/select";
 import {
   ArrowRight, Plus, Database, Link2, Loader2, CheckCircle2,
-  AlertTriangle, Settings2,
+  AlertTriangle, Settings2, Pencil, Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { useFieldMappings, useUpsertFieldMapping } from "@/hooks/useDocuments";
+import { useFieldMappings, useUpsertFieldMapping, useDeleteFieldMapping } from "@/hooks/useDocuments";
 
 const SOURCE_FIELDS = [
   { value: "first_name", label: "First Name" },
@@ -48,16 +48,49 @@ const TARGET_FIELDS = [
   { value: "grade", label: "Grade / Level" },
 ];
 
+type FormState = {
+  id?: string;
+  source_field: string;
+  target_field: string;
+  fallback_value: string;
+  is_required: boolean;
+  transform_rule: string;
+};
+
+const emptyForm: FormState = { source_field: "", target_field: "", fallback_value: "", is_required: false, transform_rule: "" };
+
 export default function FieldMappings() {
   const { data: mappings, isLoading } = useFieldMappings();
   const upsertMapping = useUpsertFieldMapping();
-  const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ source_field: "", target_field: "", fallback_value: "", is_required: false, transform_rule: "" });
+  const deleteMapping = useDeleteFieldMapping();
+  const [showDialog, setShowDialog] = useState(false);
+  const [form, setForm] = useState<FormState>(emptyForm);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+  const isEditing = !!form.id;
+
+  const openAdd = (prefill?: Partial<FormState>) => {
+    setForm({ ...emptyForm, ...prefill });
+    setShowDialog(true);
+  };
+
+  const openEdit = (mapping: any) => {
+    setForm({
+      id: mapping.id,
+      source_field: mapping.source_field,
+      target_field: mapping.target_field,
+      fallback_value: mapping.fallback_value || "",
+      is_required: mapping.is_required ?? false,
+      transform_rule: mapping.transform_rule || "",
+    });
+    setShowDialog(true);
+  };
 
   const handleSave = async () => {
     if (!form.source_field || !form.target_field) return;
     try {
       await upsertMapping.mutateAsync({
+        ...(form.id ? { id: form.id } : {}),
         source_system: "employee_directory",
         source_field: form.source_field,
         target_field: form.target_field,
@@ -65,11 +98,21 @@ export default function FieldMappings() {
         is_required: form.is_required,
         transform_rule: form.transform_rule || undefined,
       });
-      setShowAdd(false);
-      setForm({ source_field: "", target_field: "", fallback_value: "", is_required: false, transform_rule: "" });
-      toast.success("Field mapping created");
+      setShowDialog(false);
+      setForm(emptyForm);
+      toast.success(isEditing ? "Field mapping updated" : "Field mapping created");
     } catch (err: any) {
       toast.error(err.message || "Failed to save mapping");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteMapping.mutateAsync(id);
+      setDeleteConfirm(null);
+      toast.success("Mapping deleted");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete mapping");
     }
   };
 
@@ -108,7 +151,7 @@ export default function FieldMappings() {
               </div>
             </div>
           </div>
-          <Button size="lg" className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 shadow-lg" onClick={() => setShowAdd(true)}>
+          <Button size="lg" className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 shadow-lg" onClick={() => openAdd()}>
             <Plus className="w-4 h-4 mr-2" /> Add Mapping
           </Button>
         </div>
@@ -137,7 +180,7 @@ export default function FieldMappings() {
               </div>
               <div className="divide-y divide-border/50">
                 {mappings.map((m: any) => (
-                  <div key={m.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-muted/20 transition-colors">
+                  <div key={m.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-muted/20 transition-colors group">
                     <div className="flex items-center gap-3 flex-1">
                       <Badge variant="secondary" className="text-xs font-mono">{m.source_field}</Badge>
                       <ArrowRight className="w-4 h-4 text-accent shrink-0" />
@@ -149,6 +192,22 @@ export default function FieldMappings() {
                       {m.transform_rule && (
                         <span title={m.transform_rule}><Settings2 className="w-3.5 h-3.5 text-muted-foreground" /></span>
                       )}
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => openEdit(m)}
+                        className="p-1.5 rounded-md hover:bg-accent/10 text-muted-foreground hover:text-accent transition-colors"
+                        title="Edit mapping"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirm(m.id)}
+                        className="p-1.5 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                        title="Delete mapping"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                     <span className="text-[10px] text-muted-foreground">{format(new Date(m.created_at), "MMM d")}</span>
                   </div>
@@ -174,7 +233,7 @@ export default function FieldMappings() {
                       <span className="text-sm text-foreground">{t.label}</span>
                       <span className="text-xs font-mono text-muted-foreground">({t.value})</span>
                     </div>
-                    <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setForm({ ...form, target_field: t.value }); setShowAdd(true); }}>
+                    <Button variant="ghost" size="sm" className="text-xs" onClick={() => openAdd({ target_field: t.value })}>
                       Map Field
                     </Button>
                   </div>
@@ -192,10 +251,10 @@ export default function FieldMappings() {
         </div>
       )}
 
-      {/* Add Mapping Dialog */}
-      <Dialog open={showAdd} onOpenChange={setShowAdd}>
+      {/* Add/Edit Mapping Dialog */}
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Add Field Mapping</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{isEditing ? "Edit Field Mapping" : "Add Field Mapping"}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -234,10 +293,25 @@ export default function FieldMappings() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setShowAdd(false)}>Cancel</Button>
+            <Button variant="outline" size="sm" onClick={() => setShowDialog(false)}>Cancel</Button>
             <Button size="sm" disabled={!form.source_field || !form.target_field || upsertMapping.isPending} onClick={handleSave}>
               {upsertMapping.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
-              Save Mapping
+              {isEditing ? "Update Mapping" : "Save Mapping"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Delete Mapping</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Are you sure you want to delete this field mapping? The simulation field will revert to manual entry.</p>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" size="sm" disabled={deleteMapping.isPending} onClick={() => deleteConfirm && handleDelete(deleteConfirm)}>
+              {deleteMapping.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>
