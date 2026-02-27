@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { BotMessageSquare, X, Send, Loader2, Bot, User, Sparkles, Trash2, ExternalLink } from "lucide-react";
+import { Sparkles, X, Send, Loader2, Bot, User, Trash2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
@@ -270,7 +270,7 @@ export default function AIChatWidget() {
           open && "scale-0 opacity-0 pointer-events-none"
         )}
       >
-        <BotMessageSquare className="w-6 h-6" />
+        <Sparkles className="w-6 h-6" />
       </button>
 
       {/* Chat panel */}
