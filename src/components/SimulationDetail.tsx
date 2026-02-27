@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,11 +26,14 @@ import {
   ChevronDown,
   ChevronUp,
   CheckCircle,
+  FileSpreadsheet,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTaxConfig, TAX_RATE_MAP } from "@/contexts/TaxConfigContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSimulationAuditLog, useCreateAuditEntry, useUpdateSimulation } from "@/hooks/useSimulations";
+import { useCostEstimateTemplates, useCostEstimateVersions, useCompensationItems, useCreateCostEstimate } from "@/hooks/useCostEstimates";
 import { format } from "date-fns";
 
 const CURRENCIES = ["USD", "EUR", "GBP", "JPY", "CHF", "SGD", "AUD", "CAD", "INR", "BRL"] as const;
@@ -103,7 +106,10 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
   const { data: auditLog } = useSimulationAuditLog(simulation.id);
   const createAuditEntry = useCreateAuditEntry();
   const updateSimulation = useUpdateSimulation();
+  const { data: ceTemplates } = useCostEstimateTemplates();
+  const createCostEstimate = useCreateCostEstimate();
   const [showAuditTrail, setShowAuditTrail] = useState(false);
+  const [generatingCE, setGeneratingCE] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
 
   const toggleCategory = (scenarioId: string, category: string) => {
@@ -371,6 +377,50 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
                   size="sm"
                 >
                   <CheckCircle className="w-4 h-4 mr-1" /> Approve
+                </Button>
+              )}
+              {simulation.status === "approved" && ceTemplates && ceTemplates.length > 0 && (
+                <Button
+                  disabled={generatingCE}
+                  onClick={async () => {
+                    setGeneratingCE(true);
+                    try {
+                      const template = ceTemplates[0];
+                      const { data: vers } = await (await import("@/integrations/supabase/client")).supabase
+                        .from("cost_estimate_template_versions" as any)
+                        .select("*")
+                        .eq("template_id", template.id)
+                        .order("version_number", { ascending: false })
+                        .limit(1);
+                      const version = (vers as any)?.[0];
+                      if (!version) { toast.error("No template version found"); return; }
+                      const scenarioData = simulation.cost_breakdown as any;
+                      const lineItems = scenarioData?.scenarios?.[0]?.benefits ?? [];
+                      const total = lineItems.reduce((s: number, b: any) => s + (b.amount || 0), 0);
+                      await createCostEstimate.mutateAsync({
+                        simulation_id: simulation.id,
+                        template_id: template.id,
+                        template_version_id: version.id,
+                        employee_name: simulation.employee_name,
+                        display_currency: simulation.currency || "USD",
+                        line_items: lineItems,
+                        details_snapshot: { origin: simulation.origin_country, destination: simulation.destination_country, duration: simulation.duration_months, assignment_type: simulation.assignment_type },
+                        tax_snapshot: { approach: simulation.tax_approach },
+                        total_cost: total,
+                        source_snapshot: simulation,
+                      });
+                      toast.success("Cost estimate generated");
+                    } catch (err: any) {
+                      toast.error(err.message || "Failed to generate");
+                    } finally {
+                      setGeneratingCE(false);
+                    }
+                  }}
+                  className="bg-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/30 border border-primary-foreground/20"
+                  size="sm"
+                >
+                  {generatingCE ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <FileSpreadsheet className="w-4 h-4 mr-1" />}
+                  Generate Cost Estimate
                 </Button>
               )}
               <Button onClick={addScenario} className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 shadow-lg">

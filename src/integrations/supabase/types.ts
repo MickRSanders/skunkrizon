@@ -199,6 +199,387 @@ export type Database = {
           },
         ]
       }
+      cost_estimate_compensation_items: {
+        Row: {
+          calculation_formula: string | null
+          created_at: string
+          default_value: number | null
+          display_category: string
+          display_label: string
+          home_country: string | null
+          host_country: string | null
+          id: string
+          is_taxable: boolean
+          paycode: string
+          sort_order: number
+          version_id: string
+        }
+        Insert: {
+          calculation_formula?: string | null
+          created_at?: string
+          default_value?: number | null
+          display_category?: string
+          display_label: string
+          home_country?: string | null
+          host_country?: string | null
+          id?: string
+          is_taxable?: boolean
+          paycode: string
+          sort_order?: number
+          version_id: string
+        }
+        Update: {
+          calculation_formula?: string | null
+          created_at?: string
+          default_value?: number | null
+          display_category?: string
+          display_label?: string
+          home_country?: string | null
+          host_country?: string | null
+          id?: string
+          is_taxable?: boolean
+          paycode?: string
+          sort_order?: number
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cost_estimate_compensation_items_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "cost_estimate_template_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cost_estimate_detail_fields: {
+        Row: {
+          created_at: string
+          display_label: string
+          field_key: string
+          id: string
+          sort_order: number
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_label: string
+          field_key: string
+          id?: string
+          sort_order?: number
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          display_label?: string
+          field_key?: string
+          id?: string
+          sort_order?: number
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cost_estimate_detail_fields_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "cost_estimate_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cost_estimate_policy_mappings: {
+        Row: {
+          created_at: string
+          effective_from: string | null
+          effective_to: string | null
+          id: string
+          mapping_type: string
+          policy_id: string | null
+          policy_type: string | null
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          effective_from?: string | null
+          effective_to?: string | null
+          id?: string
+          mapping_type?: string
+          policy_id?: string | null
+          policy_type?: string | null
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          effective_from?: string | null
+          effective_to?: string | null
+          id?: string
+          mapping_type?: string
+          policy_id?: string | null
+          policy_type?: string | null
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cost_estimate_policy_mappings_policy_id_fkey"
+            columns: ["policy_id"]
+            isOneToOne: false
+            referencedRelation: "policies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cost_estimate_policy_mappings_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "cost_estimate_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cost_estimate_tax_settings: {
+        Row: {
+          country: string | null
+          country_type: string | null
+          created_at: string
+          id: string
+          setting_value: string
+          tax_setting_code: string
+          version_id: string
+        }
+        Insert: {
+          country?: string | null
+          country_type?: string | null
+          created_at?: string
+          id?: string
+          setting_value: string
+          tax_setting_code: string
+          version_id: string
+        }
+        Update: {
+          country?: string | null
+          country_type?: string | null
+          created_at?: string
+          id?: string
+          setting_value?: string
+          tax_setting_code?: string
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cost_estimate_tax_settings_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "cost_estimate_template_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cost_estimate_template_versions: {
+        Row: {
+          created_at: string
+          created_by: string
+          display_currency: string
+          effective_from: string | null
+          effective_to: string | null
+          hypo_social_tax_city: string | null
+          hypo_social_tax_country: string | null
+          hypo_tax_city: string | null
+          hypo_tax_country: string | null
+          hypo_tax_region: string | null
+          id: string
+          include_tax_calculation: boolean
+          inflation_rate: number | null
+          status: string
+          tax_calculation_method: string | null
+          template_id: string
+          updated_at: string
+          version_notes: string | null
+          version_number: number
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          display_currency?: string
+          effective_from?: string | null
+          effective_to?: string | null
+          hypo_social_tax_city?: string | null
+          hypo_social_tax_country?: string | null
+          hypo_tax_city?: string | null
+          hypo_tax_country?: string | null
+          hypo_tax_region?: string | null
+          id?: string
+          include_tax_calculation?: boolean
+          inflation_rate?: number | null
+          status?: string
+          tax_calculation_method?: string | null
+          template_id: string
+          updated_at?: string
+          version_notes?: string | null
+          version_number?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          display_currency?: string
+          effective_from?: string | null
+          effective_to?: string | null
+          hypo_social_tax_city?: string | null
+          hypo_social_tax_country?: string | null
+          hypo_tax_city?: string | null
+          hypo_tax_country?: string | null
+          hypo_tax_region?: string | null
+          id?: string
+          include_tax_calculation?: boolean
+          inflation_rate?: number | null
+          status?: string
+          tax_calculation_method?: string | null
+          template_id?: string
+          updated_at?: string
+          version_notes?: string | null
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cost_estimate_template_versions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "cost_estimate_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cost_estimate_templates: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+          notes: string | null
+          status: string
+          template_type: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+          notes?: string | null
+          status?: string
+          template_type?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          status?: string
+          template_type?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cost_estimate_templates_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cost_estimates: {
+        Row: {
+          created_at: string
+          details_snapshot: Json
+          display_currency: string
+          employee_name: string
+          generated_by: string
+          id: string
+          line_items: Json
+          simulation_id: string
+          source_snapshot: Json
+          status: string
+          tax_snapshot: Json
+          template_id: string
+          template_version_id: string
+          tenant_id: string
+          total_cost: number | null
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          details_snapshot?: Json
+          display_currency?: string
+          employee_name: string
+          generated_by: string
+          id?: string
+          line_items?: Json
+          simulation_id: string
+          source_snapshot?: Json
+          status?: string
+          tax_snapshot?: Json
+          template_id: string
+          template_version_id: string
+          tenant_id: string
+          total_cost?: number | null
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          details_snapshot?: Json
+          display_currency?: string
+          employee_name?: string
+          generated_by?: string
+          id?: string
+          line_items?: Json
+          simulation_id?: string
+          source_snapshot?: Json
+          status?: string
+          tax_snapshot?: Json
+          template_id?: string
+          template_version_id?: string
+          tenant_id?: string
+          total_cost?: number | null
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cost_estimates_simulation_id_fkey"
+            columns: ["simulation_id"]
+            isOneToOne: false
+            referencedRelation: "simulations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cost_estimates_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "cost_estimate_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cost_estimates_template_version_id_fkey"
+            columns: ["template_version_id"]
+            isOneToOne: false
+            referencedRelation: "cost_estimate_template_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cost_estimates_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_dependents: {
         Row: {
           created_at: string
