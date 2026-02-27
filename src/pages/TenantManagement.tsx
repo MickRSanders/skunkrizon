@@ -354,6 +354,7 @@ function TenantDetail({
         {/* Settings Tab */}
         <TabsContent value="settings" className="p-5 space-y-4">
           <div className="grid grid-cols-2 gap-4">
+            <FieldDisplay label="Slug" value={tenant.slug} />
             <FieldDisplay label="Contact Name" value={tenant.contact_name} />
             <FieldDisplay label="Contact Email" value={tenant.contact_email} />
             <FieldDisplay label="Domain" value={tenant.domain} />
