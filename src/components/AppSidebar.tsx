@@ -38,6 +38,7 @@ const navItems: { to: string; icon: any; label: string; moduleKey?: ModuleKey }[
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/simulations", icon: Calculator, label: "Cost Simulations", moduleKey: "simulations" },
   { to: "/pre-travel", icon: Plane, label: "Pre-Travel", moduleKey: "pre_travel" },
+  { to: "/remote-work", icon: Globe, label: "Remote Work", moduleKey: "remote_work" },
   { to: "/employees", icon: Contact, label: "Employees", moduleKey: "employees" },
   { to: "/policies", icon: FileText, label: "Policy Agent", moduleKey: "policies" },
   { to: "/analytics", icon: BarChart3, label: "Analytics", moduleKey: "analytics" },
