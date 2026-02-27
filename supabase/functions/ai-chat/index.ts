@@ -336,6 +336,149 @@ const UPDATE_POLICY_TOOL = {
   },
 };
 
+const CREATE_REMOTE_WORK_REQUEST_TOOL = {
+  type: "function",
+  function: {
+    name: "create_remote_work_request",
+    description:
+      "Create a new remote work or virtual assignment request. Call this when the user wants to initiate a remote work request. At minimum requires: employee_name, home_country, host_country, start_date, and request_type.",
+    parameters: {
+      type: "object",
+      properties: {
+        request_type: {
+          type: "string",
+          enum: ["employee_remote", "virtual_assignment"],
+          description: "Type of request: employee-driven remote work or virtual assignment",
+        },
+        employee_name: {
+          type: "string",
+          description: "Full name of the employee",
+        },
+        employee_email: {
+          type: "string",
+          description: "Employee email (optional)",
+        },
+        job_title: {
+          type: "string",
+          description: "Employee's job title (optional)",
+        },
+        department: {
+          type: "string",
+          description: "Employee's department (optional)",
+        },
+        home_country: {
+          type: "string",
+          description: "Employee's home/origin country",
+        },
+        home_city: {
+          type: "string",
+          description: "Employee's home city (optional)",
+        },
+        host_country: {
+          type: "string",
+          description: "Country where the employee will work remotely",
+        },
+        host_city: {
+          type: "string",
+          description: "City where the employee will work remotely (optional)",
+        },
+        start_date: {
+          type: "string",
+          description: "Start date in YYYY-MM-DD format",
+        },
+        end_date: {
+          type: "string",
+          description: "End date in YYYY-MM-DD format (optional for indefinite)",
+        },
+        duration_type: {
+          type: "string",
+          enum: ["short_term", "extended", "indefinite"],
+          description: "Duration category. Defaults to short_term.",
+        },
+        purpose: {
+          type: "string",
+          description: "Purpose of the remote work (optional)",
+        },
+        business_justification: {
+          type: "string",
+          description: "Business justification (optional)",
+        },
+        notes: {
+          type: "string",
+          description: "Additional notes (optional)",
+        },
+      },
+      required: ["request_type", "employee_name", "home_country", "host_country", "start_date"],
+      additionalProperties: false,
+    },
+  },
+};
+
+const CREATE_TRIP_TOOL = {
+  type: "function",
+  function: {
+    name: "create_trip",
+    description:
+      "Create a new pre-travel assessment trip for compliance evaluation. Call this when the user wants to initiate a business trip for compliance screening. At minimum requires: traveler_name and at least one segment with origin_country, destination_country, start_date, and end_date.",
+    parameters: {
+      type: "object",
+      properties: {
+        traveler_name: {
+          type: "string",
+          description: "Full name of the traveler",
+        },
+        traveler_email: {
+          type: "string",
+          description: "Traveler's email (optional)",
+        },
+        citizenship: {
+          type: "string",
+          description: "Traveler's citizenship country (optional)",
+        },
+        passport_country: {
+          type: "string",
+          description: "Passport issuing country (optional)",
+        },
+        residency_country: {
+          type: "string",
+          description: "Country of residency (optional)",
+        },
+        purpose: {
+          type: "string",
+          description: "Purpose of the trip (optional)",
+        },
+        notes: {
+          type: "string",
+          description: "Additional notes (optional)",
+        },
+        segments: {
+          type: "array",
+          description: "Array of trip segments (itinerary legs). At least one is required.",
+          items: {
+            type: "object",
+            properties: {
+              origin_country: { type: "string", description: "Departure country" },
+              origin_city: { type: "string", description: "Departure city (optional)" },
+              destination_country: { type: "string", description: "Arrival country" },
+              destination_city: { type: "string", description: "Arrival city (optional)" },
+              start_date: { type: "string", description: "Start date YYYY-MM-DD" },
+              end_date: { type: "string", description: "End date YYYY-MM-DD" },
+              activity_type: {
+                type: "string",
+                description: "Activity type e.g. client_meeting, conference, project_work, training. Defaults to client_meeting.",
+              },
+              activity_description: { type: "string", description: "Description of activity (optional)" },
+            },
+            required: ["origin_country", "destination_country", "start_date", "end_date"],
+          },
+        },
+      },
+      required: ["traveler_name", "segments"],
+      additionalProperties: false,
+    },
+  },
+};
+
 function handleAIError(status: number) {
   if (status === 429) {
     return new Response(
@@ -382,7 +525,7 @@ serve(async (req) => {
     let contextBlock = "";
     let policiesData: any[] = [];
     if (includeContext) {
-      const [policiesRes, simulationsRes, calculationsRes, lookupTablesRes] = await Promise.all([
+      const [policiesRes, simulationsRes, calculationsRes, lookupTablesRes, remoteWorkRes, tripsRes] = await Promise.all([
         supabase
           .from("policies")
           .select("id, name, status, tier, tax_approach, description")
@@ -402,18 +545,50 @@ serve(async (req) => {
           .select("id, name, description, columns")
           .limit(50),
         supabase
-          .from("calculation_fields")
-          .select("id, calculation_id, name, label, field_type, default_value, position")
-          .order("position"),
+          .from("remote_work_requests")
+          .select("id, request_code, request_type, employee_name, home_country, home_city, host_country, host_city, start_date, end_date, duration_type, status, overall_risk_level, purpose")
+          .order("created_at", { ascending: false })
+          .limit(30),
+        supabase
+          .from("trips")
+          .select("id, trip_code, traveler_name, status, purpose, created_at")
+          .order("created_at", { ascending: false })
+          .limit(30),
       ]);
 
       policiesData = policiesRes.data ?? [];
       const simulations = simulationsRes.data ?? [];
       const calculations = calculationsRes.data ?? [];
       const lookupTables = lookupTablesRes.data ?? [];
-      const calcFields = (calculationsRes as any).__calcFieldsRes?.data ?? [];
+      const remoteWorkRequests = remoteWorkRes.data ?? [];
+      const trips = tripsRes.data ?? [];
 
-      // Build a separate request for calculation fields since we need to join
+      // Fetch trip segments for context
+      let tripSegmentsBlock = "";
+      if (trips.length > 0) {
+        const tripIds = trips.map((t: any) => t.id);
+        const { data: segments } = await supabase
+          .from("trip_segments")
+          .select("trip_id, origin_country, origin_city, destination_country, destination_city, start_date, end_date, activity_type")
+          .in("trip_id", tripIds)
+          .order("segment_order");
+        
+        const segsByTrip = (segments ?? []).reduce((acc: Record<string, any[]>, s: any) => {
+          if (!acc[s.trip_id]) acc[s.trip_id] = [];
+          acc[s.trip_id].push(s);
+          return acc;
+        }, {});
+
+        tripSegmentsBlock = trips.map((t: any) => {
+          const segs = segsByTrip[t.id] ?? [];
+          const segsStr = segs.length
+            ? segs.map((s: any) => `    ${s.origin_country}${s.origin_city ? ` (${s.origin_city})` : ""} → ${s.destination_country}${s.destination_city ? ` (${s.destination_city})` : ""}, ${s.start_date} to ${s.end_date}, activity=${s.activity_type}`).join("\n")
+            : "    (no segments)";
+          return `- ${t.trip_code}: ${t.traveler_name} [${t.status}]${t.purpose ? `, purpose: ${t.purpose}` : ""}\n  Segments:\n${segsStr}`;
+        }).join("\n");
+      }
+
+      // Build calculation fields context
       const { data: allCalcFields } = await supabase
         .from("calculation_fields")
         .select("id, calculation_id, name, label, field_type, default_value, position")
@@ -424,10 +599,10 @@ serve(async (req) => {
         return acc;
       }, {});
 
-      // Fetch rows for each lookup table (limit per table to keep context manageable)
+      // Fetch rows for each lookup table
       let lookupDetails = "";
       if (lookupTables.length > 0) {
-        const rowPromises = lookupTables.map((lt) =>
+        const rowPromises = lookupTables.map((lt: any) =>
           supabase
             .from("lookup_table_rows")
             .select("id, row_data")
@@ -438,14 +613,14 @@ serve(async (req) => {
         const rowResults = await Promise.all(rowPromises);
 
         lookupDetails = lookupTables
-          .map((lt, idx) => {
+          .map((lt: any, idx: number) => {
             const cols = Array.isArray(lt.columns)
               ? lt.columns.map((c: any) => c.name || c).join(", ")
               : "unknown columns";
             const rows = rowResults[idx]?.data ?? [];
             const rowsStr = rows.length
               ? rows
-                  .map((r) => {
+                  .map((r: any) => {
                     const d = r.row_data as Record<string, any>;
                     return `  [row_id=${r.id}] ` + Object.entries(d).map(([k, v]) => `${k}=${v}`).join(", ");
                   })
@@ -456,18 +631,42 @@ serve(async (req) => {
           .join("\n\n");
       }
 
+      // Fetch remote work risk assessments for recent requests
+      let rwRiskBlock = "";
+      if (remoteWorkRequests.length > 0) {
+        const rwIds = remoteWorkRequests.slice(0, 10).map((r: any) => r.id);
+        const { data: risks } = await supabase
+          .from("remote_work_risk_assessments")
+          .select("request_id, category, risk_level, summary")
+          .in("request_id", rwIds);
+        
+        const risksByReq = (risks ?? []).reduce((acc: Record<string, any[]>, r: any) => {
+          if (!acc[r.request_id]) acc[r.request_id] = [];
+          acc[r.request_id].push(r);
+          return acc;
+        }, {});
+
+        rwRiskBlock = remoteWorkRequests.map((r: any) => {
+          const reqRisks = risksByReq[r.id] ?? [];
+          const risksStr = reqRisks.length
+            ? "\n  Risk assessments: " + reqRisks.map((rk: any) => `${rk.category}=${rk.risk_level}${rk.summary ? ` (${rk.summary})` : ""}`).join("; ")
+            : "";
+          return `- ${r.request_code}: ${r.employee_name} [${r.status}] ${r.home_country}${r.home_city ? ` (${r.home_city})` : ""} → ${r.host_country}${r.host_city ? ` (${r.host_city})` : ""}, ${r.start_date}${r.end_date ? ` to ${r.end_date}` : " (indefinite)"}, type=${r.request_type}, duration=${r.duration_type}, risk=${r.overall_risk_level || "pending"}${r.purpose ? `, purpose: ${r.purpose}` : ""}${risksStr}`;
+        }).join("\n");
+      }
+
       contextBlock = `
 
 ## User's Current Data
 
 ### Policies (${policiesData.length})
-${policiesData.length ? policiesData.map((p) => `- "${p.name}" (id=${p.id}) [${p.status}] tier=${p.tier}, tax=${p.tax_approach}${p.description ? `, desc: ${p.description}` : ""}`).join("\n") : "No policies found."}
+${policiesData.length ? policiesData.map((p: any) => `- "${p.name}" (id=${p.id}) [${p.status}] tier=${p.tier}, tax=${p.tax_approach}${p.description ? `, desc: ${p.description}` : ""}`).join("\n") : "No policies found."}
 
 ### Simulations (${simulations.length})
-${simulations.length ? simulations.map((s) => `- ${s.sim_code}: ${s.employee_name} [${s.status}] ${s.origin_country}→${s.destination_country}, ${s.assignment_type}, salary=${s.base_salary} ${s.currency}${s.total_cost ? `, total=${s.total_cost}` : ""}`).join("\n") : "No simulations found."}
+${simulations.length ? simulations.map((s: any) => `- ${s.sim_code}: ${s.employee_name} [${s.status}] ${s.origin_country}→${s.destination_country}, ${s.assignment_type}, salary=${s.base_salary} ${s.currency}${s.total_cost ? `, total=${s.total_cost}` : ""}`).join("\n") : "No simulations found."}
 
 ### Calculations (${calculations.length})
-${calculations.length ? calculations.map((c) => {
+${calculations.length ? calculations.map((c: any) => {
   const fields = calcFieldsByCalc[c.id] ?? [];
   const fieldsStr = fields.length
     ? "\n  Fields:\n" + fields.map((f: any) => `    - [field_id=${f.id}] "${f.label}" (name=${f.name}, type=${f.field_type}${f.default_value ? `, default=${f.default_value}` : ""}, pos=${f.position})`).join("\n")
@@ -477,17 +676,28 @@ ${calculations.length ? calculations.map((c) => {
 
 ### Lookup Tables (${lookupTables.length})
 ${lookupTables.length ? lookupDetails : "No lookup tables found."}
+
+### Remote Work Requests (${remoteWorkRequests.length})
+${remoteWorkRequests.length ? rwRiskBlock : "No remote work requests found."}
+
+### Pre-Travel Trips (${trips.length})
+${trips.length ? tripSegmentsBlock : "No trips found."}
 `;
     }
 
-    const systemPrompt = `You are the AI assistant for a Global Mobility Cost Simulation platform. You help HR and mobility professionals understand and manage:
+    const systemPrompt = `You are the AI assistant for a Global Mobility platform. You help HR and mobility professionals understand and manage:
 - **Policies**: Assignment policies defining benefit packages, tiers, and tax approaches
 - **Simulations**: Cost projections for international employee assignments
 - **Calculations**: Benefit formulas (housing, COLA, tax equalization, etc.)
 - **Tax**: Tax equalization, hypothetical tax, gross-up methods
 - **Lookup Tables**: Reference data used in calculations (exchange rates, tax brackets, housing indices, COLA rates, etc.)
+- **Remote Work**: Remote work requests and virtual assignments with risk assessments across immigration, tax, social security, and permanent establishment
+- **Pre-Travel**: Business trip compliance assessments covering immigration, Schengen 90/180-day limits, and Posted Workers Directive (PWD)
 
-You have access to the user's actual data including lookup table contents. When answering questions about rates, allowances, or reference data, look up the relevant lookup table and cite specific values. For exchange rate questions, refer to the Exchange Rates table if available.
+You have access to the user's actual data including lookup table contents, remote work requests with risk assessments, and pre-travel trips with segments. When answering questions:
+- About remote work: cite specific risk levels and assessment categories. Advise on immigration, tax, social security, and PE implications for specific country corridors.
+- About pre-travel: reference trip segments, activity types, and compliance requirements for specific destinations.
+- About locations: provide guidance on tax implications, visa requirements, social security treaties, and compliance risks for specific countries.
 
 You have a tool called \`create_draft_simulation\` to create draft simulations. When the user wants to create a simulation:
 1. Gather the required info conversationally: employee name, origin country, destination country, and assignment type.
@@ -495,25 +705,36 @@ You have a tool called \`create_draft_simulation\` to create draft simulations. 
 3. Once you have enough info (at least the 4 required fields), call the tool immediately.
 4. If the user says something like "use defaults for the rest", go ahead and create with what you have.
 
+You have a tool called \`create_remote_work_request\` to create remote work requests. When the user wants to initiate remote work:
+1. Gather the required info: employee name, home country, host country, start date, and request type (employee_remote or virtual_assignment).
+2. Ask about optional details: cities, end date, duration type, purpose, job title, department.
+3. Once you have enough info, call the tool immediately.
+4. Explain the risk categories that will be assessed: Immigration, Tax, Social Security, and Permanent Establishment.
+
+You have a tool called \`create_trip\` to create pre-travel compliance trips. When the user wants to create a trip:
+1. Gather the required info: traveler name and at least one segment (origin country, destination country, start date, end date).
+2. Ask about optional details: citizenship, passport country, purpose, activity type.
+3. Once you have enough info, call the tool immediately. You can create multi-segment itineraries.
+4. Explain that assessments will run for Immigration, Schengen limits, and PWD.
+
 You also have tools to manage lookup table data (admin only):
-- \`add_lookup_table_row\`: Add a new row to a lookup table. Requires the lookup_table_id (from context) and row_data matching the table's columns.
-- \`update_lookup_table_row\`: Update an existing row. Requires the row_id (shown as [row_id=...] in context) and the fields to change. Only provided fields are updated; others are preserved.
+- \`add_lookup_table_row\`: Add a new row to a lookup table.
+- \`update_lookup_table_row\`: Update an existing row.
 
 You also have tools to manage calculations and their fields (admin only):
-- \`update_calculation\`: Update a calculation's name, description, category, or formula. Requires the calculation id from context.
-- \`update_calculation_field\`: Update a calculation field's label, name, field_type, default_value, or position. Requires the field_id (shown as [field_id=...] in context).
+- \`update_calculation\`: Update a calculation's name, description, category, or formula.
+- \`update_calculation_field\`: Update a calculation field's properties.
 
 You also have tools to manage policies (admin only):
-- \`create_policy\`: Create a new draft policy. At minimum requires a name. You can optionally include tier, description, tax_approach, and benefit_components. When the user wants to upload or create a policy, gather details conversationally and create it. After creation, offer to add benefit components or publish.
-- \`update_policy\`: Update an existing policy. Can change name, description, tier, tax_approach, status, or benefit_components. Use this to configure/publish a policy. Requires the policy_id from context.
+- \`create_policy\`: Create a new draft policy.
+- \`update_policy\`: Update an existing policy.
 
-When creating a policy, guide the user through configuration:
-1. Create the draft policy with basic info (name, tier, description, tax approach)
-2. Offer to add benefit components (housing, COLA, tax, relocation, etc.)
-3. Ask if they want to link calculations to components
-4. Offer to publish when configuration is complete
+When modifying data, confirm the action with the user before calling the tool. Each item in the context includes its id for reference.
 
-When modifying data (lookup tables, calculations, fields, policies), confirm the action with the user before calling the tool. Each item in the context includes its id for reference.
+When the user asks about a specific location or country corridor:
+- Provide relevant tax treaty information, visa/work permit requirements, social security implications, and PE risk factors.
+- Reference any existing remote work requests or trips for that corridor from the data.
+- Suggest creating a request or trip if the user wants to proceed.
 
 Be concise, professional, and helpful. Use bullet points and formatting for clarity.
 ${contextBlock}`;
@@ -523,6 +744,18 @@ ${contextBlock}`;
       "Content-Type": "application/json",
     };
 
+    const allTools = [
+      CREATE_SIMULATION_TOOL,
+      ADD_LOOKUP_ROW_TOOL,
+      UPDATE_LOOKUP_ROW_TOOL,
+      UPDATE_CALCULATION_TOOL,
+      UPDATE_CALCULATION_FIELD_TOOL,
+      CREATE_POLICY_TOOL,
+      UPDATE_POLICY_TOOL,
+      CREATE_REMOTE_WORK_REQUEST_TOOL,
+      CREATE_TRIP_TOOL,
+    ];
+
     // Step 1: Non-streaming call with tools to check for tool usage
     const initialResponse = await fetch(AI_URL, {
       method: "POST",
@@ -530,7 +763,7 @@ ${contextBlock}`;
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: [{ role: "system", content: systemPrompt }, ...messages],
-        tools: [CREATE_SIMULATION_TOOL, ADD_LOOKUP_ROW_TOOL, UPDATE_LOOKUP_ROW_TOOL, UPDATE_CALCULATION_TOOL, UPDATE_CALCULATION_FIELD_TOOL, CREATE_POLICY_TOOL, UPDATE_POLICY_TOOL],
+        tools: allTools,
         stream: false,
       }),
     });
@@ -558,8 +791,6 @@ ${contextBlock}`;
       for (const tc of toolCalls) {
         if (tc.function.name === "create_draft_simulation") {
           const args = JSON.parse(tc.function.arguments);
-
-          // Use the tenant_id from the frontend request
           const tenantId = requestTenantId || null;
 
           const insertData: any = {
@@ -572,7 +803,6 @@ ${contextBlock}`;
             status: "draft",
           };
 
-          // Optional fields
           if (args.origin_city) insertData.origin_city = args.origin_city;
           if (args.destination_city) insertData.destination_city = args.destination_city;
           if (args.employee_id) insertData.employee_id = args.employee_id;
@@ -597,10 +827,7 @@ ${contextBlock}`;
             toolResults.push({
               tool_call_id: tc.id,
               role: "tool",
-              content: JSON.stringify({
-                success: false,
-                error: simError.message,
-              }),
+              content: JSON.stringify({ success: false, error: simError.message }),
             });
           } else {
             toolResults.push({
@@ -614,8 +841,165 @@ ${contextBlock}`;
               }),
             });
           }
+        } else if (tc.function.name === "create_remote_work_request") {
+          const args = JSON.parse(tc.function.arguments);
+          const tenantId = requestTenantId || null;
+
+          if (!tenantId) {
+            toolResults.push({
+              tool_call_id: tc.id,
+              role: "tool",
+              content: JSON.stringify({ success: false, error: "No active tenant. Please select a tenant first." }),
+            });
+            continue;
+          }
+
+          const insertData: any = {
+            request_type: args.request_type,
+            employee_name: String(args.employee_name).slice(0, 300),
+            home_country: args.home_country,
+            host_country: args.host_country,
+            start_date: args.start_date,
+            created_by: user.id,
+            tenant_id: tenantId,
+            status: "draft",
+            duration_type: args.duration_type || "short_term",
+          };
+
+          if (args.employee_email) insertData.employee_email = args.employee_email;
+          if (args.job_title) insertData.job_title = args.job_title;
+          if (args.department) insertData.department = args.department;
+          if (args.home_city) insertData.home_city = args.home_city;
+          if (args.host_city) insertData.host_city = args.host_city;
+          if (args.end_date) insertData.end_date = args.end_date;
+          if (args.purpose) insertData.purpose = args.purpose;
+          if (args.business_justification) insertData.business_justification = args.business_justification;
+          if (args.notes) insertData.notes = args.notes;
+
+          const { data: rw, error: rwError } = await supabase
+            .from("remote_work_requests")
+            .insert(insertData)
+            .select("id, request_code, employee_name")
+            .single();
+
+          if (rwError) {
+            console.error("Remote work insert error:", rwError);
+            toolResults.push({
+              tool_call_id: tc.id,
+              role: "tool",
+              content: JSON.stringify({ success: false, error: rwError.message }),
+            });
+          } else {
+            toolResults.push({
+              tool_call_id: tc.id,
+              role: "tool",
+              content: JSON.stringify({
+                success: true,
+                request_id: rw.id,
+                request_code: rw.request_code,
+                employee_name: rw.employee_name,
+              }),
+            });
+          }
+        } else if (tc.function.name === "create_trip") {
+          const args = JSON.parse(tc.function.arguments);
+          const tenantId = requestTenantId || null;
+
+          if (!tenantId) {
+            toolResults.push({
+              tool_call_id: tc.id,
+              role: "tool",
+              content: JSON.stringify({ success: false, error: "No active tenant. Please select a tenant first." }),
+            });
+            continue;
+          }
+
+          if (!args.segments || !Array.isArray(args.segments) || args.segments.length === 0) {
+            toolResults.push({
+              tool_call_id: tc.id,
+              role: "tool",
+              content: JSON.stringify({ success: false, error: "At least one trip segment is required." }),
+            });
+            continue;
+          }
+
+          const tripData: any = {
+            traveler_name: String(args.traveler_name).slice(0, 300),
+            created_by: user.id,
+            tenant_id: tenantId,
+            status: "draft",
+          };
+
+          if (args.traveler_email) tripData.traveler_email = args.traveler_email;
+          if (args.citizenship) tripData.citizenship = args.citizenship;
+          if (args.passport_country) tripData.passport_country = args.passport_country;
+          if (args.residency_country) tripData.residency_country = args.residency_country;
+          if (args.purpose) tripData.purpose = args.purpose;
+          if (args.notes) tripData.notes = args.notes;
+
+          const { data: trip, error: tripError } = await supabase
+            .from("trips")
+            .insert(tripData)
+            .select("id, trip_code, traveler_name")
+            .single();
+
+          if (tripError) {
+            console.error("Trip insert error:", tripError);
+            toolResults.push({
+              tool_call_id: tc.id,
+              role: "tool",
+              content: JSON.stringify({ success: false, error: tripError.message }),
+            });
+            continue;
+          }
+
+          // Insert segments
+          const segmentInserts = args.segments.map((seg: any, idx: number) => ({
+            trip_id: trip.id,
+            origin_country: seg.origin_country,
+            origin_city: seg.origin_city || null,
+            destination_country: seg.destination_country,
+            destination_city: seg.destination_city || null,
+            start_date: seg.start_date,
+            end_date: seg.end_date,
+            activity_type: seg.activity_type || "client_meeting",
+            activity_description: seg.activity_description || null,
+            segment_order: idx,
+          }));
+
+          const { error: segError } = await supabase
+            .from("trip_segments")
+            .insert(segmentInserts);
+
+          if (segError) {
+            console.error("Segment insert error:", segError);
+            // Trip was created but segments failed
+            toolResults.push({
+              tool_call_id: tc.id,
+              role: "tool",
+              content: JSON.stringify({
+                success: true,
+                trip_id: trip.id,
+                trip_code: trip.trip_code,
+                traveler_name: trip.traveler_name,
+                warning: "Trip created but some segments failed to save: " + segError.message,
+              }),
+            });
+          } else {
+            toolResults.push({
+              tool_call_id: tc.id,
+              role: "tool",
+              content: JSON.stringify({
+                success: true,
+                trip_id: trip.id,
+                trip_code: trip.trip_code,
+                traveler_name: trip.traveler_name,
+                segments_count: segmentInserts.length,
+              }),
+            });
+          }
         } else if (tc.function.name === "add_lookup_table_row" || tc.function.name === "update_lookup_table_row" || tc.function.name === "update_calculation" || tc.function.name === "update_calculation_field" || tc.function.name === "create_policy" || tc.function.name === "update_policy") {
-          // Admin-level check: only admin or superadmin can mutate data via chat
+          // Admin-level check
           const { data: userRoles, error: roleErr } = await supabase
             .from("user_roles")
             .select("role")
@@ -636,210 +1020,98 @@ ${contextBlock}`;
             continue;
           }
 
-          // Use service role client for admin mutations to bypass RLS
           const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
           const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
           if (tc.function.name === "add_lookup_table_row") {
-          const args = JSON.parse(tc.function.arguments);
+            const args = JSON.parse(tc.function.arguments);
+            if (!args.row_data || typeof args.row_data !== "object" || Array.isArray(args.row_data)) {
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: false, error: "row_data must be a JSON object" }) });
+              continue;
+            }
+            const sanitized: Record<string, any> = {};
+            for (const [k, v] of Object.entries(args.row_data)) {
+              const key = String(k).slice(0, 100);
+              sanitized[key] = typeof v === "string" ? v.slice(0, 500) : v;
+            }
+            const { data: lastRow } = await adminClient
+              .from("lookup_table_rows").select("row_order").eq("lookup_table_id", args.lookup_table_id)
+              .order("row_order", { ascending: false }).limit(1).single();
+            const nextOrder = (lastRow?.row_order ?? -1) + 1;
+            const { data: newRow, error: rowError } = await adminClient
+              .from("lookup_table_rows").insert({ lookup_table_id: args.lookup_table_id, row_data: sanitized, row_order: nextOrder })
+              .select("id").single();
+            if (rowError) {
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: false, error: rowError.message }) });
+            } else {
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: true, row_id: newRow.id, row_data: sanitized }) });
+            }
 
-          // Validate row_data is a plain object
-          if (!args.row_data || typeof args.row_data !== "object" || Array.isArray(args.row_data)) {
-            toolResults.push({
-              tool_call_id: tc.id,
-              role: "tool",
-              content: JSON.stringify({ success: false, error: "row_data must be a JSON object" }),
-            });
-            continue;
-          }
-
-          // Sanitize values: trim strings, limit length
-          const sanitized: Record<string, any> = {};
-          for (const [k, v] of Object.entries(args.row_data)) {
-            const key = String(k).slice(0, 100);
-            sanitized[key] = typeof v === "string" ? v.slice(0, 500) : v;
-          }
-
-          // Get next row_order
-          const { data: lastRow } = await adminClient
-            .from("lookup_table_rows")
-            .select("row_order")
-            .eq("lookup_table_id", args.lookup_table_id)
-            .order("row_order", { ascending: false })
-            .limit(1)
-            .single();
-
-          const nextOrder = (lastRow?.row_order ?? -1) + 1;
-
-          const { data: newRow, error: rowError } = await adminClient
-            .from("lookup_table_rows")
-            .insert({
-              lookup_table_id: args.lookup_table_id,
-              row_data: sanitized,
-              row_order: nextOrder,
-            })
-            .select("id")
-            .single();
-
-          if (rowError) {
-            console.error("Lookup row insert error:", rowError);
-            toolResults.push({
-              tool_call_id: tc.id,
-              role: "tool",
-              content: JSON.stringify({ success: false, error: rowError.message }),
-            });
-          } else {
-            toolResults.push({
-              tool_call_id: tc.id,
-              role: "tool",
-              content: JSON.stringify({
-                success: true,
-                row_id: newRow.id,
-                row_data: sanitized,
-              }),
-            });
-          }
           } else if (tc.function.name === "update_lookup_table_row") {
-          const args = JSON.parse(tc.function.arguments);
+            const args = JSON.parse(tc.function.arguments);
+            if (!args.row_data || typeof args.row_data !== "object" || Array.isArray(args.row_data)) {
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: false, error: "row_data must be a JSON object" }) });
+              continue;
+            }
+            const { data: existingRow, error: fetchErr } = await adminClient
+              .from("lookup_table_rows").select("row_data").eq("id", args.row_id).single();
+            if (fetchErr || !existingRow) {
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: false, error: fetchErr?.message || "Row not found" }) });
+              continue;
+            }
+            const existingData = (existingRow.row_data as Record<string, any>) || {};
+            const mergedData: Record<string, any> = { ...existingData };
+            for (const [k, v] of Object.entries(args.row_data)) {
+              const key = String(k).slice(0, 100);
+              mergedData[key] = typeof v === "string" ? v.slice(0, 500) : v;
+            }
+            const { error: updateErr } = await adminClient.from("lookup_table_rows").update({ row_data: mergedData }).eq("id", args.row_id);
+            if (updateErr) {
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: false, error: updateErr.message }) });
+            } else {
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: true, row_id: args.row_id, updated_data: mergedData }) });
+            }
 
-          if (!args.row_data || typeof args.row_data !== "object" || Array.isArray(args.row_data)) {
-            toolResults.push({
-              tool_call_id: tc.id,
-              role: "tool",
-              content: JSON.stringify({ success: false, error: "row_data must be a JSON object" }),
-            });
-            continue;
-          }
-
-          // Fetch existing row first to merge
-          const { data: existingRow, error: fetchErr } = await adminClient
-            .from("lookup_table_rows")
-            .select("row_data")
-            .eq("id", args.row_id)
-            .single();
-
-          if (fetchErr || !existingRow) {
-            toolResults.push({
-              tool_call_id: tc.id,
-              role: "tool",
-              content: JSON.stringify({ success: false, error: fetchErr?.message || "Row not found" }),
-            });
-            continue;
-          }
-
-          // Merge: existing values + new values (new overwrites)
-          const existingData = (existingRow.row_data as Record<string, any>) || {};
-          const mergedData: Record<string, any> = { ...existingData };
-          for (const [k, v] of Object.entries(args.row_data)) {
-            const key = String(k).slice(0, 100);
-            mergedData[key] = typeof v === "string" ? v.slice(0, 500) : v;
-          }
-
-          const { error: updateErr } = await adminClient
-            .from("lookup_table_rows")
-            .update({ row_data: mergedData })
-            .eq("id", args.row_id);
-
-          if (updateErr) {
-            console.error("Lookup row update error:", updateErr);
-            toolResults.push({
-              tool_call_id: tc.id,
-              role: "tool",
-              content: JSON.stringify({ success: false, error: updateErr.message }),
-            });
-          } else {
-            toolResults.push({
-              tool_call_id: tc.id,
-              role: "tool",
-              content: JSON.stringify({
-                success: true,
-                row_id: args.row_id,
-                updated_data: mergedData,
-              }),
-            });
-          }
           } else if (tc.function.name === "update_calculation") {
             const args = JSON.parse(tc.function.arguments);
-
             const updateData: Record<string, any> = {};
             if (args.name) updateData.name = String(args.name).slice(0, 200);
             if (args.description !== undefined) updateData.description = args.description ? String(args.description).slice(0, 1000) : null;
             if (args.category !== undefined) updateData.category = args.category ? String(args.category).slice(0, 100) : null;
             if (args.formula) updateData.formula = String(args.formula).slice(0, 5000);
-
             if (Object.keys(updateData).length === 0) {
-              toolResults.push({
-                tool_call_id: tc.id,
-                role: "tool",
-                content: JSON.stringify({ success: false, error: "No fields to update. Provide at least one of: name, description, category, formula." }),
-              });
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: false, error: "No fields to update." }) });
               continue;
             }
-
-            const { error: calcErr } = await adminClient
-              .from("calculations")
-              .update(updateData)
-              .eq("id", args.calculation_id);
-
+            const { error: calcErr } = await adminClient.from("calculations").update(updateData).eq("id", args.calculation_id);
             if (calcErr) {
-              console.error("Calculation update error:", calcErr);
-              toolResults.push({
-                tool_call_id: tc.id,
-                role: "tool",
-                content: JSON.stringify({ success: false, error: calcErr.message }),
-              });
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: false, error: calcErr.message }) });
             } else {
-              toolResults.push({
-                tool_call_id: tc.id,
-                role: "tool",
-                content: JSON.stringify({ success: true, calculation_id: args.calculation_id, updated_fields: updateData }),
-              });
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: true, calculation_id: args.calculation_id, updated_fields: updateData }) });
             }
 
           } else if (tc.function.name === "update_calculation_field") {
             const args = JSON.parse(tc.function.arguments);
-
             const updateData: Record<string, any> = {};
             if (args.label) updateData.label = String(args.label).slice(0, 200);
             if (args.name) updateData.name = String(args.name).slice(0, 200);
             if (args.field_type) updateData.field_type = String(args.field_type).slice(0, 50);
             if (args.default_value !== undefined) updateData.default_value = args.default_value !== null ? String(args.default_value).slice(0, 500) : null;
             if (args.position !== undefined) updateData.position = Number(args.position);
-
             if (Object.keys(updateData).length === 0) {
-              toolResults.push({
-                tool_call_id: tc.id,
-                role: "tool",
-                content: JSON.stringify({ success: false, error: "No fields to update. Provide at least one of: label, name, field_type, default_value, position." }),
-              });
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: false, error: "No fields to update." }) });
               continue;
             }
-
-            const { error: fieldErr } = await adminClient
-              .from("calculation_fields")
-              .update(updateData)
-              .eq("id", args.field_id);
-
+            const { error: fieldErr } = await adminClient.from("calculation_fields").update(updateData).eq("id", args.field_id);
             if (fieldErr) {
-              console.error("Calculation field update error:", fieldErr);
-              toolResults.push({
-                tool_call_id: tc.id,
-                role: "tool",
-                content: JSON.stringify({ success: false, error: fieldErr.message }),
-              });
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: false, error: fieldErr.message }) });
             } else {
-              toolResults.push({
-                tool_call_id: tc.id,
-                role: "tool",
-                content: JSON.stringify({ success: true, field_id: args.field_id, updated_fields: updateData }),
-              });
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: true, field_id: args.field_id, updated_fields: updateData }) });
             }
+
           } else if (tc.function.name === "create_policy") {
             const args = JSON.parse(tc.function.arguments);
-
-            // Use the tenant_id from the frontend request
             const tenantId = requestTenantId || null;
-
             const policyData: Record<string, any> = {
               name: String(args.name).slice(0, 300),
               created_by: user.id,
@@ -848,7 +1120,6 @@ ${contextBlock}`;
               tier: args.tier || "custom",
               tax_approach: args.tax_approach || "tax-equalization",
             };
-
             if (args.description) policyData.description = String(args.description).slice(0, 2000);
             if (args.benefit_components && Array.isArray(args.benefit_components)) {
               policyData.benefit_components = args.benefit_components.slice(0, 50).map((c: any) => ({
@@ -859,37 +1130,16 @@ ${contextBlock}`;
                 amount: String(c.amount || "").slice(0, 100),
               }));
             }
-
             const { data: newPolicy, error: policyErr } = await adminClient
-              .from("policies")
-              .insert(policyData)
-              .select("id, name, status, tier")
-              .single();
-
+              .from("policies").insert(policyData).select("id, name, status, tier").single();
             if (policyErr) {
-              console.error("Policy create error:", policyErr);
-              toolResults.push({
-                tool_call_id: tc.id,
-                role: "tool",
-                content: JSON.stringify({ success: false, error: policyErr.message }),
-              });
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: false, error: policyErr.message }) });
             } else {
-              toolResults.push({
-                tool_call_id: tc.id,
-                role: "tool",
-                content: JSON.stringify({
-                  success: true,
-                  policy_id: newPolicy.id,
-                  policy_name: newPolicy.name,
-                  status: newPolicy.status,
-                  tier: newPolicy.tier,
-                }),
-              });
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: true, policy_id: newPolicy.id, policy_name: newPolicy.name, status: newPolicy.status, tier: newPolicy.tier }) });
             }
 
           } else if (tc.function.name === "update_policy") {
             const args = JSON.parse(tc.function.arguments);
-
             const updateData: Record<string, any> = {};
             if (args.name) updateData.name = String(args.name).slice(0, 300);
             if (args.description !== undefined) updateData.description = args.description ? String(args.description).slice(0, 2000) : null;
@@ -906,45 +1156,25 @@ ${contextBlock}`;
                 calculationId: c.calculationId || null,
               }));
             }
-
             if (Object.keys(updateData).length === 0) {
-              toolResults.push({
-                tool_call_id: tc.id,
-                role: "tool",
-                content: JSON.stringify({ success: false, error: "No fields to update." }),
-              });
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: false, error: "No fields to update." }) });
               continue;
             }
-
-            const { error: polErr } = await adminClient
-              .from("policies")
-              .update(updateData)
-              .eq("id", args.policy_id);
-
+            const { error: polErr } = await adminClient.from("policies").update(updateData).eq("id", args.policy_id);
             if (polErr) {
-              console.error("Policy update error:", polErr);
-              toolResults.push({
-                tool_call_id: tc.id,
-                role: "tool",
-                content: JSON.stringify({ success: false, error: polErr.message }),
-              });
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: false, error: polErr.message }) });
             } else {
-              toolResults.push({
-                tool_call_id: tc.id,
-                role: "tool",
-                content: JSON.stringify({ success: true, policy_id: args.policy_id, updated_fields: updateData }),
-              });
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: true, policy_id: args.policy_id, updated_fields: updateData }) });
             }
-
-          } // end inner tool dispatch
-        } // end admin-checked tools
+          }
+        }
       }
 
       // Step 3: Stream the follow-up response with tool results
       const followUpMessages = [
         { role: "system", content: systemPrompt },
         ...messages,
-        choice.message, // assistant message with tool_calls
+        choice.message,
         ...toolResults,
       ];
 
@@ -970,7 +1200,7 @@ ${contextBlock}`;
         );
       }
 
-      // Prepend custom events for each created entity, then pipe the AI stream
+      // Prepend custom events for each created entity
       const customEvents: string[] = [];
       for (const tr of toolResults) {
         const parsed = JSON.parse(tr.content);
@@ -993,12 +1223,29 @@ ${contextBlock}`;
             })}\n\n`
           );
         }
+        if (parsed.success && parsed.request_id) {
+          customEvents.push(
+            `event: remote_work_created\ndata: ${JSON.stringify({
+              id: parsed.request_id,
+              request_code: parsed.request_code,
+              employee_name: parsed.employee_name,
+            })}\n\n`
+          );
+        }
+        if (parsed.success && parsed.trip_id) {
+          customEvents.push(
+            `event: trip_created\ndata: ${JSON.stringify({
+              id: parsed.trip_id,
+              trip_code: parsed.trip_code,
+              traveler_name: parsed.traveler_name,
+            })}\n\n`
+          );
+        }
       }
 
       const encoder = new TextEncoder();
       const prefixBytes = encoder.encode(customEvents.join(""));
 
-      // Create a combined stream: prefix events + AI stream
       const aiBody = followUpResponse.body!;
       const combinedStream = new ReadableStream({
         async start(controller) {
@@ -1018,8 +1265,7 @@ ${contextBlock}`;
       });
     }
 
-    // No tool calls — re-stream a normal response
-    // Since we already consumed the non-streaming response, return it as SSE
+    // No tool calls — return as SSE
     const content = choice?.message?.content || "";
     const ssePayload = `data: ${JSON.stringify({
       choices: [{ delta: { content } }],
