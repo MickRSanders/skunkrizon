@@ -223,8 +223,8 @@ export default function LocationMap({ onRequestFromLocation }: LocationMapProps)
         {/* SVG Map */}
         <div
           ref={containerRef}
-          className="select-none"
-          style={{ cursor: isPanning ? "grabbing" : "grab" }}
+          className="select-none mx-3 mb-1 rounded-lg overflow-hidden border border-border/50"
+          style={{ cursor: isPanning ? "grabbing" : "grab", boxShadow: "inset 0 2px 8px rgba(0,0,0,0.04)" }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -237,22 +237,39 @@ export default function LocationMap({ onRequestFromLocation }: LocationMapProps)
           <svg
             viewBox={`${vbX.toFixed(1)} ${vbY.toFixed(1)} ${vbW.toFixed(1)} ${vbH.toFixed(1)}`}
             className="w-full h-auto"
-            style={{ minHeight: 320 }}
+            style={{ minHeight: 340 }}
             preserveAspectRatio="xMidYMid meet"
           >
-            {/* Ocean background */}
-            <rect x={-200} y={-200} width={W + 400} height={H + 400} fill="hsl(var(--muted))" opacity={0.25} />
+            <defs>
+              <linearGradient id="ocean-gradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="hsl(210, 60%, 95%)" />
+                <stop offset="100%" stopColor="hsl(200, 40%, 90%)" />
+              </linearGradient>
+              <linearGradient id="land-gradient" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="hsl(var(--secondary))" />
+                <stop offset="100%" stopColor="hsl(var(--muted))" />
+              </linearGradient>
+              <filter id="land-shadow">
+                <feDropShadow dx="0" dy="0.5" stdDeviation="0.8" floodColor="hsl(var(--foreground))" floodOpacity="0.08" />
+              </filter>
+            </defs>
 
-            {/* Country outlines */}
+            {/* Ocean background */}
+            <rect x={-200} y={-200} width={W + 400} height={H + 400} fill="url(#ocean-gradient)" />
+
+            {/* Country fills */}
             {countryPaths.map((d, i) => (
               <path
                 key={i}
                 d={d}
-                fill="hsl(var(--card))"
+                fill="url(#land-gradient)"
                 stroke="hsl(var(--muted-foreground))"
-                strokeWidth={0.5}
+                strokeWidth={0.4}
                 strokeLinejoin="round"
-                opacity={0.9}
+                strokeLinecap="round"
+                opacity={0.95}
+                filter="url(#land-shadow)"
+                style={{ transition: "opacity 0.2s" }}
               />
             ))}
 
@@ -437,7 +454,7 @@ function Graticule() {
   return (
     <>
       {lines.map((d, i) => (
-        <path key={i} d={d} fill="none" stroke="hsl(var(--border))" strokeWidth={0.3} opacity={0.4} />
+        <path key={i} d={d} fill="none" stroke="hsl(var(--border))" strokeWidth={0.25} opacity={0.35} strokeDasharray="2,4" />
       ))}
     </>
   );
