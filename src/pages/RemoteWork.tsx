@@ -27,6 +27,7 @@ import {
 import { format } from "date-fns";
 import PageTransition from "@/components/PageTransition";
 import CreateRemoteWorkDialog from "@/components/remotework/CreateRemoteWorkDialog";
+import LocationMap from "@/components/remotework/LocationMap";
 
 const statusConfig: Record<RemoteWorkStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ElementType }> = {
   draft: { label: "Draft", variant: "secondary", icon: Clock },
@@ -115,6 +116,9 @@ export default function RemoteWork() {
             {highRiskCount > 0 && <Shield className="w-5 h-5 text-destructive mt-1" />}
           </CardContent></Card>
         </div>
+
+        {/* Location Map */}
+        <LocationMap />
 
         {/* Toolbar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
