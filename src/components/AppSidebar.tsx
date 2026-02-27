@@ -30,34 +30,35 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenantContext } from "@/contexts/TenantContext";
+import { useTenantModulesForTenant, isModuleEnabled, type ModuleKey } from "@/hooks/useTenantModules";
 import { toast } from "sonner";
 
-const navItems = [
+const navItems: { to: string; icon: any; label: string; moduleKey?: ModuleKey }[] = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/simulations", icon: Calculator, label: "Cost Simulations" },
-  { to: "/pre-travel", icon: Plane, label: "Pre-Travel" },
-  { to: "/employees", icon: Contact, label: "Employees" },
-  { to: "/policies", icon: FileText, label: "Policy Agent" },
-  { to: "/analytics", icon: BarChart3, label: "Analytics" },
+  { to: "/simulations", icon: Calculator, label: "Cost Simulations", moduleKey: "simulations" },
+  { to: "/pre-travel", icon: Plane, label: "Pre-Travel", moduleKey: "pre_travel" },
+  { to: "/employees", icon: Contact, label: "Employees", moduleKey: "employees" },
+  { to: "/policies", icon: FileText, label: "Policy Agent", moduleKey: "policies" },
+  { to: "/analytics", icon: BarChart3, label: "Analytics", moduleKey: "analytics" },
 ];
 
-const dataMenuItems = [
-  { to: "/calculations", icon: FunctionSquare, label: "Calculations" },
-  { to: "/lookup-tables", icon: Table2, label: "Lookup Tables" },
-  { to: "/field-library", icon: BookOpen, label: "Field Library" },
-  { to: "/field-mappings", icon: Link2, label: "Field Mappings" },
-  { to: "/data-sources", icon: Cable, label: "Data Sources" },
+const dataMenuItems: { to: string; icon: any; label: string; moduleKey: ModuleKey }[] = [
+  { to: "/calculations", icon: FunctionSquare, label: "Calculations", moduleKey: "calculations" },
+  { to: "/lookup-tables", icon: Table2, label: "Lookup Tables", moduleKey: "lookup_tables" },
+  { to: "/field-library", icon: BookOpen, label: "Field Library", moduleKey: "field_library" },
+  { to: "/field-mappings", icon: Link2, label: "Field Mappings", moduleKey: "field_mappings" },
+  { to: "/data-sources", icon: Cable, label: "Data Sources", moduleKey: "data_sources" },
 ];
 
-const settingsMenuItems = [
-  { to: "/settings", icon: Settings, label: "General" },
-  { to: "/documents", icon: ClipboardList, label: "Documents" },
-  { to: "/cost-estimate-templates", icon: FileText, label: "Cost Estimate Templates" },
-  { to: "/settings/roles", icon: Shield, label: "Roles & Permissions" },
-  { to: "/tax-engine", icon: Globe, label: "Tax Engine" },
-  { to: "/users", icon: Users, label: "User Management" },
-  { to: "/tenants", icon: Building2, label: "Organizations" },
-  { to: "/audit-log", icon: ClipboardList, label: "Audit Log" },
+const settingsMenuItems: { to: string; icon: any; label: string; moduleKey: ModuleKey }[] = [
+  { to: "/settings", icon: Settings, label: "General", moduleKey: "settings" },
+  { to: "/documents", icon: ClipboardList, label: "Documents", moduleKey: "documents" },
+  { to: "/cost-estimate-templates", icon: FileText, label: "Cost Estimate Templates", moduleKey: "cost_estimate_templates" },
+  { to: "/settings/roles", icon: Shield, label: "Roles & Permissions", moduleKey: "roles_permissions" },
+  { to: "/tax-engine", icon: Globe, label: "Tax Engine", moduleKey: "tax_engine" },
+  { to: "/users", icon: Users, label: "User Management", moduleKey: "user_management" },
+  { to: "/tenants", icon: Building2, label: "Organizations", moduleKey: "tenant_management" },
+  { to: "/audit-log", icon: ClipboardList, label: "Audit Log", moduleKey: "audit_log" },
 ];
 
 export default function AppSidebar() {
@@ -65,7 +66,17 @@ export default function AppSidebar() {
   const location = useLocation();
   const { signOut, profile } = useAuth();
   const { tenants, activeTenant, activeSubTenant, subTenants, switchTenant, switchSubTenant, isSuperadmin } = useTenantContext();
+  const { data: tenantModules } = useTenantModulesForTenant(activeTenant?.tenant_id);
   const tenantName = activeTenant?.tenant_name;
+
+  const isModEnabled = (moduleKey?: ModuleKey) => {
+    if (!moduleKey) return true; // Dashboard always visible
+    return isModuleEnabled(tenantModules, moduleKey);
+  };
+
+  const filteredNavItems = navItems.filter((item) => isModEnabled(item.moduleKey));
+  const filteredDataItems = dataMenuItems.filter((item) => isModEnabled(item.moduleKey));
+  const filteredSettingsItems = settingsMenuItems.filter((item) => isModEnabled(item.moduleKey));
   const [tenantMenuOpen, setTenantMenuOpen] = useState(false);
   const [dataMenuOpen, setDataMenuOpen] = useState(
     dataMenuItems.some((item) => location.pathname.startsWith(item.to))
@@ -234,7 +245,7 @@ export default function AppSidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
-        {navItems.map((item) => {
+        {filteredNavItems.map((item) => {
           const isActive =
             location.pathname === item.to ||
             (item.to !== "/" && location.pathname.startsWith(item.to));
@@ -257,8 +268,8 @@ export default function AppSidebar() {
         })}
 
         {/* Data menu */}
-        {(() => {
-          const isDataActive = dataMenuItems.some((d) => location.pathname.startsWith(d.to));
+        {filteredDataItems.length > 0 && (() => {
+          const isDataActive = filteredDataItems.some((d) => location.pathname.startsWith(d.to));
           return (
             <div>
               <button
@@ -285,7 +296,7 @@ export default function AppSidebar() {
               </button>
               {dataMenuOpen && !collapsed && (
                 <div className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-2">
-                  {dataMenuItems.map((sub) => {
+                  {filteredDataItems.map((sub) => {
                     const subActive = location.pathname.startsWith(sub.to);
                     return (
                       <NavLink
@@ -310,8 +321,8 @@ export default function AppSidebar() {
         })()}
 
         {/* Settings menu */}
-        {(() => {
-          const isSettingsActive = settingsMenuItems.some((s) => location.pathname === s.to || (s.to !== "/" && location.pathname.startsWith(s.to)));
+        {filteredSettingsItems.length > 0 && (() => {
+          const isSettingsActive = filteredSettingsItems.some((s) => location.pathname === s.to || (s.to !== "/" && location.pathname.startsWith(s.to)));
           return (
             <div>
               <button
@@ -338,7 +349,7 @@ export default function AppSidebar() {
               </button>
               {settingsMenuOpen && !collapsed && (
                 <div className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-2">
-                  {settingsMenuItems.map((sub) => {
+                  {filteredSettingsItems.map((sub) => {
                     const subActive = location.pathname === sub.to || (sub.to !== "/" && location.pathname.startsWith(sub.to));
                     return (
                       <NavLink

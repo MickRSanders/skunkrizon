@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +29,7 @@ import {
   XCircle,
   Copy,
   Link,
+  LayoutGrid,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -46,6 +47,14 @@ import {
   type Tenant,
 } from "@/hooks/useTenants";
 import type { Json } from "@/integrations/supabase/types";
+import {
+  ALL_MODULE_KEYS,
+  MODULE_KEY_LABELS,
+  useTenantModulesForTenant,
+  useToggleTenantModule,
+  isModuleEnabled,
+  type ModuleKey,
+} from "@/hooks/useTenantModules";
 
 export default function TenantManagement() {
   const { data: tenants, isLoading } = useTenants();
@@ -220,6 +229,9 @@ function TenantDetail({
           <TabsTrigger value="settings" className="data-[state=active]:border-b-2 data-[state=active]:border-accent rounded-none py-3 text-xs">
             <Settings className="w-3.5 h-3.5 mr-1" /> Settings
           </TabsTrigger>
+          <TabsTrigger value="modules" className="data-[state=active]:border-b-2 data-[state=active]:border-accent rounded-none py-3 text-xs">
+            <LayoutGrid className="w-3.5 h-3.5 mr-1" /> Modules
+          </TabsTrigger>
         </TabsList>
 
         {/* Sub-Tenants Tab */}
@@ -347,6 +359,11 @@ function TenantDetail({
             <FieldDisplay label="Domain" value={tenant.domain} />
             <FieldDisplay label="Created" value={new Date(tenant.created_at).toLocaleDateString()} />
           </div>
+        </TabsContent>
+
+        {/* Modules Tab */}
+        <TabsContent value="modules" className="p-5 space-y-4">
+          <ModulesPanel tenantId={tenant.id} tenantName={tenant.name} />
         </TabsContent>
       </Tabs>
     </div>
@@ -670,6 +687,65 @@ function FieldDisplay({ label, value }: { label: string; value: string | null })
     <div className="space-y-1">
       <Label className="text-xs text-muted-foreground">{label}</Label>
       <p className="text-sm text-foreground">{value || <span className="text-muted-foreground italic">—</span>}</p>
+    </div>
+  );
+}
+
+// ─── Modules Panel ─────────────────────────────────────────────
+
+function ModulesPanel({ tenantId, tenantName }: { tenantId: string; tenantName: string }) {
+  const { data: modules, isLoading } = useTenantModulesForTenant(tenantId);
+  const toggleModule = useToggleTenantModule();
+
+  const handleToggle = useCallback(
+    (moduleKey: ModuleKey, currentEnabled: boolean) => {
+      toggleModule.mutate(
+        { tenantId, moduleKey, isEnabled: !currentEnabled },
+        {
+          onSuccess: () =>
+            toast.success(
+              `${MODULE_KEY_LABELS[moduleKey]} ${!currentEnabled ? "enabled" : "disabled"}`
+            ),
+          onError: (err: any) => toast.error(err.message || "Failed to update module"),
+        }
+      );
+    },
+    [tenantId, toggleModule]
+  );
+
+  if (isLoading) {
+    return (
+      <div className="py-8 flex justify-center">
+        <Loader2 className="w-5 h-5 animate-spin text-accent" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-muted-foreground">
+        Enable or disable modules for <span className="font-medium text-foreground">{tenantName}</span>. Disabled modules are hidden from the sidebar and inaccessible.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {ALL_MODULE_KEYS.map((key) => {
+          const enabled = isModuleEnabled(modules, key);
+          return (
+            <div
+              key={key}
+              className="flex items-center justify-between p-3 rounded-md border border-border bg-muted/20"
+            >
+              <span className="text-sm font-medium text-foreground">
+                {MODULE_KEY_LABELS[key]}
+              </span>
+              <Switch
+                checked={enabled}
+                onCheckedChange={() => handleToggle(key, enabled)}
+                disabled={toggleModule.isPending}
+              />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

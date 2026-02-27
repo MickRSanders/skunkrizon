@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { TenantProvider } from "@/contexts/TenantContext";
 import { TaxConfigProvider } from "@/contexts/TaxConfigContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import ModuleGuard from "@/components/ModuleGuard";
 import AppLayout from "./components/AppLayout";
 import Dashboard from "./pages/Dashboard";
 import Simulations from "./pages/Simulations";
@@ -49,26 +50,26 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/" element={<Dashboard />} />
-              <Route path="/simulations" element={<Simulations />} />
-              <Route path="/pre-travel" element={<PreTravel />} />
-              <Route path="/pre-travel/:id" element={<PreTravelDetail />} />
-              <Route path="/policies" element={<Policies />} />
-              <Route path="/calculations" element={<Calculations />} />
-              <Route path="/tax-engine" element={<TaxEngine />} />
-              <Route path="/analytics" element={<Analytics />} />
-              <Route path="/users" element={<UserManagement />} />
-              <Route path="/tenants" element={<TenantManagement />} />
-              <Route path="/lookup-tables" element={<LookupTables />} />
-              <Route path="/field-library" element={<FieldLibrary />} />
-              <Route path="/data-sources" element={<DataSources />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/settings/roles" element={<RolesPermissions />} />
+              <Route path="/simulations" element={<ModuleGuard><Simulations /></ModuleGuard>} />
+              <Route path="/pre-travel" element={<ModuleGuard><PreTravel /></ModuleGuard>} />
+              <Route path="/pre-travel/:id" element={<ModuleGuard><PreTravelDetail /></ModuleGuard>} />
+              <Route path="/policies" element={<ModuleGuard><Policies /></ModuleGuard>} />
+              <Route path="/calculations" element={<ModuleGuard><Calculations /></ModuleGuard>} />
+              <Route path="/tax-engine" element={<ModuleGuard><TaxEngine /></ModuleGuard>} />
+              <Route path="/analytics" element={<ModuleGuard><Analytics /></ModuleGuard>} />
+              <Route path="/users" element={<ModuleGuard><UserManagement /></ModuleGuard>} />
+              <Route path="/tenants" element={<ModuleGuard><TenantManagement /></ModuleGuard>} />
+              <Route path="/lookup-tables" element={<ModuleGuard><LookupTables /></ModuleGuard>} />
+              <Route path="/field-library" element={<ModuleGuard><FieldLibrary /></ModuleGuard>} />
+              <Route path="/data-sources" element={<ModuleGuard><DataSources /></ModuleGuard>} />
+              <Route path="/settings" element={<ModuleGuard><SettingsPage /></ModuleGuard>} />
+              <Route path="/settings/roles" element={<ModuleGuard><RolesPermissions /></ModuleGuard>} />
               <Route path="/profile" element={<ProfilePage />} />
-              <Route path="/audit-log" element={<AuditLog />} />
-              <Route path="/employees" element={<EmployeeDirectory />} />
-              <Route path="/documents" element={<Documents />} />
-              <Route path="/field-mappings" element={<FieldMappings />} />
-              <Route path="/cost-estimate-templates" element={<CostEstimateTemplates />} />
+              <Route path="/audit-log" element={<ModuleGuard><AuditLog /></ModuleGuard>} />
+              <Route path="/employees" element={<ModuleGuard><EmployeeDirectory /></ModuleGuard>} />
+              <Route path="/documents" element={<ModuleGuard><Documents /></ModuleGuard>} />
+              <Route path="/field-mappings" element={<ModuleGuard><FieldMappings /></ModuleGuard>} />
+              <Route path="/cost-estimate-templates" element={<ModuleGuard><CostEstimateTemplates /></ModuleGuard>} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
