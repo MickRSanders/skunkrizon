@@ -34,6 +34,7 @@ import EmployeeDirectory from "./pages/EmployeeDirectory";
 import Documents from "./pages/Documents";
 import FieldMappings from "./pages/FieldMappings";
 import CostEstimateTemplates from "./pages/CostEstimateTemplates";
+import Walkthrough from "./pages/Walkthrough";
 
 const queryClient = new QueryClient();
 
@@ -73,6 +74,7 @@ const App = () => (
               <Route path="/documents" element={<ModuleGuard><Documents /></ModuleGuard>} />
               <Route path="/field-mappings" element={<ModuleGuard><FieldMappings /></ModuleGuard>} />
               <Route path="/cost-estimate-templates" element={<ModuleGuard><CostEstimateTemplates /></ModuleGuard>} />
+              <Route path="/walkthrough" element={<Walkthrough />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
