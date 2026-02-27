@@ -408,7 +408,7 @@ function EmployeeDetailDialog({
                   <div key={est.id} className="flex items-center justify-between rounded-md border px-3 py-2 cursor-pointer hover:bg-accent/30 transition-colors" onClick={() => setSelectedEstimate(est)}>
                     <div>
                       <p className="text-sm font-medium">
-                        {est.source_snapshot?.sim_code || "Estimate"}
+                        {est.employee_name || "Unnamed"}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {formatDate(est.created_at)} · {est.display_currency} {est.total_cost?.toLocaleString() ?? "—"}
