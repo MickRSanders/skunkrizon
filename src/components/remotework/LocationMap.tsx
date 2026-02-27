@@ -68,9 +68,15 @@ function featureToPath(geometry: any): string {
 }
 
 const riskDotColors: Record<string, string> = {
-  low: "hsl(var(--accent))",
-  medium: "hsl(45, 93%, 47%)",
+  low: "hsl(174, 62%, 40%)",
+  medium: "hsl(38, 92%, 50%)",
   high: "hsl(0, 84%, 60%)",
+};
+
+const riskGlowColors: Record<string, string> = {
+  low: "rgba(45, 180, 160, 0.5)",
+  medium: "rgba(240, 170, 30, 0.5)",
+  high: "rgba(230, 70, 60, 0.5)",
 };
 
 const riskLabels: Record<string, string> = {
@@ -208,14 +214,16 @@ export default function LocationMap({ onRequestFromLocation }: LocationMapProps)
       </CardHeader>
       <CardContent className="p-0 relative">
         {/* Zoom controls */}
-        <div className="absolute top-3 right-3 z-20 flex flex-col gap-1">
-          <Button variant="secondary" size="icon" className="h-7 w-7 shadow-sm" onClick={() => handleZoom(0.4)}>
+        <div className="absolute top-3 right-3 z-20 flex flex-col gap-1 bg-card/80 backdrop-blur-sm rounded-lg p-1 border border-border/40 shadow-sm">
+          <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-muted/80" onClick={() => handleZoom(0.4)}>
             <ZoomIn className="w-3.5 h-3.5" />
           </Button>
-          <Button variant="secondary" size="icon" className="h-7 w-7 shadow-sm" onClick={() => handleZoom(-0.4)}>
+          <div className="h-px bg-border/50 mx-1" />
+          <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-muted/80" onClick={() => handleZoom(-0.4)}>
             <ZoomOut className="w-3.5 h-3.5" />
           </Button>
-          <Button variant="secondary" size="icon" className="h-7 w-7 shadow-sm" onClick={resetView}>
+          <div className="h-px bg-border/50 mx-1" />
+          <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-muted/80" onClick={resetView}>
             <Maximize2 className="w-3.5 h-3.5" />
           </Button>
         </div>
@@ -241,21 +249,33 @@ export default function LocationMap({ onRequestFromLocation }: LocationMapProps)
             preserveAspectRatio="xMidYMid meet"
           >
             <defs>
-              <linearGradient id="ocean-gradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="hsl(210, 60%, 95%)" />
-                <stop offset="100%" stopColor="hsl(200, 40%, 90%)" />
+              <linearGradient id="ocean-gradient" x1="0" y1="0" x2="0.3" y2="1">
+                <stop offset="0%" stopColor="hsl(210, 50%, 96%)" />
+                <stop offset="40%" stopColor="hsl(205, 45%, 93%)" />
+                <stop offset="100%" stopColor="hsl(200, 35%, 89%)" />
               </linearGradient>
-              <linearGradient id="land-gradient" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="hsl(var(--secondary))" />
-                <stop offset="100%" stopColor="hsl(var(--muted))" />
+              <linearGradient id="land-gradient" x1="0" y1="0" x2="0.5" y2="1">
+                <stop offset="0%" stopColor="hsl(220, 20%, 97%)" />
+                <stop offset="100%" stopColor="hsl(220, 14%, 92%)" />
               </linearGradient>
-              <filter id="land-shadow">
-                <feDropShadow dx="0" dy="0.5" stdDeviation="0.8" floodColor="hsl(var(--foreground))" floodOpacity="0.08" />
+              <filter id="land-shadow" x="-2%" y="-2%" width="104%" height="104%">
+                <feDropShadow dx="0" dy="0.4" stdDeviation="0.6" floodColor="hsl(222, 47%, 11%)" floodOpacity="0.06" />
               </filter>
+              <filter id="dot-glow">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+              <pattern id="ocean-texture" width="8" height="8" patternUnits="userSpaceOnUse">
+                <circle cx="4" cy="4" r="0.3" fill="hsl(210, 30%, 80%)" opacity="0.15" />
+              </pattern>
             </defs>
 
             {/* Ocean background */}
             <rect x={-200} y={-200} width={W + 400} height={H + 400} fill="url(#ocean-gradient)" />
+            <rect x={-200} y={-200} width={W + 400} height={H + 400} fill="url(#ocean-texture)" />
 
             {/* Country fills */}
             {countryPaths.map((d, i) => (
@@ -263,13 +283,11 @@ export default function LocationMap({ onRequestFromLocation }: LocationMapProps)
                 key={i}
                 d={d}
                 fill="url(#land-gradient)"
-                stroke="hsl(var(--muted-foreground))"
-                strokeWidth={0.4}
+                stroke="hsl(220, 15%, 78%)"
+                strokeWidth={0.35}
                 strokeLinejoin="round"
                 strokeLinecap="round"
-                opacity={0.95}
                 filter="url(#land-shadow)"
-                style={{ transition: "opacity 0.2s" }}
               />
             ))}
 
@@ -297,29 +315,39 @@ export default function LocationMap({ onRequestFromLocation }: LocationMapProps)
                   onClick={(e) => handleDotClick(e, loc)}
                   className="cursor-pointer"
                 >
+                  {/* Glow halo */}
+                  <circle cx={x} cy={y} r={r * 2.2} fill={riskDotColors[loc.riskLevel]} opacity={0.08} />
                   {/* Selection ring */}
                   {isSelected && (
-                    <circle cx={x} cy={y} r={r + 6 / zoom} fill="none" stroke="hsl(var(--primary))" strokeWidth={2 / zoom} strokeDasharray={`${4 / zoom},${2 / zoom}`}>
-                      <animate attributeName="stroke-dashoffset" from="0" to={`${-12 / zoom}`} dur="1s" repeatCount="indefinite" />
+                    <circle cx={x} cy={y} r={r + 6 / zoom} fill="none" stroke="hsl(222, 62%, 22%)" strokeWidth={1.8 / zoom} strokeDasharray={`${4 / zoom},${2 / zoom}`} opacity={0.7}>
+                      <animate attributeName="stroke-dashoffset" from="0" to={`${-12 / zoom}`} dur="1.5s" repeatCount="indefinite" />
                     </circle>
                   )}
-                  {/* Pulse */}
-                  <circle cx={x} cy={y} r={r + 3 / zoom} fill={riskDotColors[loc.riskLevel]} opacity={isHovered || isSelected ? 0.3 : 0.1}>
-                    {!isHovered && !isSelected && (
-                      <animate attributeName="r" from={r + 2 / zoom} to={r + 8 / zoom} dur="2.5s" repeatCount="indefinite" />
-                    )}
-                    <animate attributeName="opacity" from={isHovered || isSelected ? 0.3 : 0.15} to="0" dur="2.5s" repeatCount="indefinite" />
+                  {/* Pulse ring */}
+                  <circle cx={x} cy={y} r={r + 3 / zoom} fill="none" stroke={riskDotColors[loc.riskLevel]} strokeWidth={0.8 / zoom} opacity={0}>
+                    <animate attributeName="r" from={`${r}`} to={`${r + 10 / zoom}`} dur="3s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" from="0.4" to="0" dur="3s" repeatCount="indefinite" />
                   </circle>
-                  {/* Main dot */}
+                  {/* Main dot with gradient-like effect */}
                   <circle
                     cx={x}
                     cy={y}
                     r={isHovered || isSelected ? r + 1.5 / zoom : r}
                     fill={riskDotColors[loc.riskLevel]}
-                    stroke={isSelected ? "hsl(var(--primary))" : "hsl(var(--background))"}
-                    strokeWidth={(isSelected ? 2.5 : 1.5) / zoom}
-                    opacity={0.92}
-                    style={{ transition: "all 0.15s ease" }}
+                    stroke="white"
+                    strokeWidth={(isSelected ? 2.5 : 2) / zoom}
+                    style={{
+                      transition: "all 0.2s ease",
+                      filter: isHovered || isSelected ? `drop-shadow(0 0 ${4 / zoom}px ${riskGlowColors[loc.riskLevel]})` : "none",
+                    }}
+                  />
+                  {/* Inner highlight for depth */}
+                  <circle
+                    cx={x - r * 0.2}
+                    cy={y - r * 0.2}
+                    r={r * 0.35}
+                    fill="white"
+                    opacity={0.3}
                   />
                   {/* Badge for open assignments */}
                   {hasAssignments && (
@@ -333,21 +361,22 @@ export default function LocationMap({ onRequestFromLocation }: LocationMapProps)
                   {/* Tooltip */}
                   {(isHovered || isSelected) && (
                     <>
+                      {/* Tooltip connector line */}
+                      <line x1={x} y1={y - r - 2 / zoom} x2={x} y2={y - r - 10 / zoom} stroke="hsl(var(--border))" strokeWidth={0.5 / zoom} />
                       <rect
-                        x={x - 65 / zoom}
-                        y={y - r - 38 / zoom}
-                        width={130 / zoom}
-                        height={30 / zoom}
-                        rx={5 / zoom}
-                        fill="hsl(var(--popover))"
-                        stroke="hsl(var(--border))"
-                        strokeWidth={0.6 / zoom}
-                        filter="drop-shadow(0 1px 3px rgba(0,0,0,0.12))"
+                        x={x - 72 / zoom}
+                        y={y - r - 42 / zoom}
+                        width={144 / zoom}
+                        height={32 / zoom}
+                        rx={6 / zoom}
+                        fill="hsl(222, 47%, 11%)"
+                        opacity={0.92}
+                        filter="drop-shadow(0 2px 6px rgba(0,0,0,0.2))"
                       />
-                      <text x={x} y={y - r - 24 / zoom} textAnchor="middle" fontSize={9 / zoom} fontWeight={600} fill="hsl(var(--foreground))">
+                      <text x={x} y={y - r - 27 / zoom} textAnchor="middle" fontSize={8.5 / zoom} fontWeight={600} fill="white">
                         {loc.city}, {loc.country}
                       </text>
-                      <text x={x} y={y - r - 13 / zoom} textAnchor="middle" fontSize={7 / zoom} fill="hsl(var(--muted-foreground))">
+                      <text x={x} y={y - r - 15 / zoom} textAnchor="middle" fontSize={6.5 / zoom} fill="hsl(220, 14%, 70%)">
                         {loc.activeWorkers} workers · {loc.availableAssignments} open · {riskLabels[loc.riskLevel]}
                       </text>
                     </>
@@ -486,16 +515,20 @@ function Arcs({ selected }: { selected: LocationPoint | null }) {
         const [x2, y2] = projectMerc(to.lat, to.lng);
         const midX = (x1 + x2) / 2;
         const midY = Math.min(y1, y2) - Math.abs(x2 - x1) * 0.12;
+        const pathLen = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
         return (
           <path
             key={i}
             d={`M${x1},${y1} Q${midX},${midY} ${x2},${y2}`}
             fill="none"
-            stroke={selected ? "hsl(var(--primary))" : "hsl(var(--accent))"}
-            strokeWidth={selected ? 1.2 : 0.7}
-            opacity={selected ? 0.35 : 0.18}
-            strokeDasharray="4,3"
-          />
+            stroke={selected ? "hsl(222, 62%, 22%)" : "hsl(174, 62%, 40%)"}
+            strokeWidth={selected ? 1 : 0.6}
+            opacity={selected ? 0.3 : 0.15}
+            strokeDasharray={`${6},${4}`}
+            strokeLinecap="round"
+          >
+            <animate attributeName="stroke-dashoffset" from={pathLen} to="0" dur={`${3 + i * 0.3}s`} repeatCount="indefinite" />
+          </path>
         );
       })}
     </>
