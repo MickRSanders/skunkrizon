@@ -95,7 +95,7 @@ export default function LocationMap({ onRequestFromLocation }: LocationMapProps)
   const [countryPaths, setCountryPaths] = useState<string[]>([]);
 
   // Zoom / pan state
-  const [zoom, setZoom] = useState(1.2);
+  const [zoom, setZoom] = useState(1.1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
