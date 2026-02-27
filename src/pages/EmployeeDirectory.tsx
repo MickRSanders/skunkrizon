@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useEmployees, Employee } from "@/hooks/useEmployees";
 import { useEmployeeDependents, Dependent } from "@/hooks/useEmployeeDependents";
+import { useEmployeeCostEstimates } from "@/hooks/useCostEstimates";
 import PageTransition from "@/components/PageTransition";
 import EmployeeImportDialog from "@/components/EmployeeImportDialog";
 import { Input } from "@/components/ui/input";
@@ -41,6 +42,7 @@ import {
   DollarSign,
   UserCircle,
   Heart,
+  FileSpreadsheet,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -320,7 +322,7 @@ function EmployeeDetailDialog({
   onOpenChange: (v: boolean) => void;
 }) {
   const { data: dependents = [], isLoading } = useEmployeeDependents(employee.id);
-
+  const { data: costEstimates = [], isLoading: estimatesLoading } = useEmployeeCostEstimates(employee.id);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
@@ -380,6 +382,37 @@ function EmployeeDetailDialog({
                       <p className="text-xs text-muted-foreground">{formatDate(dep.date_of_birth)}</p>
                     </div>
                     <Badge variant="outline" className="text-xs capitalize">{dep.relationship}</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* Cost Estimates */}
+          <div>
+            <h4 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+              <FileSpreadsheet className="h-4 w-4 text-primary" /> Cost Estimates
+              <Badge variant="secondary" className="ml-1 text-[10px]">{costEstimates.length}</Badge>
+            </h4>
+            {estimatesLoading ? (
+              <p className="text-xs text-muted-foreground">Loading…</p>
+            ) : costEstimates.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No cost estimates generated</p>
+            ) : (
+              <div className="space-y-2">
+                {costEstimates.map((est: any) => (
+                  <div key={est.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium">
+                        {est.source_snapshot?.sim_code || "Estimate"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDate(est.created_at)} · {est.display_currency} {est.total_cost?.toLocaleString() ?? "—"}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="text-xs capitalize">{est.status}</Badge>
                   </div>
                 ))}
               </div>
