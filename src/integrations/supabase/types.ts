@@ -1406,6 +1406,221 @@ export type Database = {
           },
         ]
       }
+      remote_work_approvals: {
+        Row: {
+          approval_type: string
+          approver_id: string | null
+          approver_name: string | null
+          created_at: string
+          decided_at: string | null
+          decision_reason: string | null
+          id: string
+          request_id: string
+          status: string
+          step_order: number
+        }
+        Insert: {
+          approval_type: string
+          approver_id?: string | null
+          approver_name?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decision_reason?: string | null
+          id?: string
+          request_id: string
+          status?: string
+          step_order?: number
+        }
+        Update: {
+          approval_type?: string
+          approver_id?: string | null
+          approver_name?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decision_reason?: string | null
+          id?: string
+          request_id?: string
+          status?: string
+          step_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remote_work_approvals_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "remote_work_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      remote_work_requests: {
+        Row: {
+          business_justification: string | null
+          business_sponsor: string | null
+          created_at: string
+          created_by: string
+          deliverables: string | null
+          department: string | null
+          duration_type: string
+          employee_email: string | null
+          employee_id: string | null
+          employee_name: string
+          end_date: string | null
+          home_city: string | null
+          home_country: string
+          host_city: string | null
+          host_country: string
+          id: string
+          is_precursor_to_relocation: boolean | null
+          job_title: string | null
+          notes: string | null
+          overall_risk_level: string | null
+          purpose: string | null
+          request_code: string
+          request_type: string
+          start_date: string
+          status: string
+          sub_tenant_id: string | null
+          tenant_id: string
+          updated_at: string
+          work_pattern: string | null
+        }
+        Insert: {
+          business_justification?: string | null
+          business_sponsor?: string | null
+          created_at?: string
+          created_by: string
+          deliverables?: string | null
+          department?: string | null
+          duration_type?: string
+          employee_email?: string | null
+          employee_id?: string | null
+          employee_name: string
+          end_date?: string | null
+          home_city?: string | null
+          home_country: string
+          host_city?: string | null
+          host_country: string
+          id?: string
+          is_precursor_to_relocation?: boolean | null
+          job_title?: string | null
+          notes?: string | null
+          overall_risk_level?: string | null
+          purpose?: string | null
+          request_code?: string
+          request_type?: string
+          start_date: string
+          status?: string
+          sub_tenant_id?: string | null
+          tenant_id: string
+          updated_at?: string
+          work_pattern?: string | null
+        }
+        Update: {
+          business_justification?: string | null
+          business_sponsor?: string | null
+          created_at?: string
+          created_by?: string
+          deliverables?: string | null
+          department?: string | null
+          duration_type?: string
+          employee_email?: string | null
+          employee_id?: string | null
+          employee_name?: string
+          end_date?: string | null
+          home_city?: string | null
+          home_country?: string
+          host_city?: string | null
+          host_country?: string
+          id?: string
+          is_precursor_to_relocation?: boolean | null
+          job_title?: string | null
+          notes?: string | null
+          overall_risk_level?: string | null
+          purpose?: string | null
+          request_code?: string
+          request_type?: string
+          start_date?: string
+          status?: string
+          sub_tenant_id?: string | null
+          tenant_id?: string
+          updated_at?: string
+          work_pattern?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remote_work_requests_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "remote_work_requests_sub_tenant_id_fkey"
+            columns: ["sub_tenant_id"]
+            isOneToOne: false
+            referencedRelation: "sub_tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "remote_work_requests_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      remote_work_risk_assessments: {
+        Row: {
+          assessed_at: string | null
+          assessed_by: string | null
+          category: string
+          created_at: string
+          id: string
+          recommendations: string | null
+          request_id: string
+          risk_level: string
+          rule_references: Json | null
+          summary: string | null
+          updated_at: string
+        }
+        Insert: {
+          assessed_at?: string | null
+          assessed_by?: string | null
+          category: string
+          created_at?: string
+          id?: string
+          recommendations?: string | null
+          request_id: string
+          risk_level?: string
+          rule_references?: Json | null
+          summary?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assessed_at?: string | null
+          assessed_by?: string | null
+          category?: string
+          created_at?: string
+          id?: string
+          recommendations?: string | null
+          request_id?: string
+          risk_level?: string
+          rule_references?: Json | null
+          summary?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remote_work_risk_assessments_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "remote_work_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       role_permissions: {
         Row: {
           can_create: boolean

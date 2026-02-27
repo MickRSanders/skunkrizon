@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 export const ALL_MODULE_KEYS = [
   "simulations",
   "pre_travel",
+  "remote_work",
   "employees",
   "policies",
   "analytics",
@@ -27,6 +28,7 @@ export type ModuleKey = (typeof ALL_MODULE_KEYS)[number];
 export const MODULE_KEY_LABELS: Record<ModuleKey, string> = {
   simulations: "Cost Simulations",
   pre_travel: "Pre-Travel",
+  remote_work: "Remote Work",
   employees: "Employees",
   policies: "Policy Agent",
   analytics: "Analytics",
@@ -49,6 +51,7 @@ export const MODULE_KEY_LABELS: Record<ModuleKey, string> = {
 export const ROUTE_TO_MODULE: Record<string, ModuleKey> = {
   "/simulations": "simulations",
   "/pre-travel": "pre_travel",
+  "/remote-work": "remote_work",
   "/employees": "employees",
   "/policies": "policies",
   "/analytics": "analytics",

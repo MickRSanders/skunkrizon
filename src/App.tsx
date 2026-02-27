@@ -35,6 +35,8 @@ import Documents from "./pages/Documents";
 import FieldMappings from "./pages/FieldMappings";
 import CostEstimateTemplates from "./pages/CostEstimateTemplates";
 import Walkthrough from "./pages/Walkthrough";
+import RemoteWork from "./pages/RemoteWork";
+import RemoteWorkDetail from "./pages/RemoteWorkDetail";
 
 const queryClient = new QueryClient();
 
@@ -57,6 +59,8 @@ const App = () => (
               <Route path="/simulations" element={<ModuleGuard><Simulations /></ModuleGuard>} />
               <Route path="/pre-travel" element={<ModuleGuard><PreTravel /></ModuleGuard>} />
               <Route path="/pre-travel/:id" element={<ModuleGuard><PreTravelDetail /></ModuleGuard>} />
+              <Route path="/remote-work" element={<ModuleGuard><RemoteWork /></ModuleGuard>} />
+              <Route path="/remote-work/:id" element={<ModuleGuard><RemoteWorkDetail /></ModuleGuard>} />
               <Route path="/policies" element={<ModuleGuard><Policies /></ModuleGuard>} />
               <Route path="/calculations" element={<ModuleGuard><Calculations /></ModuleGuard>} />
               <Route path="/tax-engine" element={<ModuleGuard><TaxEngine /></ModuleGuard>} />
