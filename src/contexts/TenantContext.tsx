@@ -33,6 +33,7 @@ const TenantContext = createContext<TenantContextValue | undefined>(undefined);
 
 const ACTIVE_TENANT_KEY = "horizon_active_tenant_id";
 const ACTIVE_SUB_TENANT_KEY = "horizon_active_sub_tenant_id";
+const PENDING_TENANT_KEY = "horizon_pending_tenant_id";
 
 export function TenantProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -126,9 +127,22 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     },
   });
 
-  // Auto-select first tenant if none selected or selection is invalid
+  // Auto-select tenant: prefer pending (from /auth/:slug), then stored, then first
   useEffect(() => {
     if (!tenants.length) return;
+
+    // Check for a pending tenant set by /auth/:slug login
+    const pendingId = localStorage.getItem(PENDING_TENANT_KEY);
+    if (pendingId) {
+      localStorage.removeItem(PENDING_TENANT_KEY);
+      const pendingValid = tenants.some((t) => t.tenant_id === pendingId);
+      if (pendingValid) {
+        setActiveTenantId(pendingId);
+        localStorage.setItem(ACTIVE_TENANT_KEY, pendingId);
+        return;
+      }
+    }
+
     const valid = tenants.some((t) => t.tenant_id === activeTenantId);
     if (!valid) {
       setActiveTenantId(tenants[0].tenant_id);
