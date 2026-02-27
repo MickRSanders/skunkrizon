@@ -15,6 +15,7 @@ import {
 import {
   FileSpreadsheet, Plus, Search, Loader2, Settings2, Layers, Link2,
   Trash2, ChevronRight, DollarSign, Globe, Shield, ArrowLeft,
+  Sparkles, BookTemplate,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -39,17 +40,104 @@ const TEMPLATE_TYPES = [
   { value: "local_host", label: "Local Host" },
 ];
 
-const COMP_CATEGORIES = ["Salary", "Benefits", "Incentive Compensation", "Deferred Compensation"];
+const COMP_CATEGORIES = ["Salary", "Benefits", "Incentive Compensation", "Deferred Compensation", "Employer Contributions", "Allowances"];
 
 const CURRENCIES = ["USD", "EUR", "GBP", "JPY", "CHF", "SGD", "AUD", "CAD", "INR", "BRL"];
+
+// ─── Novartis Template Blueprints ───────────────────────────
+interface TemplateBlueprint {
+  id: string;
+  name: string;
+  description: string;
+  templates: {
+    name: string;
+    template_type: string;
+    notes: string;
+    display_currency: string;
+    tax_calculation_method: string;
+    include_tax_calculation: boolean;
+    policy_type: string;
+    compensation_items: {
+      paycode: string;
+      display_label: string;
+      display_category: string;
+      is_taxable: boolean;
+      sort_order: number;
+    }[];
+  }[];
+}
+
+const BLUEPRINTS: TemplateBlueprint[] = [
+  {
+    id: "novartis",
+    name: "Novartis Standard",
+    description: "Pre-configured templates for Long Term, Short Term, and Permanent Transfer assignments with Salary, STI, LTI, and Pension ER compensation items. Tax equalization enabled.",
+    templates: [
+      {
+        name: "Long Term Assignment",
+        template_type: "move_host_based",
+        notes: "Long term assignment cost estimate — display in host currency. Based on Novartis workshop specifications.",
+        display_currency: "host",
+        tax_calculation_method: "tax-equalization",
+        include_tax_calculation: true,
+        policy_type: "long_term_assignment",
+        compensation_items: [
+          { paycode: "BASE_SALARY", display_label: "Base Salary", display_category: "Salary", is_taxable: true, sort_order: 0 },
+          { paycode: "STI", display_label: "Short-Term Incentive (STI)", display_category: "Incentive Compensation", is_taxable: true, sort_order: 1 },
+          { paycode: "LTI", display_label: "Long-Term Incentive (LTI)", display_category: "Deferred Compensation", is_taxable: true, sort_order: 2 },
+          { paycode: "PENSION_ER", display_label: "Employer Pension Contribution", display_category: "Employer Contributions", is_taxable: false, sort_order: 3 },
+          { paycode: "COLA", display_label: "Cost of Living Allowance", display_category: "Allowances", is_taxable: true, sort_order: 4 },
+          { paycode: "HOUSING", display_label: "Housing Allowance", display_category: "Allowances", is_taxable: true, sort_order: 5 },
+          { paycode: "EDUCATION", display_label: "Education Allowance", display_category: "Benefits", is_taxable: true, sort_order: 6 },
+          { paycode: "RELOCATION", display_label: "Relocation Lump Sum", display_category: "Benefits", is_taxable: true, sort_order: 7 },
+        ],
+      },
+      {
+        name: "Short Term Assignment",
+        template_type: "move_host_based",
+        notes: "Short term assignment cost estimate — display in home currency. Based on Novartis workshop specifications.",
+        display_currency: "home",
+        tax_calculation_method: "tax-equalization",
+        include_tax_calculation: true,
+        policy_type: "short_term_assignment",
+        compensation_items: [
+          { paycode: "BASE_SALARY", display_label: "Base Salary", display_category: "Salary", is_taxable: true, sort_order: 0 },
+          { paycode: "STI", display_label: "Short-Term Incentive (STI)", display_category: "Incentive Compensation", is_taxable: true, sort_order: 1 },
+          { paycode: "LTI", display_label: "Long-Term Incentive (LTI)", display_category: "Deferred Compensation", is_taxable: true, sort_order: 2 },
+          { paycode: "PENSION_ER", display_label: "Employer Pension Contribution", display_category: "Employer Contributions", is_taxable: false, sort_order: 3 },
+          { paycode: "COLA", display_label: "Cost of Living Allowance", display_category: "Allowances", is_taxable: true, sort_order: 4 },
+          { paycode: "HOUSING", display_label: "Housing Allowance", display_category: "Allowances", is_taxable: true, sort_order: 5 },
+        ],
+      },
+      {
+        name: "Permanent Transfer",
+        template_type: "move_host_based",
+        notes: "Permanent transfer cost estimate — display in host currency. Based on Novartis workshop specifications.",
+        display_currency: "host",
+        tax_calculation_method: "tax-equalization",
+        include_tax_calculation: true,
+        policy_type: "permanent_transfer",
+        compensation_items: [
+          { paycode: "BASE_SALARY", display_label: "Base Salary", display_category: "Salary", is_taxable: true, sort_order: 0 },
+          { paycode: "STI", display_label: "Short-Term Incentive (STI)", display_category: "Incentive Compensation", is_taxable: true, sort_order: 1 },
+          { paycode: "LTI", display_label: "Long-Term Incentive (LTI)", display_category: "Deferred Compensation", is_taxable: true, sort_order: 2 },
+          { paycode: "PENSION_ER", display_label: "Employer Pension Contribution", display_category: "Employer Contributions", is_taxable: false, sort_order: 3 },
+          { paycode: "RELOCATION", display_label: "Relocation Lump Sum", display_category: "Benefits", is_taxable: true, sort_order: 4 },
+        ],
+      },
+    ],
+  },
+];
 
 export default function CostEstimateTemplates() {
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const [showBlueprints, setShowBlueprints] = useState(false);
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState("move_host_based");
   const [newNotes, setNewNotes] = useState("");
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [blueprintLoading, setBlueprintLoading] = useState(false);
 
   const { data: templates, isLoading } = useCostEstimateTemplates();
   const createTemplate = useCreateCostEstimateTemplate();
@@ -113,9 +201,14 @@ export default function CostEstimateTemplates() {
             className="w-full h-10 pl-10 pr-4 rounded-lg border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-accent/30"
           />
         </div>
-        <Button onClick={() => setShowCreate(true)}>
-          <Plus className="w-4 h-4 mr-1" /> New Template
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setShowBlueprints(true)}>
+            <Sparkles className="w-4 h-4 mr-1" /> From Blueprint
+          </Button>
+          <Button onClick={() => setShowCreate(true)}>
+            <Plus className="w-4 h-4 mr-1" /> New Template
+          </Button>
+        </div>
       </div>
 
       {/* Template List */}
@@ -129,10 +222,15 @@ export default function CostEstimateTemplates() {
             <FileSpreadsheet className="w-8 h-8 text-muted-foreground" />
           </div>
           <h3 className="text-lg font-semibold text-foreground mb-1">No templates yet</h3>
-          <p className="text-sm text-muted-foreground mb-6 max-w-sm">Create your first cost estimate template to start generating cost estimates from simulations.</p>
-          <Button onClick={() => setShowCreate(true)}>
-            <Plus className="w-4 h-4 mr-2" /> Create Template
-          </Button>
+          <p className="text-sm text-muted-foreground mb-6 max-w-sm">Create your first cost estimate template or start from a pre-built blueprint.</p>
+          <div className="flex items-center gap-3">
+            <Button variant="outline" onClick={() => setShowBlueprints(true)}>
+              <Sparkles className="w-4 h-4 mr-2" /> From Blueprint
+            </Button>
+            <Button onClick={() => setShowCreate(true)}>
+              <Plus className="w-4 h-4 mr-2" /> Create Template
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -195,7 +293,106 @@ export default function CostEstimateTemplates() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Blueprint Dialog */}
+      <BlueprintDialog
+        open={showBlueprints}
+        onOpenChange={setShowBlueprints}
+        loading={blueprintLoading}
+        onApply={async (blueprint) => {
+          setBlueprintLoading(true);
+          try {
+            for (const tmpl of blueprint.templates) {
+              await createTemplate.mutateAsync(
+                { name: tmpl.name, template_type: tmpl.template_type, notes: tmpl.notes },
+              );
+            }
+            setShowBlueprints(false);
+            toast.success(`Created ${blueprint.templates.length} templates from "${blueprint.name}" blueprint. Open each to configure compensation items and policy mappings.`);
+          } catch (err: any) {
+            toast.error(err.message || "Failed to apply blueprint");
+          } finally {
+            setBlueprintLoading(false);
+          }
+        }}
+      />
     </div>
+  );
+}
+
+// ─── Blueprint Dialog ───────────────────────────────────────
+function BlueprintDialog({ open, onOpenChange, loading, onApply }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  loading: boolean;
+  onApply: (blueprint: TemplateBlueprint) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-accent" />
+            Template Blueprints
+          </DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          Blueprints create pre-configured templates with compensation items, tax settings, and policy mappings based on proven workshop configurations.
+        </p>
+        <div className="space-y-4 mt-2">
+          {BLUEPRINTS.map((bp) => (
+            <div key={bp.id} className="rounded-xl border border-border bg-card p-5 hover:border-accent/30 transition-all">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <h3 className="font-semibold text-foreground flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-accent" />
+                    {bp.name}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-lg">{bp.description}</p>
+                </div>
+                <Button
+                  size="sm"
+                  disabled={loading}
+                  onClick={() => onApply(bp)}
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
+                  Apply
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4 pt-4 border-t border-border">
+                {bp.templates.map((tmpl, idx) => (
+                  <div key={idx} className="rounded-lg bg-muted/40 border border-border/50 p-3">
+                    <h4 className="text-xs font-semibold text-foreground mb-2">{tmpl.name}</h4>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                        <DollarSign className="w-3 h-3" />
+                        <span>Display: {tmpl.display_currency === "host" ? "Host Currency" : tmpl.display_currency === "home" ? "Home Currency" : tmpl.display_currency}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                        <Globe className="w-3 h-3" />
+                        <span>Tax: {tmpl.tax_calculation_method.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                        <Shield className="w-3 h-3" />
+                        <span>{tmpl.compensation_items.length} comp items</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {tmpl.compensation_items.map((ci, ciIdx) => (
+                        <Badge key={ciIdx} variant="secondary" className="text-[9px] px-1.5 py-0">
+                          {ci.display_label}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
