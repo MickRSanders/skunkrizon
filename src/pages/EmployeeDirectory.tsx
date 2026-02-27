@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import CostEstimateDetailViewer from "@/components/CostEstimateDetailViewer";
 import { useEmployees, Employee } from "@/hooks/useEmployees";
 import { useEmployeeDependents, Dependent } from "@/hooks/useEmployeeDependents";
 import { useEmployeeCostEstimates } from "@/hooks/useCostEstimates";
@@ -323,6 +324,7 @@ function EmployeeDetailDialog({
 }) {
   const { data: dependents = [], isLoading } = useEmployeeDependents(employee.id);
   const { data: costEstimates = [], isLoading: estimatesLoading } = useEmployeeCostEstimates(employee.id);
+  const [selectedEstimate, setSelectedEstimate] = useState<any>(null);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
@@ -403,7 +405,7 @@ function EmployeeDetailDialog({
             ) : (
               <div className="space-y-2">
                 {costEstimates.map((est: any) => (
-                  <div key={est.id} className="flex items-center justify-between rounded-md border px-3 py-2">
+                  <div key={est.id} className="flex items-center justify-between rounded-md border px-3 py-2 cursor-pointer hover:bg-accent/30 transition-colors" onClick={() => setSelectedEstimate(est)}>
                     <div>
                       <p className="text-sm font-medium">
                         {est.source_snapshot?.sim_code || "Estimate"}
@@ -419,6 +421,12 @@ function EmployeeDetailDialog({
             )}
           </div>
         </div>
+
+        <CostEstimateDetailViewer
+          estimate={selectedEstimate}
+          open={!!selectedEstimate}
+          onOpenChange={(open) => { if (!open) setSelectedEstimate(null); }}
+        />
       </DialogContent>
     </Dialog>
   );
