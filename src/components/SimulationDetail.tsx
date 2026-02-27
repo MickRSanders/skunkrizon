@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
-import { Separator } from "@/components/ui/separator";
 import {
   Select,
   SelectContent,
@@ -15,20 +14,16 @@ import {
   ArrowLeft,
   Plus,
   Trash2,
-  DollarSign,
   Download,
   RefreshCw,
-  ArrowRight,
-  Globe,
-  Clock,
-  Layers,
-  FileText,
-  History,
   ChevronDown,
   ChevronUp,
   CheckCircle,
   FileSpreadsheet,
   Loader2,
+  History,
+  FileText,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTaxConfig, TAX_RATE_MAP } from "@/contexts/TaxConfigContext";
@@ -71,7 +66,6 @@ function generateBenefits(sim: any, grossUpMultiplier: number): BenefitLine[] {
 
   const taxRate = TAX_RATE_MAP[sim.tax_approach] ?? 0.22;
   const baseTaxCost = Math.round(baseSalary * taxRate);
-  // Apply gross-up multiplier to the base tax cost
   const taxCost = Math.round(baseTaxCost * grossUpMultiplier);
 
   const lines: BenefitLine[] = [
@@ -100,6 +94,45 @@ const getCurrencySymbol = (currency: string) => {
   return parts.find((p) => p.type === "currency")?.value ?? currency;
 };
 
+/* ─── Donut Chart ─── */
+function DonutChart({ total, currency, color = "hsl(var(--primary))" }: { total: number; currency: string; color?: string }) {
+  const size = 140;
+  const stroke = 14;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+
+  return (
+    <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="hsl(var(--muted))"
+          strokeWidth={stroke}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth={stroke}
+          strokeDasharray={circumference}
+          strokeDashoffset={circumference * 0.15}
+          strokeLinecap="round"
+          className="transition-all duration-700"
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{currency}</span>
+        <span className="text-lg font-bold text-foreground tabular-nums">{formatNumber(total)}</span>
+      </div>
+    </div>
+  );
+}
+
 interface SimulationDetailProps {
   simulation: any;
   onBack: () => void;
@@ -112,23 +145,21 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
   const createAuditEntry = useCreateAuditEntry();
   const updateSimulation = useUpdateSimulation();
   const { data: ceTemplates } = useCostEstimateTemplates();
-  
+
   const { data: linkedEstimates } = useCostEstimates(simulation.id);
   const [selectedEstimate, setSelectedEstimate] = useState<any>(null);
   const [showAuditTrail, setShowAuditTrail] = useState(false);
-  
+
   const [showCEDialog, setShowCEDialog] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
 
-  const toggleCategory = (scenarioId: string, category: string) => {
-    const key = `${scenarioId}:${category}`;
-    setCollapsedCategories((prev) => ({ ...prev, [key]: !prev[key] }));
+  const toggleCategory = (category: string) => {
+    setCollapsedCategories((prev) => ({ ...prev, [category]: !prev[category] }));
   };
 
   const policyName = (simulation as any).policies?.name;
 
   const [scenarios, setScenarios] = useState<Scenario[]>(() => {
-    // Restore saved scenarios from cost_breakdown if available
     const saved = simulation.cost_breakdown as any;
     if (saved?.scenarios && Array.isArray(saved.scenarios) && saved.scenarios.length > 0) {
       return saved.scenarios as Scenario[];
@@ -143,7 +174,7 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
     ];
   });
 
-  // Auto-save scenarios to cost_breakdown whenever they change
+  // Auto-save scenarios
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const persistScenarios = useCallback((updatedScenarios: Scenario[]) => {
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -155,7 +186,6 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
     }, 800);
   }, [simulation.id, updateSimulation]);
 
-  // Persist whenever scenarios state changes (skip initial mount with saved data)
   const isInitialMount = useRef(true);
   useEffect(() => {
     if (isInitialMount.current) {
@@ -185,24 +215,21 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
     setScenarios((prev) => prev.map((s) => (s.id === scenarioId ? { ...s, name } : s)));
   };
 
-  // Fetch exchange rates from lookup table
+  // Exchange rates
   const [exchangeRates, setExchangeRates] = useState<Record<string, number>>({});
   useEffect(() => {
     async function fetchRates() {
-      // Find the Exchange Rates lookup table
       const { data: tables } = await supabase
         .from("lookup_tables")
         .select("id")
         .eq("name", "Exchange Rates")
         .limit(1);
       if (!tables || tables.length === 0) return;
-
       const { data: rows } = await supabase
         .from("lookup_table_rows")
         .select("row_data")
         .eq("lookup_table_id", tables[0].id);
       if (!rows) return;
-
       const rateMap: Record<string, number> = {};
       rows.forEach((r: any) => {
         const d = r.row_data;
@@ -219,10 +246,8 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
     if (from === to) return 1;
     const direct = exchangeRates[`${from}_${to}`];
     if (direct) return direct;
-    // Try inverse
     const inverse = exchangeRates[`${to}_${from}`];
     if (inverse) return 1 / inverse;
-    // Try cross via USD
     if (from !== "USD" && to !== "USD") {
       const fromToUsd = exchangeRates[`${from}_USD`] || (exchangeRates[`USD_${from}`] ? 1 / exchangeRates[`USD_${from}`] : null);
       const usdToTarget = exchangeRates[`USD_${to}`] || (exchangeRates[`${to}_USD`] ? 1 / exchangeRates[`${to}_USD`] : null);
@@ -236,12 +261,8 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
       if (s.id !== scenarioId) return s;
       const oldCurrency = s.currency;
       if (oldCurrency === newCurrency) return s;
-
       const rate = getExchangeRate(oldCurrency, newCurrency);
-      if (rate === null || rate === 1) {
-        return { ...s, currency: newCurrency };
-      }
-
+      if (rate === null || rate === 1) return { ...s, currency: newCurrency };
       return {
         ...s,
         currency: newCurrency,
@@ -257,8 +278,6 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
   const updateBenefitAmount = (scenarioId: string, benefitId: string, amount: number) => {
     const scenario = scenarios.find((s) => s.id === scenarioId);
     const benefit = scenario?.benefits.find((b) => b.id === benefitId);
-
-    // Log audit entry when value changes and is an override
     if (benefit && amount !== benefit.amount && user) {
       createAuditEntry.mutate({
         simulation_id: simulation.id,
@@ -272,7 +291,6 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
         changed_by: user.id,
       });
     }
-
     setScenarios((prev) =>
       prev.map((s) =>
         s.id === scenarioId
@@ -322,368 +340,283 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
     );
   };
 
-  const groupByCategory = (benefits: BenefitLine[]) => {
-    const groups: Record<string, BenefitLine[]> = {};
-    benefits.forEach((b) => {
-      if (!groups[b.category]) groups[b.category] = [];
-      groups[b.category].push(b);
+  // Get all unique categories across all scenarios
+  const allCategories = useMemo(() => {
+    const cats = new Set<string>();
+    scenarios.forEach((s) => s.benefits.forEach((b) => cats.add(b.category)));
+    return Array.from(cats);
+  }, [scenarios]);
+
+  // Get all unique benefit labels per category
+  const benefitsByCategory = useMemo(() => {
+    const result: Record<string, string[]> = {};
+    allCategories.forEach((cat) => {
+      const labels = new Set<string>();
+      scenarios.forEach((s) => s.benefits.filter((b) => b.category === cat).forEach((b) => labels.add(b.label)));
+      result[cat] = Array.from(labels);
     });
-    return groups;
-  };
+    return result;
+  }, [allCategories, scenarios]);
+
+  const donutColors = [
+    "hsl(var(--primary))",
+    "hsl(210, 40%, 65%)",
+    "hsl(var(--accent))",
+  ];
+
+  const scenarioTotals = scenarios.map((s) => s.benefits.reduce((sum, b) => sum + b.amount, 0));
 
   return (
     <div className="space-y-6">
-      {/* Hero Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary/90 to-accent/60 p-6">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,hsl(var(--accent)/0.15),transparent_70%)]" />
-        <div className="relative z-10">
-          <Button variant="ghost" size="sm" onClick={onBack} className="text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/10 mb-3 -ml-2">
-            <ArrowLeft className="w-4 h-4 mr-1" /> Back to Simulations
-          </Button>
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-primary-foreground/50 font-mono text-xs tracking-wider mb-1">{simulation.sim_code}</p>
-              <h1 className="text-2xl font-bold text-primary-foreground tracking-tight">
+      {/* Minimal Header */}
+      <div>
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 transition-colors mb-3"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>View Simulations</span>
+        </button>
+
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-foreground tracking-tight">
                 {simulation.employee_name}
               </h1>
-              <p className="text-sm text-primary-foreground/60 mt-1">
-                {simulation.origin_city || simulation.origin_country} → {simulation.destination_city || simulation.destination_country}
-                {simulation.start_date && ` · ${format(new Date(simulation.start_date), "MMM yyyy")}`}
-              </p>
+              <Pencil className="w-4 h-4 text-muted-foreground/50" />
             </div>
-            <div className="flex items-center gap-2">
-              {(simulation.status === "completed" || simulation.status === "running") && (
-                <Button
-                  onClick={async () => {
-                    try {
-                      await updateSimulation.mutateAsync({ id: simulation.id, status: "approved" as any });
-                      toast.success("Simulation approved");
-                    } catch (err: any) {
-                      toast.error(err.message || "Failed to approve");
-                    }
-                  }}
-                  className="bg-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/30 border border-primary-foreground/20"
-                  size="sm"
-                >
-                  <CheckCircle className="w-4 h-4 mr-1" /> Approve
-                </Button>
-              )}
-              {ceTemplates && ceTemplates.length > 0 && (
-                <Button
-                  onClick={() => setShowCEDialog(true)}
-                  className="bg-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/30 border border-primary-foreground/20"
-                  size="sm"
-                >
-                  <FileSpreadsheet className="w-4 h-4 mr-1" />
-                  Generate Cost Estimate
-                </Button>
-              )}
-              <Button onClick={addScenario} className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 shadow-lg">
-                <Plus className="w-4 h-4 mr-2" /> Add Scenario
-              </Button>
-            </div>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {simulation.sim_code} · {simulation.origin_city || simulation.origin_country} → {simulation.destination_city || simulation.destination_country}
+              {simulation.start_date && ` · ${format(new Date(simulation.start_date), "MMM yyyy")}`}
+            </p>
           </div>
-
-          {/* Assignment details grid */}
-          <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-3">
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-primary-foreground/40 mb-0.5">Assignment</p>
-              <p className="text-sm font-medium text-primary-foreground capitalize">{simulation.assignment_type}</p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-primary-foreground/40 mb-0.5">Duration</p>
-              <p className="text-sm font-medium text-primary-foreground">
-                {simulation.duration_months >= 12
-                  ? `${Math.floor(simulation.duration_months / 12)}y ${simulation.duration_months % 12 ? `${simulation.duration_months % 12}mo` : ""}`
-                  : `${simulation.duration_months}mo`}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-primary-foreground/40 mb-0.5">Base Salary</p>
-              <p className="text-sm font-medium text-primary-foreground">{formatCurrency(simulation.base_salary, simulation.currency)}</p>
-            </div>
-            {simulation.cola_percent > 0 && (
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-primary-foreground/40 mb-0.5">COLA</p>
-                <p className="text-sm font-medium text-primary-foreground">{simulation.cola_percent}%</p>
-              </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm">
+              <Download className="w-4 h-4" />
+            </Button>
+            {(simulation.status === "completed" || simulation.status === "running") && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    await updateSimulation.mutateAsync({ id: simulation.id, status: "approved" as any });
+                    toast.success("Simulation approved");
+                  } catch (err: any) {
+                    toast.error(err.message || "Failed to approve");
+                  }
+                }}
+              >
+                <CheckCircle className="w-4 h-4 mr-1" /> Approve
+              </Button>
             )}
-            {simulation.housing_cap > 0 && (
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-primary-foreground/40 mb-0.5">Housing / mo</p>
-                <p className="text-sm font-medium text-primary-foreground">{formatCurrency(simulation.housing_cap, simulation.currency)}</p>
-              </div>
+            {ceTemplates && ceTemplates.length > 0 && (
+              <Button variant="outline" size="sm" onClick={() => setShowCEDialog(true)}>
+                <FileSpreadsheet className="w-4 h-4 mr-1" /> Estimate
+              </Button>
             )}
-            {policyName && (
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-primary-foreground/40 mb-0.5">Policy</p>
-                <p className="text-sm font-medium text-primary-foreground">{policyName}</p>
-              </div>
-            )}
-            {simulation.tax_approach && (
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-primary-foreground/40 mb-0.5">Tax Approach</p>
-                <p className="text-sm font-medium text-primary-foreground capitalize">{simulation.tax_approach.replace(/-/g, " ")}</p>
-              </div>
-            )}
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-primary-foreground/40 mb-0.5">Scenarios</p>
-              <p className="text-sm font-medium text-primary-foreground">{scenarios.length}</p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-primary-foreground/40 mb-0.5">Status</p>
-              <StatusBadge status={simulation.status} />
-            </div>
+            <Button size="sm" onClick={addScenario}>
+              <Plus className="w-4 h-4 mr-1" /> Add Scenario
+            </Button>
+            <Button size="sm" variant="default" onClick={() => toast.info("Recalculating...")}>
+              <RefreshCw className="w-4 h-4 mr-1" /> Recalculate
+            </Button>
           </div>
         </div>
       </div>
 
-      {/* Scenarios Grid */}
-      <div className={`grid gap-5 ${scenarios.length === 1 ? "grid-cols-1 max-w-2xl" : scenarios.length === 2 ? "grid-cols-2" : "grid-cols-1 lg:grid-cols-3"}`}>
-        {scenarios.map((scenario) => {
-          const grouped = groupByCategory(scenario.benefits);
-          const total = scenario.benefits.reduce((sum, b) => sum + b.amount, 0);
-          const hasOverrides = scenario.benefits.some((b) => b.isOverridden);
+      {/* Comparison Panel */}
+      <div className="bg-card rounded-xl border border-border overflow-hidden">
+        {/* Donut Charts Row */}
+        <div className="border-b border-border">
+          <div className="grid" style={{ gridTemplateColumns: `200px repeat(${scenarios.length}, 1fr)` }}>
+            {/* Empty label column */}
+            <div />
+            {/* Donut per scenario */}
+            {scenarios.map((scenario, i) => {
+              const total = scenarioTotals[i];
+              return (
+                <div key={scenario.id} className="flex flex-col items-center py-6 border-l border-border">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Input
+                      value={scenario.name}
+                      onChange={(e) => updateScenarioName(scenario.id, e.target.value)}
+                      className="text-sm font-semibold h-7 max-w-[200px] bg-transparent border-none p-0 focus-visible:ring-0 text-foreground text-center"
+                    />
+                    {scenarios.length > 1 && (
+                      <button
+                        onClick={() => removeScenario(scenario.id)}
+                        className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                  <DonutChart total={total} currency={scenario.currency} color={donutColors[i % donutColors.length]} />
+                  <div className="mt-2">
+                    <Select value={scenario.currency} onValueChange={(v) => updateScenarioCurrency(scenario.id, v)}>
+                      <SelectTrigger className="h-6 w-[70px] text-xs border-none bg-transparent">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CURRENCIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Collapsible Category Sections */}
+        {allCategories.map((category) => {
+          const isCollapsed = !!collapsedCategories[category];
+          const labels = benefitsByCategory[category];
+          const categoryTotals = scenarios.map((s) =>
+            s.benefits.filter((b) => b.category === category).reduce((sum, b) => sum + b.amount, 0)
+          );
 
           return (
-            <div key={scenario.id} className="bg-card rounded-xl border border-border flex flex-col overflow-hidden transition-shadow hover:shadow-lg">
-              {/* Scenario Header */}
-              <div className="p-4 border-b border-border bg-gradient-to-r from-muted/30 to-transparent">
-                <div className="flex items-center justify-between mb-2">
-                  <Input
-                    value={scenario.name}
-                    onChange={(e) => updateScenarioName(scenario.id, e.target.value)}
-                    className="text-sm font-bold h-8 max-w-[200px] bg-transparent border-none p-0 focus-visible:ring-0 text-foreground"
-                  />
-                  {scenarios.length > 1 && (
-                    <button
-                      onClick={() => removeScenario(scenario.id)}
-                      className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+            <div key={category}>
+              {/* Category Header */}
+              <button
+                type="button"
+                onClick={() => toggleCategory(category)}
+                className="w-full grid items-center border-b border-border hover:bg-muted/30 transition-colors"
+                style={{ gridTemplateColumns: `200px repeat(${scenarios.length}, 1fr)` }}
+              >
+                <div className="flex items-center gap-2 px-5 py-3">
+                  <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
+                  <span className="text-sm font-semibold text-foreground">{category}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Currency</Label>
-                  <Select value={scenario.currency} onValueChange={(v) => updateScenarioCurrency(scenario.id, v)}>
-                    <SelectTrigger className="h-7 w-[80px] text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CURRENCIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  {hasOverrides && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-warning/10 text-warning font-medium">
-                      Overrides
-                    </span>
-                  )}
-                </div>
-              </div>
+                {scenarios.map((s, i) => (
+                  <div key={s.id} className="px-5 py-3 text-right text-sm font-semibold text-foreground tabular-nums border-l border-border">
+                    {formatNumber(categoryTotals[i])}
+                  </div>
+                ))}
+              </button>
 
-              {/* Benefits Breakdown */}
-              <div className="flex-1 p-4 space-y-4">
-                {Object.entries(grouped).map(([category, items]) => {
-                  const categoryTotal = items.reduce((s, b) => s + b.amount, 0);
-                  const collapseKey = `${scenario.id}:${category}`;
-                  const isCollapsed = !!collapsedCategories[collapseKey];
-                  return (
-                    <div key={category}>
-                      <button
-                        type="button"
-                        onClick={() => toggleCategory(scenario.id, category)}
-                        className="flex items-center justify-between w-full mb-2 group cursor-pointer"
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <ChevronDown className={`w-3 h-3 text-muted-foreground transition-transform ${isCollapsed ? "-rotate-90" : ""}`} />
-                          <h4 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest group-hover:text-foreground transition-colors">{category}</h4>
-                        </div>
-                        <span className="text-[10px] font-medium text-muted-foreground tabular-nums">{formatCurrency(categoryTotal, scenario.currency)}</span>
-                      </button>
-                      {!isCollapsed && (
-                        <div className="space-y-1">
-                          {items.map((benefit) => (
-                            <div
-                              key={benefit.id}
-                              className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition-all ${
-                                benefit.isOverridden
-                                  ? "bg-warning/5 border border-warning/20 shadow-sm"
-                                  : "bg-muted/20 hover:bg-muted/40"
-                              }`}
-                            >
-                              {benefit.category === "Custom" ? (
-                                <Input
-                                  value={benefit.label}
-                                  onChange={(e) => updateBenefitLabel(scenario.id, benefit.id, e.target.value)}
-                                  className="h-6 text-[13px] bg-transparent border-none p-0 focus-visible:ring-0 flex-1 text-foreground tracking-tight"
-                                />
-                              ) : (
-                                <span className="flex-1 text-foreground text-[13px] tracking-tight">{benefit.label}</span>
-                              )}
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-muted-foreground/50 text-xs">{getCurrencySymbol(scenario.currency)}</span>
-                                <Input
-                                  type="text"
-                                  inputMode="numeric"
-                                  value={formatNumber(benefit.amount)}
-                                  onChange={(e) => {
-                                    const raw = e.target.value.replace(/,/g, "");
-                                    updateBenefitAmount(scenario.id, benefit.id, Number(raw) || 0);
-                                  }}
-                                  className="h-6 w-[100px] text-[13px] text-right bg-transparent border-none p-0 focus-visible:ring-0 text-foreground tabular-nums tracking-tight"
-                                />
-                                {benefit.isOverridden && benefit.category !== "Custom" && (
-                                  <button
-                                    onClick={() => resetBenefit(scenario.id, benefit.id)}
-                                    className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                                    title="Reset to calculated value"
-                                  >
-                                    <RefreshCw className="w-3 h-3" />
-                                  </button>
-                                )}
-                                {benefit.category === "Custom" && (
-                                  <button
-                                    onClick={() => removeBenefit(scenario.id, benefit.id)}
-                                    className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-
-                <button
-                  onClick={() => addCustomBenefit(scenario.id)}
-                  className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2.5 text-xs text-muted-foreground hover:text-accent hover:border-accent/40 transition-colors"
+              {/* Benefit Rows */}
+              {!isCollapsed && labels.map((label) => (
+                <div
+                  key={label}
+                  className="grid items-center border-b border-border/50 hover:bg-muted/10 transition-colors"
+                  style={{ gridTemplateColumns: `200px repeat(${scenarios.length}, 1fr)` }}
                 >
-                  <Plus className="w-3 h-3" /> Add Benefit Line
-                </button>
-              </div>
-
-              {/* Total & Year-by-Year Breakdown */}
-              <div className="p-4 border-t border-border bg-gradient-to-r from-accent/5 to-transparent space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-bold text-foreground">Total Cost</span>
-                  <span className="text-xl font-bold text-accent tabular-nums">{formatCurrency(total, scenario.currency)}</span>
+                  <div className="px-5 py-2.5 pl-10 text-sm text-muted-foreground">{label}</div>
+                  {scenarios.map((scenario) => {
+                    const benefit = scenario.benefits.find((b) => b.label === label && b.category === category);
+                    if (!benefit) {
+                      return <div key={scenario.id} className="px-5 py-2.5 text-right text-sm text-muted-foreground/40 border-l border-border">—</div>;
+                    }
+                    return (
+                      <div key={scenario.id} className="flex items-center justify-end gap-1.5 px-5 py-2.5 border-l border-border">
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          value={formatNumber(benefit.amount)}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(/,/g, "");
+                            updateBenefitAmount(scenario.id, benefit.id, Number(raw) || 0);
+                          }}
+                          className={`h-6 w-[100px] text-sm text-right bg-transparent border-none p-0 focus-visible:ring-0 tabular-nums ${
+                            benefit.isOverridden ? "text-amber-600 dark:text-amber-400 font-semibold" : "text-foreground"
+                          }`}
+                        />
+                        {benefit.isOverridden && benefit.category !== "Custom" && (
+                          <button
+                            onClick={() => resetBenefit(scenario.id, benefit.id)}
+                            className="p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                            title="Reset"
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                          </button>
+                        )}
+                        {benefit.category === "Custom" && (
+                          <button
+                            onClick={() => removeBenefit(scenario.id, benefit.id)}
+                            className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-
-                {/* Year-by-year breakdown */}
-                {simulation.duration_months > 0 && (() => {
-                  const months = simulation.duration_months as number;
-                  const years = Math.ceil(months / 12);
-                  const annualCost = months >= 12 ? total / months * 12 : total;
-                  const rows: { label: string; amount: number }[] = [];
-                  for (let y = 1; y <= years; y++) {
-                    const monthsInYear = y < years ? 12 : (months % 12 || 12);
-                    rows.push({
-                      label: `Year ${y}${monthsInYear < 12 ? ` (${monthsInYear}mo)` : ""}`,
-                      amount: Math.round(annualCost * monthsInYear / 12),
-                    });
-                  }
-                  return (
-                    <div className="pt-2 border-t border-border/50 space-y-1.5">
-                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Year-by-Year Breakdown</p>
-                      {rows.map((r) => (
-                        <div key={r.label} className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">{r.label}</span>
-                          <span className="text-foreground font-medium tabular-nums">{formatCurrency(r.amount, scenario.currency)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
-
-                <p className="text-[10px] text-muted-foreground">
-                  {scenario.benefits.filter((b) => b.isOverridden).length} override{scenario.benefits.filter((b) => b.isOverridden).length !== 1 ? "s" : ""} applied
-                </p>
-              </div>
+              ))}
             </div>
           );
         })}
+
+        {/* Total Row */}
+        <div
+          className="grid items-center bg-primary/5 border-t-2 border-primary/20"
+          style={{ gridTemplateColumns: `200px repeat(${scenarios.length}, 1fr)` }}
+        >
+          <div className="px-5 py-3 flex items-center gap-2">
+            <span className="text-sm font-bold text-foreground">Total</span>
+          </div>
+          {scenarios.map((s, i) => (
+            <div key={s.id} className="px-5 py-3 text-right text-lg font-bold text-foreground tabular-nums border-l border-primary/10">
+              {formatNumber(scenarioTotals[i])}
+            </div>
+          ))}
+        </div>
+
+        {/* Year-by-Year Breakdown (below total) */}
+        {simulation.duration_months > 0 && (() => {
+          const months = simulation.duration_months as number;
+          const years = Math.ceil(months / 12);
+          const rows: { label: string; monthsInYear: number }[] = [];
+          for (let y = 1; y <= years; y++) {
+            const mInYear = y < years ? 12 : (months % 12 || 12);
+            rows.push({ label: `Year ${y}${mInYear < 12 ? ` (${mInYear}mo)` : ""}`, monthsInYear: mInYear });
+          }
+          return rows.map((r) => (
+            <div
+              key={r.label}
+              className="grid items-center border-t border-border/30 bg-muted/10"
+              style={{ gridTemplateColumns: `200px repeat(${scenarios.length}, 1fr)` }}
+            >
+              <div className="px-5 py-2 pl-10 text-xs text-muted-foreground">{r.label}</div>
+              {scenarios.map((s, i) => (
+                <div key={s.id} className="px-5 py-2 text-right text-xs text-muted-foreground tabular-nums border-l border-border/30">
+                  {formatNumber(Math.round(scenarioTotals[i] / months * r.monthsInYear))}
+                </div>
+              ))}
+            </div>
+          ));
+        })()}
       </div>
 
-      {/* Comparison Table */}
-      {scenarios.length > 1 && (
-        <div className="bg-card rounded-xl border border-border overflow-hidden">
-          <div className="px-5 py-4 border-b border-border bg-gradient-to-r from-muted/30 to-transparent">
-            <h3 className="text-sm font-bold text-foreground">Scenario Comparison</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">Side-by-side cost breakdown across scenarios</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Category</th>
-                  {scenarios.map((s) => (
-                    <th key={s.id} className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">{s.name}</th>
-                  ))}
-                  {scenarios.length === 2 && (
-                    <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Delta</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {(() => {
-                  const allCategories = [...new Set(scenarios.flatMap((s) => s.benefits.map((b) => b.category)))];
-                  return allCategories.map((cat) => {
-                    const amounts = scenarios.map((s) => s.benefits.filter((b) => b.category === cat).reduce((sum, b) => sum + b.amount, 0));
-                    return (
-                      <tr key={cat} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
-                        <td className="px-5 py-3 text-foreground font-medium">{cat}</td>
-                        {amounts.map((amt, i) => (
-                          <td key={i} className="px-5 py-3 text-right text-foreground tabular-nums">{formatCurrency(amt, scenarios[i].currency)}</td>
-                        ))}
-                        {scenarios.length === 2 && (
-                          <td className={`px-5 py-3 text-right font-semibold tabular-nums ${amounts[1] - amounts[0] > 0 ? "text-destructive" : "text-success"}`}>
-                            {amounts[1] - amounts[0] >= 0 ? "+" : ""}{formatCurrency(amounts[1] - amounts[0], scenarios[0].currency)}
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  });
-                })()}
-                <tr className="font-bold bg-muted/30">
-                  <td className="px-5 py-3 text-foreground">Total</td>
-                  {scenarios.map((s) => {
-                    const total = s.benefits.reduce((sum, b) => sum + b.amount, 0);
-                    return <td key={s.id} className="px-5 py-3 text-right text-foreground tabular-nums">{formatCurrency(total, s.currency)}</td>;
-                  })}
-                  {scenarios.length === 2 && (() => {
-                    const t0 = scenarios[0].benefits.reduce((s, b) => s + b.amount, 0);
-                    const t1 = scenarios[1].benefits.reduce((s, b) => s + b.amount, 0);
-                    const diff = t1 - t0;
-                    return (
-                      <td className={`px-5 py-3 text-right font-bold tabular-nums ${diff > 0 ? "text-destructive" : "text-success"}`}>
-                        {diff >= 0 ? "+" : ""}{formatCurrency(diff, scenarios[0].currency)}
-                      </td>
-                    );
-                  })()}
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {/* Add benefit buttons per scenario */}
+      <div className="grid gap-4" style={{ gridTemplateColumns: `200px repeat(${scenarios.length}, 1fr)` }}>
+        <div />
+        {scenarios.map((scenario) => (
+          <button
+            key={scenario.id}
+            onClick={() => addCustomBenefit(scenario.id)}
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-xs text-muted-foreground hover:text-accent hover:border-accent/40 transition-colors"
+          >
+            <Plus className="w-3 h-3" /> Add Benefit Line
+          </button>
+        ))}
+      </div>
 
       {/* Linked Cost Estimates */}
       {linkedEstimates && linkedEstimates.length > 0 && (
         <div className="bg-card rounded-xl border border-border overflow-hidden">
-          <div className="px-5 py-4 border-b border-border bg-gradient-to-r from-muted/30 to-transparent">
+          <div className="px-5 py-4 border-b border-border">
             <div className="flex items-center gap-2">
-              <FileSpreadsheet className="w-4 h-4 text-accent" />
+              <FileSpreadsheet className="w-4 h-4 text-primary" />
               <h3 className="text-sm font-bold text-foreground">Linked Cost Estimates</h3>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent font-medium">
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
                 {linkedEstimates.length}
               </span>
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5">Cost estimates generated from this simulation</p>
           </div>
           <table className="w-full text-sm">
             <thead>
@@ -744,10 +677,10 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
           className="w-full flex items-center justify-between px-5 py-4 hover:bg-muted/20 transition-colors"
         >
           <div className="flex items-center gap-2">
-            <History className="w-4 h-4 text-accent" />
+            <History className="w-4 h-4 text-primary" />
             <h3 className="text-sm font-bold text-foreground">Override Audit Trail</h3>
             {auditLog && auditLog.length > 0 && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent font-medium">
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
                 {auditLog.length}
               </span>
             )}
@@ -766,7 +699,7 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
               <div className="divide-y divide-border/50 max-h-80 overflow-y-auto">
                 {auditLog.map((entry: any) => (
                   <div key={entry.id} className="px-5 py-3 flex items-center gap-4 hover:bg-muted/10 transition-colors">
-                    <div className="w-2 h-2 rounded-full shrink-0 bg-accent" />
+                    <div className="w-2 h-2 rounded-full shrink-0 bg-primary" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-foreground">
                         <span className="font-medium">{entry.field_label}</span>
@@ -789,6 +722,7 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
           </div>
         )}
       </div>
+
       {/* Cost Estimate Detail Viewer */}
       <CostEstimateDetailViewer
         estimate={selectedEstimate}
