@@ -387,14 +387,26 @@ export default function Simulations() {
                 )}
               </div>
 
-              <div className="flex items-center justify-between pt-3 border-t border-border">
+              <div className="grid grid-cols-3 gap-2 pt-3 border-t border-border">
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Total Cost</p>
                   <p className="text-lg font-bold text-foreground">{formatCurrency(sim.total_cost, sim.currency)}</p>
                 </div>
+                <div className="text-center">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Per Year</p>
+                  <p className="text-sm font-semibold text-foreground">
+                    {sim.total_cost != null && sim.duration_months > 0
+                      ? formatCurrency(Math.round((sim.total_cost / sim.duration_months) * 12), sim.currency)
+                      : "—"}
+                  </p>
+                </div>
                 <div className="text-right">
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">Duration</p>
-                  <p className="text-sm font-medium text-foreground">{sim.duration_months}mo</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {sim.duration_months >= 12
+                      ? `${Math.floor(sim.duration_months / 12)}y ${sim.duration_months % 12 ? `${sim.duration_months % 12}mo` : ""}`
+                      : `${sim.duration_months}mo`}
+                  </p>
                 </div>
               </div>
 
@@ -456,6 +468,7 @@ export default function Simulations() {
                 
                 <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Duration</th>
                 <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Cost</th>
+                <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Cost / Year</th>
                 <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
                 <th className="text-left px-5 py-3.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
               </tr>
@@ -471,8 +484,17 @@ export default function Simulations() {
                   <td className="px-5 py-3.5 font-medium text-foreground">
                     <span>{getSimTitle(sim)}</span>
                   </td>
-                  <td className="px-5 py-3.5 text-muted-foreground">{sim.duration_months}mo</td>
+                  <td className="px-5 py-3.5 text-muted-foreground">
+                    {sim.duration_months >= 12
+                      ? `${Math.floor(sim.duration_months / 12)}y ${sim.duration_months % 12 ? `${sim.duration_months % 12}mo` : ""}`
+                      : `${sim.duration_months}mo`}
+                  </td>
                   <td className="px-5 py-3.5 font-semibold text-foreground">{formatCurrency(sim.total_cost, sim.currency)}</td>
+                  <td className="px-5 py-3.5 text-muted-foreground">
+                    {sim.total_cost != null && sim.duration_months > 0
+                      ? formatCurrency(Math.round((sim.total_cost / sim.duration_months) * 12), sim.currency)
+                      : "—"}
+                  </td>
                   <td className="px-5 py-3.5"><StatusBadge status={sim.status} /></td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
