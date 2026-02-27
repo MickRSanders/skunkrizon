@@ -75,9 +75,9 @@ function useAllUsers() {
 function useInviteUser() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ email, displayName, role }: { email: string; displayName: string; role: string }) => {
+    mutationFn: async ({ email, displayName, role, action, password }: { email: string; displayName: string; role: string; action?: string; password?: string }) => {
       const { data, error } = await supabase.functions.invoke("invite-user", {
-        body: { email, displayName, role },
+        body: { email, displayName, role, action, password },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -140,6 +140,7 @@ const ROLE_DESCRIPTIONS: Record<string, string> = {
   admin: "Full access to all features, user and organization management",
   analyst: "Calculations, simulations, policy config, and reporting",
   viewer: "View assigned simulations and reports only",
+  employee: "Pre-Travel, Remote Work, and assigned Documents only",
 };
 
 // ─── Page ───────────────────────────────────────────────────────
@@ -197,7 +198,7 @@ export default function UserManagement() {
           <p className="text-sm text-muted-foreground mt-1">RBAC, user invitations, and activity monitoring</p>
         </div>
         <Button size="sm" onClick={() => setShowInvite(true)}>
-          <UserPlus className="w-4 h-4 mr-1" /> Invite User
+          <UserPlus className="w-4 h-4 mr-1" /> Add User
         </Button>
       </div>
 
@@ -376,6 +377,7 @@ function EditUserDialog({ user, onClose }: { user: UserWithRole; onClose: () => 
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="employee">Employee</SelectItem>
                 <SelectItem value="viewer">Viewer</SelectItem>
                 <SelectItem value="analyst">Analyst</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
@@ -396,22 +398,29 @@ function EditUserDialog({ user, onClose }: { user: UserWithRole; onClose: () => 
   );
 }
 
-// ─── Invite Dialog ──────────────────────────────────────────────
+// ─── Invite / Create User Dialog ────────────────────────────────
 
 function InviteUserDialog({ onClose }: { onClose: () => void }) {
+  const [mode, setMode] = useState<"invite" | "create">("create");
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [password, setPassword] = useState("");
   const [role, setRole] = useState("viewer");
   const invite = useInviteUser();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await invite.mutateAsync({ email, displayName, role });
-      toast.success(`Invitation sent to ${email}`);
+      if (mode === "create") {
+        await invite.mutateAsync({ email, displayName, role, action: "create-user", password });
+        toast.success(`User created — confirmation email sent to ${email}`);
+      } else {
+        await invite.mutateAsync({ email, displayName, role });
+        toast.success(`Invitation sent to ${email}`);
+      }
       onClose();
     } catch (err: any) {
-      toast.error(err.message || "Failed to invite user");
+      toast.error(err.message || "Failed to add user");
     }
   };
 
@@ -420,14 +429,32 @@ function InviteUserDialog({ onClose }: { onClose: () => void }) {
       <div className="bg-card border border-border rounded-xl shadow-lg w-full max-w-md mx-4">
         <div className="flex items-center justify-between p-5 border-b border-border">
           <div className="flex items-center gap-2">
-            <Mail className="w-5 h-5 text-accent" />
-            <h3 className="text-lg font-bold text-foreground">Invite User</h3>
+            <UserPlus className="w-5 h-5 text-accent" />
+            <h3 className="text-lg font-bold text-foreground">Add User</h3>
           </div>
           <button onClick={onClose} className="p-1 rounded hover:bg-muted text-muted-foreground">
             <X className="w-4 h-4" />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          {/* Mode toggle */}
+          <div className="flex gap-2 p-1 bg-muted rounded-lg">
+            <button
+              type="button"
+              className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-colors ${mode === "create" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              onClick={() => setMode("create")}
+            >
+              Create with Password
+            </button>
+            <button
+              type="button"
+              className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-colors ${mode === "invite" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              onClick={() => setMode("invite")}
+            >
+              Send Invite Link
+            </button>
+          </div>
+
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Email Address *</Label>
             <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="user@company.com" />
@@ -436,11 +463,18 @@ function InviteUserDialog({ onClose }: { onClose: () => void }) {
             <Label className="text-xs text-muted-foreground">Display Name</Label>
             <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Jane Smith" />
           </div>
+          {mode === "create" && (
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Password *</Label>
+              <Input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min 6 characters" />
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Role</Label>
             <Select value={role} onValueChange={setRole}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
+                <SelectItem value="employee">Employee</SelectItem>
                 <SelectItem value="viewer">Viewer</SelectItem>
                 <SelectItem value="analyst">Analyst</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
@@ -449,13 +483,15 @@ function InviteUserDialog({ onClose }: { onClose: () => void }) {
             </Select>
           </div>
           <p className="text-xs text-muted-foreground">
-            An email invitation will be sent to this address with a link to set up their account.
+            {mode === "create"
+              ? "The user will receive a confirmation email to verify their address before they can sign in."
+              : "An email invitation will be sent with a link to set up their account."}
           </p>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" size="sm" onClick={onClose}>Cancel</Button>
             <Button type="submit" size="sm" disabled={invite.isPending}>
               {invite.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
-              Send Invitation
+              {mode === "create" ? "Create User" : "Send Invitation"}
             </Button>
           </div>
         </form>

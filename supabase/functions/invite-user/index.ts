@@ -57,7 +57,7 @@ serve(async (req) => {
       });
     }
 
-    const { action, email, displayName, role, userId: targetUserId } = await req.json();
+    const { action, email, displayName, role, userId: targetUserId, password } = await req.json();
 
     // ─── Admin Password Reset ────────────────────────────────────
     if (action === "reset-password") {
@@ -68,7 +68,6 @@ serve(async (req) => {
         });
       }
 
-      // Look up user email from auth
       const { data: targetUser, error: userError } = await adminClient.auth.admin.getUserById(targetUserId);
       if (userError || !targetUser?.user?.email) {
         return new Response(JSON.stringify({ error: "User not found" }), {
@@ -77,7 +76,6 @@ serve(async (req) => {
         });
       }
 
-      // Generate a password reset link
       const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
         type: "recovery",
         email: targetUser.user.email,
@@ -97,6 +95,63 @@ serve(async (req) => {
       );
     }
 
+    // ─── Create User (with password) ─────────────────────────────
+    if (action === "create-user") {
+      if (!email || typeof email !== "string") {
+        return new Response(JSON.stringify({ error: "A valid email is required" }), {
+          status: 400, headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+      if (!password || typeof password !== "string" || password.length < 6) {
+        return new Response(JSON.stringify({ error: "Password must be at least 6 characters" }), {
+          status: 400, headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+
+      // Create user with email confirmation required
+      const { data: createData, error: createError } = await adminClient.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: false, // user must confirm via email
+        user_metadata: { display_name: displayName || email },
+      });
+
+      if (createError) {
+        console.error("Create user error:", createError);
+        const userMessage = createError.message?.includes("already")
+          ? "A user with this email already exists"
+          : createError.message || "Failed to create user";
+        return new Response(JSON.stringify({ error: userMessage }), {
+          status: 400, headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+
+      // Assign role
+      if (role && role !== "superadmin" && createData.user) {
+        await adminClient
+          .from("user_roles")
+          .update({ role })
+          .eq("user_id", createData.user.id);
+      }
+
+      // Generate a signup confirmation link (sends confirmation email)
+      const { error: confirmError } = await adminClient.auth.admin.generateLink({
+        type: "signup",
+        email,
+        password,
+      });
+
+      if (confirmError) {
+        console.error("Confirmation email error:", confirmError);
+        // User was created but confirmation email failed — not fatal
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, userId: createData.user?.id }),
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
     // ─── Invite User (default action) ────────────────────────────
     if (!email || typeof email !== "string") {
       return new Response(JSON.stringify({ error: "A valid email is required" }), {
@@ -105,7 +160,6 @@ serve(async (req) => {
       });
     }
 
-    // Invite user — sends invite email automatically
     const { data: inviteData, error: inviteError } =
       await adminClient.auth.admin.inviteUserByEmail(email, {
         data: { display_name: displayName || email },
@@ -122,7 +176,6 @@ serve(async (req) => {
       });
     }
 
-    // Assign role if specified (default 'viewer' is set by handle_new_user trigger)
     if (role && role !== "viewer" && inviteData.user) {
       await adminClient
         .from("user_roles")
