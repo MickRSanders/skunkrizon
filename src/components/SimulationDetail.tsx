@@ -534,13 +534,41 @@ export default function SimulationDetail({ simulation, onBack }: SimulationDetai
                 </button>
               </div>
 
-              {/* Total */}
-              <div className="p-4 border-t border-border bg-gradient-to-r from-accent/5 to-transparent">
+              {/* Total & Year-by-Year Breakdown */}
+              <div className="p-4 border-t border-border bg-gradient-to-r from-accent/5 to-transparent space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-bold text-foreground">Total Cost</span>
                   <span className="text-xl font-bold text-accent tabular-nums">{formatCurrency(total, scenario.currency)}</span>
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-1">
+
+                {/* Year-by-year breakdown */}
+                {simulation.duration_months > 0 && (() => {
+                  const months = simulation.duration_months as number;
+                  const years = Math.ceil(months / 12);
+                  if (years <= 1) return null;
+                  const annualCost = total / months * 12;
+                  const rows: { label: string; amount: number }[] = [];
+                  for (let y = 1; y <= years; y++) {
+                    const monthsInYear = y < years ? 12 : (months % 12 || 12);
+                    rows.push({
+                      label: `Year ${y}${monthsInYear < 12 ? ` (${monthsInYear}mo)` : ""}`,
+                      amount: Math.round(annualCost * monthsInYear / 12),
+                    });
+                  }
+                  return (
+                    <div className="pt-2 border-t border-border/50 space-y-1.5">
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Year-by-Year</p>
+                      {rows.map((r) => (
+                        <div key={r.label} className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">{r.label}</span>
+                          <span className="text-foreground font-medium tabular-nums">{formatCurrency(r.amount, scenario.currency)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                <p className="text-[10px] text-muted-foreground">
                   {scenario.benefits.filter((b) => b.isOverridden).length} override{scenario.benefits.filter((b) => b.isOverridden).length !== 1 ? "s" : ""} applied
                 </p>
               </div>
