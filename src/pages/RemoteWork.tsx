@@ -27,7 +27,7 @@ import {
 import { format } from "date-fns";
 import PageTransition from "@/components/PageTransition";
 import CreateRemoteWorkDialog from "@/components/remotework/CreateRemoteWorkDialog";
-import LocationMap from "@/components/remotework/LocationMap";
+import LocationMap, { type LocationPoint } from "@/components/remotework/LocationMap";
 
 const statusConfig: Record<RemoteWorkStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ElementType }> = {
   draft: { label: "Draft", variant: "secondary", icon: Clock },
@@ -55,6 +55,12 @@ export default function RemoteWork() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState<"all" | "employee_remote" | "virtual_assignment">("all");
+  const [prefillLocation, setPrefillLocation] = useState<{ country: string; city: string } | null>(null);
+
+  const handleRequestFromMap = (location: LocationPoint) => {
+    setPrefillLocation({ country: location.country, city: location.city });
+    setDialogOpen(true);
+  };
 
   const filtered = (requests ?? []).filter((r) => {
     const q = search.toLowerCase();
@@ -118,7 +124,7 @@ export default function RemoteWork() {
         </div>
 
         {/* Location Map */}
-        <LocationMap />
+        <LocationMap onRequestFromLocation={handleRequestFromMap} />
 
         {/* Toolbar */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
@@ -188,7 +194,15 @@ export default function RemoteWork() {
           </div>
         )}
 
-        <CreateRemoteWorkDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+        <CreateRemoteWorkDialog
+          open={dialogOpen}
+          onOpenChange={(open) => {
+            setDialogOpen(open);
+            if (!open) setPrefillLocation(null);
+          }}
+          prefillHostCountry={prefillLocation?.country}
+          prefillHostCity={prefillLocation?.city}
+        />
       </div>
     </PageTransition>
   );
