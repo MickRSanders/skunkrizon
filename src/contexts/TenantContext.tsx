@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useImpersonation } from "@/contexts/ImpersonationContext";
 
 type SubTenant = {
   id: string;
@@ -37,6 +38,7 @@ const PENDING_TENANT_KEY = "horizon_pending_tenant_id";
 
 export function TenantProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const { impersonatedUser, isImpersonating } = useImpersonation();
   const queryClient = useQueryClient();
   const [activeTenantId, setActiveTenantId] = useState<string | null>(() =>
     localStorage.getItem(ACTIVE_TENANT_KEY)
@@ -44,6 +46,9 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const [activeSubTenantId, setActiveSubTenantId] = useState<string | null>(() =>
     localStorage.getItem(ACTIVE_SUB_TENANT_KEY)
   );
+
+  // The effective user ID for tenant resolution
+  const effectiveUserId = isImpersonating ? impersonatedUser?.id : user?.id;
 
   // Check if user is superadmin
   const { data: isSuperadmin = false } = useQuery({
@@ -61,9 +66,36 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   });
 
   const { data: tenants = [], isLoading } = useQuery({
-    queryKey: ["user_tenants", user?.id, isSuperadmin],
+    queryKey: ["user_tenants", effectiveUserId, isSuperadmin, isImpersonating],
     enabled: !!user,
     queryFn: async () => {
+      // When impersonating, always show the impersonated user's memberships
+      if (isImpersonating && impersonatedUser) {
+        const { data: memberships, error } = await supabase
+          .from("tenant_users")
+          .select("tenant_id, sub_tenant_id, role")
+          .eq("user_id", impersonatedUser.id);
+        if (error) throw error;
+        if (!memberships?.length) return [];
+
+        const tenantIds = [...new Set(memberships.map((m) => m.tenant_id))];
+        const { data: tenantRows } = await supabase
+          .from("tenants")
+          .select("id, name, slug, logo_url")
+          .in("id", tenantIds);
+
+        const tenantMap = Object.fromEntries(
+          (tenantRows ?? []).map((t) => [t.id, t])
+        );
+
+        return memberships.map((m) => ({
+          ...m,
+          tenant_name: tenantMap[m.tenant_id]?.name ?? null,
+          tenant_slug: tenantMap[m.tenant_id]?.slug ?? null,
+          tenant_logo_url: tenantMap[m.tenant_id]?.logo_url ?? null,
+        })) as TenantMembership[];
+      }
+
       if (isSuperadmin) {
         // Superadmins can see ALL organizations
         const { data: allTenants, error } = await supabase

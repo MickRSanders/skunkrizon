@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { TenantProvider } from "@/contexts/TenantContext";
 import { TaxConfigProvider } from "@/contexts/TaxConfigContext";
+import { ImpersonationProvider } from "@/contexts/ImpersonationContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import ModuleGuard from "@/components/ModuleGuard";
 import AppLayout from "./components/AppLayout";
@@ -39,6 +40,7 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
+      <ImpersonationProvider>
       <TenantProvider>
       <TaxConfigProvider>
       <TooltipProvider>
@@ -78,6 +80,7 @@ const App = () => (
       </TooltipProvider>
       </TaxConfigProvider>
       </TenantProvider>
+      </ImpersonationProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

@@ -20,8 +20,12 @@ import {
   UserPlus,
   Pencil,
   KeyRound,
+  Eye,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useTenantContext } from "@/contexts/TenantContext";
+import { useImpersonation } from "@/contexts/ImpersonationContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 // ─── Types & Hooks ──────────────────────────────────────────────
 
@@ -145,7 +149,23 @@ export default function UserManagement() {
   const [search, setSearch] = useState("");
   const [showInvite, setShowInvite] = useState(false);
   const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
+  const { isSuperadmin } = useTenantContext();
+  const { startImpersonation } = useImpersonation();
+  const { user } = useAuth();
   const resetPassword = useResetPassword();
+
+  const handleImpersonate = (u: UserWithRole) => {
+    if (u.id === user?.id) {
+      toast.error("You can't impersonate yourself");
+      return;
+    }
+    startImpersonation({
+      id: u.id,
+      display_name: u.display_name,
+      role: u.role,
+    });
+    toast.success(`Now viewing as ${u.display_name || "user"}`);
+  };
 
   const handleResetPassword = async (user: UserWithRole) => {
     try {
@@ -253,6 +273,15 @@ export default function UserManagement() {
                       <td className="px-5 py-3 text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</td>
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-1">
+                          {isSuperadmin && u.id !== user?.id && (
+                            <button
+                              onClick={() => handleImpersonate(u)}
+                              className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-accent"
+                              title="Impersonate user"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                          )}
                           <button
                             onClick={() => handleResetPassword(u)}
                             className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
