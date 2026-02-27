@@ -31,6 +31,7 @@ import ResetPassword from "./pages/ResetPassword";
 import EmployeeDirectory from "./pages/EmployeeDirectory";
 import Documents from "./pages/Documents";
 import FieldMappings from "./pages/FieldMappings";
+import CostEstimateTemplates from "./pages/CostEstimateTemplates";
 
 const queryClient = new QueryClient();
 
@@ -67,6 +68,7 @@ const App = () => (
               <Route path="/employees" element={<EmployeeDirectory />} />
               <Route path="/documents" element={<Documents />} />
               <Route path="/field-mappings" element={<FieldMappings />} />
+              <Route path="/cost-estimate-templates" element={<CostEstimateTemplates />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

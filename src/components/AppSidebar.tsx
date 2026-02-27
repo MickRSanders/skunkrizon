@@ -39,6 +39,7 @@ const navItems = [
   { to: "/employees", icon: Contact, label: "Employees" },
   { to: "/policies", icon: FileText, label: "Policy Agent" },
   { to: "/documents", icon: ClipboardList, label: "Documents" },
+  { to: "/cost-estimate-templates", icon: FileText, label: "Cost Estimates" },
   { to: "/analytics", icon: BarChart3, label: "Analytics" },
 ];
 

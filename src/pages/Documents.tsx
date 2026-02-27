@@ -14,11 +14,12 @@ import {
 } from "@/components/ui/select";
 import {
   FileText, Plus, ScrollText, CreditCard, Receipt, Search,
-  FileCheck, Loader2, Download, Eye, ArrowRight,
+  FileCheck, Loader2, Download, Eye, ArrowRight, FileSpreadsheet,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { useLoaTemplates, useCreateLoaTemplate, useLoaDocuments, useBalanceSheets, usePayInstructions } from "@/hooks/useDocuments";
+import { useCostEstimates } from "@/hooks/useCostEstimates";
 import { useSimulations } from "@/hooks/useSimulations";
 
 export default function Documents() {
@@ -32,6 +33,7 @@ export default function Documents() {
   const { data: loaDocs, isLoading: loadingDocs } = useLoaDocuments();
   const { data: balanceSheets, isLoading: loadingBS } = useBalanceSheets();
   const { data: payInstructions, isLoading: loadingPI } = usePayInstructions();
+  const { data: costEstimates, isLoading: loadingCE } = useCostEstimates();
   const { data: simulations } = useSimulations();
   const createTemplate = useCreateLoaTemplate();
 
@@ -90,6 +92,7 @@ export default function Documents() {
             <StatPill icon={FileCheck} label="LOA Documents" value={loaDocs?.length ?? 0} />
             <StatPill icon={CreditCard} label="Balance Sheets" value={balanceSheets?.length ?? 0} />
             <StatPill icon={Receipt} label="Pay Instructions" value={payInstructions?.length ?? 0} />
+            <StatPill icon={FileSpreadsheet} label="Cost Estimates" value={costEstimates?.length ?? 0} />
           </div>
         </div>
       </div>
@@ -114,6 +117,7 @@ export default function Documents() {
           <TabsTrigger value="loa-documents" className="gap-1.5"><FileText className="w-3.5 h-3.5" /> LOA Documents</TabsTrigger>
           <TabsTrigger value="balance-sheets" className="gap-1.5"><CreditCard className="w-3.5 h-3.5" /> Balance Sheets</TabsTrigger>
           <TabsTrigger value="pay-instructions" className="gap-1.5"><Receipt className="w-3.5 h-3.5" /> Pay Instructions</TabsTrigger>
+          <TabsTrigger value="cost-estimates" className="gap-1.5"><FileSpreadsheet className="w-3.5 h-3.5" /> Cost Estimates</TabsTrigger>
         </TabsList>
 
         {/* LOA Templates Tab */}
@@ -187,6 +191,15 @@ export default function Documents() {
             <EmptyState icon={Receipt} title="No pay instructions yet" description="Generate pay instructions from approved simulations." />
           ) : (
             <DocumentTable items={payInstructions} type="pay_instruction" />
+          )}
+        </TabsContent>
+
+        {/* Cost Estimates Tab */}
+        <TabsContent value="cost-estimates" className="space-y-4">
+          {loadingCE ? <LoadingState /> : !costEstimates || costEstimates.length === 0 ? (
+            <EmptyState icon={FileSpreadsheet} title="No cost estimates yet" description="Generate cost estimates from approved simulations using the Generate button." />
+          ) : (
+            <DocumentTable items={costEstimates} type="cost_estimate" />
           )}
         </TabsContent>
       </Tabs>
