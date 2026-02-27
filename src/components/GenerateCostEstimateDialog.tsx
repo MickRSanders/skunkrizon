@@ -197,7 +197,7 @@ export default function GenerateCostEstimateDialog({ open, onOpenChange, simulat
               <SelectTrigger>
                 <SelectValue placeholder="Select an employee…" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent position="popper" className="z-[200] max-h-60">
                 {employees.map((emp) => (
                   <SelectItem key={emp.id} value={emp.id}>
                     {emp.first_name} {emp.last_name} ({emp.employee_code})
@@ -218,7 +218,7 @@ export default function GenerateCostEstimateDialog({ open, onOpenChange, simulat
               <SelectTrigger>
                 <SelectValue placeholder="Select a template…" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent position="popper" className="z-[200] max-h-60">
                 {activeTemplates.map((t: any) => (
                   <SelectItem key={t.id} value={t.id}>
                     {t.name}
