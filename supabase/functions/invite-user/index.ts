@@ -59,6 +59,24 @@ serve(async (req) => {
 
     const { action, email, displayName, role, userId: targetUserId, password } = await req.json();
 
+    // ─── List Auth Users (last_sign_in_at) ───────────────────────
+    if (action === "list-auth-users") {
+      const { data: listData, error: listError } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+      if (listError) {
+        return new Response(JSON.stringify({ error: "Failed to list users" }), {
+          status: 500, headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+      const mapped = (listData.users || []).map((u) => ({
+        id: u.id,
+        email: u.email,
+        last_sign_in_at: u.last_sign_in_at,
+      }));
+      return new Response(JSON.stringify({ users: mapped }), {
+        status: 200, headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
     // ─── Delete User ───────────────────────────────────────────────
     if (action === "delete-user") {
       if (!targetUserId || typeof targetUserId !== "string") {
