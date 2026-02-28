@@ -6,13 +6,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowLeft, Sparkles } from "lucide-react";
 
 type TenantInfo = {
   id: string;
   name: string;
   slug: string;
   logo_url: string | null;
+};
+
+type SubTenantProspect = {
+  id: string;
+  name: string;
+  slug: string;
+  tenant_id: string;
+  is_prospect: boolean;
+  demo_user_email: string | null;
 };
 
 const PENDING_TENANT_KEY = "horizon_pending_tenant_id";
@@ -25,12 +34,13 @@ export default function Auth() {
   const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
   const [tenantInfo, setTenantInfo] = useState<TenantInfo | null>(null);
+  const [prospectInfo, setProspectInfo] = useState<SubTenantProspect | null>(null);
   const [tenantLoading, setTenantLoading] = useState(!!slug);
   const [tenantError, setTenantError] = useState(false);
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
 
-  // Look up tenant by slug
+  // Look up tenant or prospect sub-tenant by slug
   useEffect(() => {
     if (!slug) {
       setTenantLoading(false);
@@ -39,18 +49,50 @@ export default function Auth() {
     (async () => {
       setTenantLoading(true);
       setTenantError(false);
-      const { data, error } = await supabase
+
+      // First try tenant
+      const { data: tenantData } = await supabase
         .from("tenants")
         .select("id, name, slug, logo_url")
         .eq("slug", slug)
         .eq("is_active", true)
         .maybeSingle();
 
-      if (error || !data) {
-        setTenantError(true);
-      } else {
-        setTenantInfo(data);
+      if (tenantData) {
+        setTenantInfo(tenantData);
+        setTenantLoading(false);
+        return;
       }
+
+      // Then try sub-tenant (prospect)
+      const { data: subData } = await supabase
+        .from("sub_tenants")
+        .select("id, name, slug, tenant_id, is_prospect, demo_user_email")
+        .eq("slug", slug)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (subData) {
+        setProspectInfo(subData as SubTenantProspect);
+        // Also fetch parent tenant for branding
+        const { data: parentTenant } = await supabase
+          .from("tenants")
+          .select("id, name, slug, logo_url")
+          .eq("id", subData.tenant_id)
+          .maybeSingle();
+        if (parentTenant) setTenantInfo(parentTenant);
+
+        // Auto-fill demo credentials for prospects
+        if (subData.is_prospect && subData.demo_user_email) {
+          setEmail(subData.demo_user_email);
+          setPassword("topia2026!");
+        }
+
+        setTenantLoading(false);
+        return;
+      }
+
+      setTenantError(true);
       setTenantLoading(false);
     })();
   }, [slug]);
@@ -113,7 +155,8 @@ export default function Auth() {
     );
   }
 
-  const brandName = tenantInfo?.name ?? "Horizon by Topia";
+  const isProspectDemo = prospectInfo?.is_prospect && prospectInfo?.demo_user_email;
+  const brandName = prospectInfo?.name ?? tenantInfo?.name ?? "Horizon by Topia";
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
@@ -135,6 +178,17 @@ export default function Auth() {
               : "Reset your password"}
           </p>
         </div>
+
+        {/* Prospect demo banner */}
+        {isProspectDemo && mode === "login" && (
+          <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 flex items-start gap-2">
+            <Sparkles className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+            <p className="text-xs text-foreground">
+              <span className="font-semibold">Demo:</span> Pre-filled credentials — just click sign in.
+            </p>
+          </div>
+        )}
+
         <form
           onSubmit={handleSubmit}
           className="bg-card border border-border rounded-xl p-6 space-y-4 shadow-sm"
