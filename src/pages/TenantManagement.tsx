@@ -572,7 +572,6 @@ function CreateTenantDialog({ onClose }: { onClose: () => void }) {
 function CreateSubTenantForm({ tenantId, onClose }: { tenantId: string; onClose: () => void }) {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
-  const [domain, setDomain] = useState("");
   const [isProspect, setIsProspect] = useState(false);
   const [provisioning, setProvisioning] = useState(false);
   const createSub = useCreateSubTenant();
@@ -583,13 +582,12 @@ function CreateSubTenantForm({ tenantId, onClose }: { tenantId: string; onClose:
   const isDemoTenant = currentTenant?.slug === "demo";
 
   const handleCreate = async () => {
-    if (!name || !slug) return toast.error("Name and slug are required");
+    if (!name || !slug) return toast.error("Name and sub-domain name are required");
     try {
       const newSub = await createSub.mutateAsync({
         tenant_id: tenantId,
         name,
         slug: slug.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
-        domain: domain || null,
         is_prospect: isProspect,
       } as any);
 
@@ -620,10 +618,9 @@ function CreateSubTenantForm({ tenantId, onClose }: { tenantId: string; onClose:
   return (
     <div className="rounded-md border border-accent/30 bg-accent/5 p-4 space-y-3">
       <h4 className="text-sm font-semibold text-foreground">Add Sub-Organization</h4>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <ConfigField label="Name *" value={name} onChange={(v) => { setName(v); if (!slug) setSlug(v.toLowerCase().replace(/[^a-z0-9]+/g, "-")); }} placeholder="Client name" />
-        <ConfigField label="Slug *" value={slug} onChange={setSlug} placeholder="client-slug" />
-        <ConfigField label="Domain" value={domain} onChange={setDomain} placeholder="client.com" />
+        <ConfigField label="Sub-Domain Name *" value={slug} onChange={setSlug} placeholder="client-subdomain" />
       </div>
       {isDemoTenant && (
         <div className="flex items-center justify-between rounded-md border border-border px-4 py-3">
