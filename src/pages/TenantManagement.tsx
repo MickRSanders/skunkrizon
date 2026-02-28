@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +30,7 @@ import {
   Copy,
   Link,
   LayoutGrid,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -47,6 +48,7 @@ import {
   type Tenant,
 } from "@/hooks/useTenants";
 import type { Json } from "@/integrations/supabase/types";
+import { supabase } from "@/integrations/supabase/client";
 import {
   ALL_MODULE_KEYS,
   MODULE_KEY_LABELS,
@@ -246,13 +248,28 @@ function TenantDetail({
             <div className="py-8 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-accent" /></div>
           ) : subTenants && subTenants.length > 0 ? (
             <div className="space-y-2">
-              {subTenants.map((s) => (
+              {subTenants.map((s: any) => (
                 <div key={s.id} className="flex items-center justify-between p-3 rounded-md border border-border bg-muted/20">
                   <div className="flex items-center gap-3">
                     <Building2 className="w-4 h-4 text-muted-foreground" />
                     <div>
-                      <p className="text-sm font-medium text-foreground">{s.name}</p>
-                      <p className="text-xs text-muted-foreground">{s.slug} {s.domain && `· ${s.domain}`}</p>
+                      <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                        {s.name}
+                        {s.is_demo_baseline && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-accent/10 text-accent">Baseline</span>
+                        )}
+                        {s.is_prospect && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-600 flex items-center gap-0.5">
+                            <Sparkles className="w-3 h-3" /> Prospect
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {s.slug} {s.domain && `· ${s.domain}`}
+                        {s.demo_user_email && (
+                          <span className="ml-2 text-accent">Demo: {s.demo_user_email}</span>
+                        )}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -556,18 +573,44 @@ function CreateSubTenantForm({ tenantId, onClose }: { tenantId: string; onClose:
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [domain, setDomain] = useState("");
+  const [isProspect, setIsProspect] = useState(false);
+  const [provisioning, setProvisioning] = useState(false);
   const createSub = useCreateSubTenant();
+
+  // Check if this tenant is TopiaDemo (slug = 'demo')
+  const { data: tenants } = useTenants();
+  const currentTenant = tenants?.find((t) => t.id === tenantId);
+  const isDemoTenant = currentTenant?.slug === "demo";
 
   const handleCreate = async () => {
     if (!name || !slug) return toast.error("Name and slug are required");
     try {
-      await createSub.mutateAsync({
+      const newSub = await createSub.mutateAsync({
         tenant_id: tenantId,
         name,
         slug: slug.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
         domain: domain || null,
-      });
+        is_prospect: isProspect,
+      } as any);
+
       toast.success(`Sub-organization "${name}" created`);
+
+      // If prospect, provision demo user and copy baseline data
+      if (isProspect && newSub?.id) {
+        setProvisioning(true);
+        try {
+          const { data, error } = await supabase.functions.invoke("provision-prospect", {
+            body: { sub_tenant_id: newSub.id },
+          });
+          if (error) throw error;
+          toast.success(`Prospect provisioned! Demo login: ${data.demo_email}`);
+        } catch (err: any) {
+          toast.error("Provisioning failed: " + (err.message || "Unknown error"));
+        } finally {
+          setProvisioning(false);
+        }
+      }
+
       onClose();
     } catch (err: any) {
       toast.error(err.message || "Failed to create sub-organization");
@@ -582,10 +625,22 @@ function CreateSubTenantForm({ tenantId, onClose }: { tenantId: string; onClose:
         <ConfigField label="Slug *" value={slug} onChange={setSlug} placeholder="client-slug" />
         <ConfigField label="Domain" value={domain} onChange={setDomain} placeholder="client.com" />
       </div>
+      {isDemoTenant && (
+        <div className="flex items-center justify-between rounded-md border border-border px-4 py-3">
+          <div>
+            <p className="text-sm font-medium text-foreground flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-amber-500" /> Mark as Prospect
+            </p>
+            <p className="text-xs text-muted-foreground">Creates a demo user and copies baseline data automatically</p>
+          </div>
+          <Switch checked={isProspect} onCheckedChange={setIsProspect} />
+        </div>
+      )}
       <div className="flex justify-end gap-2">
         <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-        <Button size="sm" onClick={handleCreate} disabled={createSub.isPending}>
-          {createSub.isPending && <Loader2 className="w-4 h-4 animate-spin mr-1" />} Add
+        <Button size="sm" onClick={handleCreate} disabled={createSub.isPending || provisioning}>
+          {(createSub.isPending || provisioning) && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
+          {provisioning ? "Provisioning..." : "Add"}
         </Button>
       </div>
     </div>

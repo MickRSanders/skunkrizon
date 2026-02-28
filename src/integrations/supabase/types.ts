@@ -1921,9 +1921,13 @@ export type Database = {
           contact_email: string | null
           contact_name: string | null
           created_at: string
+          demo_user_email: string | null
+          demo_user_id: string | null
           domain: string | null
           id: string
           is_active: boolean | null
+          is_demo_baseline: boolean
+          is_prospect: boolean
           name: string
           slug: string
           sso_config: Json | null
@@ -1936,9 +1940,13 @@ export type Database = {
           contact_email?: string | null
           contact_name?: string | null
           created_at?: string
+          demo_user_email?: string | null
+          demo_user_id?: string | null
           domain?: string | null
           id?: string
           is_active?: boolean | null
+          is_demo_baseline?: boolean
+          is_prospect?: boolean
           name: string
           slug: string
           sso_config?: Json | null
@@ -1951,9 +1959,13 @@ export type Database = {
           contact_email?: string | null
           contact_name?: string | null
           created_at?: string
+          demo_user_email?: string | null
+          demo_user_id?: string | null
           domain?: string | null
           id?: string
           is_active?: boolean | null
+          is_demo_baseline?: boolean
+          is_prospect?: boolean
           name?: string
           slug?: string
           sso_config?: Json | null
