@@ -114,8 +114,8 @@ If a field cannot be determined from the document, use null. Always return valid
           { role: "system", content: systemPrompt },
           { role: "user", content: `Parse this policy document (filename: ${sanitizedFileName}):\n\n${textContent.slice(0, 50000)}` },
         ];
-      } else {
-        // For PDF/DOCX, send as inline_data (Gemini supports this)
+      } else if (mimeType === "application/pdf") {
+        // PDF: Gemini supports this via inline data
         messages = [
           { role: "system", content: systemPrompt },
           {
@@ -130,6 +130,32 @@ If a field cannot be determined from the document, use null. Always return valid
               },
             ],
           },
+        ];
+      } else {
+        // DOCX and other binary formats: extract raw text content
+        // DOCX is a ZIP containing XML; extract text from word/document.xml
+        let extractedText = "";
+        try {
+          // Simple DOCX text extraction: find XML text between <w:t> tags
+          const rawText = new TextDecoder("utf-8", { fatal: false }).decode(uint8);
+          // Look for document.xml content within the ZIP structure
+          const textMatches = rawText.match(/<w:t[^>]*>([^<]*)<\/w:t>/g);
+          if (textMatches && textMatches.length > 0) {
+            extractedText = textMatches
+              .map((m: string) => m.replace(/<[^>]+>/g, ""))
+              .join(" ");
+          }
+          if (!extractedText || extractedText.length < 50) {
+            // Fallback: extract any readable ASCII text from the binary
+            extractedText = rawText.replace(/[^\x20-\x7E\n\r\t]/g, " ").replace(/\s{3,}/g, " ").trim();
+          }
+        } catch {
+          extractedText = new TextDecoder("utf-8", { fatal: false }).decode(uint8)
+            .replace(/[^\x20-\x7E\n\r\t]/g, " ").replace(/\s{3,}/g, " ").trim();
+        }
+        messages = [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: `Parse this policy document (filename: ${sanitizedFileName}):\n\n${extractedText.slice(0, 50000)}` },
         ];
       }
     } else if (documentText && typeof documentText === "string") {
