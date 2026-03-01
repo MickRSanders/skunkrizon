@@ -21,7 +21,12 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { downloadCostEstimatePdf } from "@/lib/generateCostEstimatePdf";
-import { useLoaTemplates, useCreateLoaTemplate, useUpdateLoaTemplate, useLoaDocuments, useBalanceSheets, usePayInstructions } from "@/hooks/useDocuments";
+import {
+  useLoaTemplates, useCreateLoaTemplate, useUpdateLoaTemplate,
+  useLoaDocuments, useUpdateLoaDocument,
+  useBalanceSheets, useUpdateBalanceSheet,
+  usePayInstructions, useUpdatePayInstruction,
+} from "@/hooks/useDocuments";
 import { useCostEstimates } from "@/hooks/useCostEstimates";
 import { useSimulations } from "@/hooks/useSimulations";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,13 +39,19 @@ export default function Documents() {
   const [search, setSearch] = useState("");
   const [selectedEstimate, setSelectedEstimate] = useState<any>(null);
 
-  // Edit template state
+  // Edit LOA template state
   const [editTemplate, setEditTemplate] = useState<any>(null);
   const [editName, setEditName] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [editContent, setEditContent] = useState("");
   const [editPlaceholders, setEditPlaceholders] = useState("");
   const [aiRegenerating, setAiRegenerating] = useState(false);
+
+  // Generic document edit state
+  const [editDoc, setEditDoc] = useState<any>(null);
+  const [editDocType, setEditDocType] = useState<"loa" | "balance_sheet" | "pay_instruction" | null>(null);
+  const [editDocJson, setEditDocJson] = useState("");
+  const [editDocJson2, setEditDocJson2] = useState("");
 
   const { data: templates, isLoading: loadingTemplates } = useLoaTemplates();
   const { data: loaDocs, isLoading: loadingDocs } = useLoaDocuments();
@@ -50,9 +61,13 @@ export default function Documents() {
   const { data: simulations } = useSimulations();
   const createTemplate = useCreateLoaTemplate();
   const updateTemplate = useUpdateLoaTemplate();
+  const updateLoaDoc = useUpdateLoaDocument();
+  const updateBalanceSheet = useUpdateBalanceSheet();
+  const updatePayInstruction = useUpdatePayInstruction();
 
   const approvedSims = simulations?.filter((s) => s.status === "approved") ?? [];
 
+  // ─── LOA Template handlers ────────────────────────────────
   const handleCreateTemplate = async () => {
     if (!templateName.trim()) return;
     try {
@@ -104,18 +119,8 @@ export default function Documents() {
     try {
       let parsedContent: any;
       let parsedPlaceholders: any;
-      try {
-        parsedContent = JSON.parse(editContent);
-      } catch {
-        toast.error("Invalid JSON in content");
-        return;
-      }
-      try {
-        parsedPlaceholders = JSON.parse(editPlaceholders);
-      } catch {
-        toast.error("Invalid JSON in placeholders");
-        return;
-      }
+      try { parsedContent = JSON.parse(editContent); } catch { toast.error("Invalid JSON in content"); return; }
+      try { parsedPlaceholders = JSON.parse(editPlaceholders); } catch { toast.error("Invalid JSON in placeholders"); return; }
       await updateTemplate.mutateAsync({
         id: editTemplate.id,
         name: editName,
@@ -130,14 +135,77 @@ export default function Documents() {
     }
   };
 
-  const handleAiRegenerate = async () => {
-    if (!editTemplate) return;
+  // ─── Generic document edit handlers ───────────────────────
+  const openDocEdit = (item: any, type: "loa" | "balance_sheet" | "pay_instruction") => {
+    setEditDoc(item);
+    setEditDocType(type);
+    if (type === "loa") {
+      setEditDocJson(JSON.stringify(item.content, null, 2));
+      setEditDocJson2(JSON.stringify(item.source_snapshot, null, 2));
+    } else if (type === "balance_sheet") {
+      setEditDocJson(JSON.stringify(item.line_items, null, 2));
+      setEditDocJson2(JSON.stringify(item.policy_explanations, null, 2));
+    } else {
+      setEditDocJson(JSON.stringify(item.line_items, null, 2));
+      setEditDocJson2("");
+    }
+  };
+
+  const handleUpdateDoc = async () => {
+    if (!editDoc || !editDocType) return;
+    try {
+      let parsed1: any;
+      try { parsed1 = JSON.parse(editDocJson); } catch { toast.error("Invalid JSON in primary field"); return; }
+      let parsed2: any;
+      if (editDocJson2) {
+        try { parsed2 = JSON.parse(editDocJson2); } catch { toast.error("Invalid JSON in secondary field"); return; }
+      }
+
+      if (editDocType === "loa") {
+        await updateLoaDoc.mutateAsync({ id: editDoc.id, content: parsed1, source_snapshot: parsed2 || editDoc.source_snapshot });
+      } else if (editDocType === "balance_sheet") {
+        await updateBalanceSheet.mutateAsync({ id: editDoc.id, line_items: parsed1, policy_explanations: parsed2 || editDoc.policy_explanations });
+      } else {
+        await updatePayInstruction.mutateAsync({ id: editDoc.id, line_items: parsed1 });
+      }
+      setEditDoc(null);
+      setEditDocType(null);
+      toast.success("Document updated");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update document");
+    }
+  };
+
+  const docTypeLabels: Record<string, { title: string; field1: string; field2?: string }> = {
+    loa: { title: "LOA Document", field1: "Content (JSON)", field2: "Source Snapshot (JSON)" },
+    balance_sheet: { title: "Balance Sheet", field1: "Line Items (JSON)", field2: "Policy Explanations (JSON)" },
+    pay_instruction: { title: "Pay Instruction", field1: "Line Items (JSON)" },
+  };
+
+  // ─── AI regeneration ──────────────────────────────────────
+  const handleAiRegenerate = async (type: "loa_template" | "loa_document" | "balance_sheet" | "pay_instruction") => {
+    const targetId = type === "loa_template" ? editTemplate?.id : editDoc?.id;
+    const targetName = type === "loa_template" ? editName : editDoc?.employee_name;
+    if (!targetId) return;
     setAiRegenerating(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        toast.error("You must be logged in");
-        return;
+      if (!session?.access_token) { toast.error("You must be logged in"); return; }
+
+      let prompt = "";
+      let toolName = "";
+      if (type === "loa_template") {
+        toolName = "update_loa_template";
+        prompt = `Please regenerate and improve this LOA template called "${editName}". Description: "${editDesc}". Current content: ${editContent}. Current placeholders: ${editPlaceholders}. Use the update_loa_template tool with template id "${targetId}" to save the improved version. Make the letter more professional while preserving placeholders.`;
+      } else if (type === "loa_document") {
+        toolName = "update_loa_document";
+        prompt = `Please improve this LOA document for employee "${targetName}". Current content: ${editDocJson}. Current source snapshot: ${editDocJson2}. Use the update_loa_document tool with document id "${targetId}" to save improvements. Make it more professional and comprehensive.`;
+      } else if (type === "balance_sheet") {
+        toolName = "update_balance_sheet";
+        prompt = `Please improve this Balance Sheet for employee "${targetName}". Current line items: ${editDocJson}. Current policy explanations: ${editDocJson2}. Use the update_balance_sheet tool with document id "${targetId}" to improve the line items and explanations. Ensure professional formatting.`;
+      } else {
+        toolName = "update_pay_instruction";
+        prompt = `Please improve this Pay Instruction for employee "${targetName}". Current line items: ${editDocJson}. Use the update_pay_instruction tool with document id "${targetId}" to improve the line items. Ensure professional formatting.`;
       }
 
       const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`, {
@@ -147,65 +215,55 @@ export default function Documents() {
           Authorization: `Bearer ${session.access_token}`,
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
-        body: JSON.stringify({
-          messages: [
-            {
-              role: "user",
-              content: `Please regenerate and improve this LOA template called "${editName}". Description: "${editDesc}". Current content: ${editContent}. Current placeholders: ${editPlaceholders}. 
-              
-Return a better structured LOA template content and placeholders. Use the update_loa_template tool with the template id "${editTemplate.id}" to save the improved version. Make the letter more professional, comprehensive, and well-structured while preserving the existing placeholders and adding any useful ones.`,
-            },
-          ],
-          includeContext: true,
-        }),
+        body: JSON.stringify({ messages: [{ role: "user", content: prompt }], includeContext: true }),
       });
 
-      if (!resp.ok) {
-        toast.error("AI request failed");
-        return;
-      }
+      if (!resp.ok) { toast.error("AI request failed"); return; }
 
-      // Read SSE stream to completion
       const reader = resp.body?.getReader();
       const decoder = new TextDecoder();
-      let fullText = "";
-      let templateUpdated = false;
+      let docUpdated = false;
 
       if (reader) {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           const chunk = decoder.decode(value, { stream: true });
-          
-          // Check for template_updated event
-          if (chunk.includes("event: template_updated")) {
-            templateUpdated = true;
+          if (chunk.includes("event: document_updated") || chunk.includes("event: template_updated")) {
+            docUpdated = true;
           }
-
-          // Parse SSE for text content
-          for (const line of chunk.split("\n")) {
-            if (!line.startsWith("data: ") || line.includes("[DONE]")) continue;
-            try {
-              const parsed = JSON.parse(line.slice(6));
-              const content = parsed.choices?.[0]?.delta?.content;
-              if (content) fullText += content;
-            } catch { /* skip */ }
-          }
+          // consume stream
         }
       }
 
-      if (templateUpdated) {
-        toast.success("Template regenerated by AI!");
-        // Refresh the template data from DB
-        const { data: refreshed } = await (supabase.from("loa_templates" as any) as any)
-          .select("*")
-          .eq("id", editTemplate.id)
-          .single();
-        if (refreshed) {
-          setEditContent(JSON.stringify(refreshed.content, null, 2));
-          setEditPlaceholders(JSON.stringify(refreshed.placeholders, null, 2));
-          setEditName(refreshed.name);
-          setEditDesc(refreshed.description || "");
+      if (docUpdated) {
+        toast.success("Document regenerated by AI!");
+        // Refresh data
+        if (type === "loa_template") {
+          const { data: refreshed } = await (supabase.from("loa_templates" as any) as any).select("*").eq("id", targetId).single();
+          if (refreshed) {
+            setEditContent(JSON.stringify(refreshed.content, null, 2));
+            setEditPlaceholders(JSON.stringify(refreshed.placeholders, null, 2));
+            setEditName(refreshed.name);
+            setEditDesc(refreshed.description || "");
+          }
+        } else if (type === "loa_document") {
+          const { data: refreshed } = await (supabase.from("loa_documents" as any) as any).select("*").eq("id", targetId).single();
+          if (refreshed) {
+            setEditDocJson(JSON.stringify(refreshed.content, null, 2));
+            setEditDocJson2(JSON.stringify(refreshed.source_snapshot, null, 2));
+          }
+        } else if (type === "balance_sheet") {
+          const { data: refreshed } = await (supabase.from("balance_sheets" as any) as any).select("*").eq("id", targetId).single();
+          if (refreshed) {
+            setEditDocJson(JSON.stringify(refreshed.line_items, null, 2));
+            setEditDocJson2(JSON.stringify(refreshed.policy_explanations, null, 2));
+          }
+        } else {
+          const { data: refreshed } = await (supabase.from("pay_instructions" as any) as any).select("*").eq("id", targetId).single();
+          if (refreshed) {
+            setEditDocJson(JSON.stringify(refreshed.line_items, null, 2));
+          }
         }
       } else {
         toast.info("AI provided suggestions. Review and save manually if needed.");
@@ -216,6 +274,8 @@ Return a better structured LOA template content and placeholders. Use the update
       setAiRegenerating(false);
     }
   };
+
+  const isSaving = updateTemplate.isPending || updateLoaDoc.isPending || updateBalanceSheet.isPending || updatePayInstruction.isPending;
 
   return (
     <div className="space-y-6">
@@ -321,7 +381,7 @@ Return a better structured LOA template content and placeholders. Use the update
           {loadingDocs ? <LoadingState /> : !loaDocs || loaDocs.length === 0 ? (
             <EmptyState icon={FileText} title="No LOA documents yet" description="Generate LOAs from approved simulations." />
           ) : (
-            <DocumentTable items={loaDocs} type="loa" />
+            <DocumentTable items={loaDocs} type="loa" onEdit={(item) => openDocEdit(item, "loa")} />
           )}
         </TabsContent>
 
@@ -330,7 +390,7 @@ Return a better structured LOA template content and placeholders. Use the update
           {loadingBS ? <LoadingState /> : !balanceSheets || balanceSheets.length === 0 ? (
             <EmptyState icon={CreditCard} title="No balance sheets yet" description="Generate balance sheets from approved simulations." />
           ) : (
-            <DocumentTable items={balanceSheets} type="balance_sheet" />
+            <DocumentTable items={balanceSheets} type="balance_sheet" onEdit={(item) => openDocEdit(item, "balance_sheet")} />
           )}
         </TabsContent>
 
@@ -339,7 +399,7 @@ Return a better structured LOA template content and placeholders. Use the update
           {loadingPI ? <LoadingState /> : !payInstructions || payInstructions.length === 0 ? (
             <EmptyState icon={Receipt} title="No pay instructions yet" description="Generate pay instructions from approved simulations." />
           ) : (
-            <DocumentTable items={payInstructions} type="pay_instruction" />
+            <DocumentTable items={payInstructions} type="pay_instruction" onEdit={(item) => openDocEdit(item, "pay_instruction")} />
           )}
         </TabsContent>
 
@@ -386,7 +446,7 @@ Return a better structured LOA template content and placeholders. Use the update
         </DialogContent>
       </Dialog>
 
-      {/* Edit Template Dialog */}
+      {/* Edit LOA Template Dialog */}
       <Dialog open={!!editTemplate} onOpenChange={(open) => { if (!open) setEditTemplate(null); }}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
@@ -407,40 +467,64 @@ Return a better structured LOA template content and placeholders. Use the update
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Content (JSON)</Label>
-              <Textarea
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                rows={12}
-                className="font-mono text-xs"
-                placeholder="Template content as JSON..."
-              />
+              <Textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={12} className="font-mono text-xs" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Placeholders (JSON)</Label>
-              <Textarea
-                value={editPlaceholders}
-                onChange={(e) => setEditPlaceholders(e.target.value)}
-                rows={8}
-                className="font-mono text-xs"
-                placeholder="Placeholders as JSON..."
-              />
+              <Textarea value={editPlaceholders} onChange={(e) => setEditPlaceholders(e.target.value)} rows={8} className="font-mono text-xs" />
             </div>
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" size="sm" onClick={() => handleAiRegenerate("loa_template")} disabled={aiRegenerating || isSaving} className="gap-1.5">
+              {aiRegenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              {aiRegenerating ? "AI Regenerating..." : "Regenerate with AI"}
+            </Button>
+            <div className="flex gap-2 ml-auto">
+              <Button variant="outline" size="sm" onClick={() => setEditTemplate(null)}>Cancel</Button>
+              <Button size="sm" disabled={!editName.trim() || isSaving} onClick={handleUpdateTemplate}>
+                {updateTemplate.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Pencil className="w-4 h-4 mr-1" />}
+                Save Changes
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Document Dialog (LOA Docs, Balance Sheets, Pay Instructions) */}
+      <Dialog open={!!editDoc} onOpenChange={(open) => { if (!open) { setEditDoc(null); setEditDocType(null); } }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-4 h-4" /> Edit {editDocType ? docTypeLabels[editDocType]?.title : "Document"} — {editDoc?.employee_name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">{editDocType ? docTypeLabels[editDocType]?.field1 : "Data"}</Label>
+              <Textarea value={editDocJson} onChange={(e) => setEditDocJson(e.target.value)} rows={14} className="font-mono text-xs" />
+            </div>
+            {editDocType && docTypeLabels[editDocType]?.field2 && (
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">{docTypeLabels[editDocType]?.field2}</Label>
+                <Textarea value={editDocJson2} onChange={(e) => setEditDocJson2(e.target.value)} rows={8} className="font-mono text-xs" />
+              </div>
+            )}
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={handleAiRegenerate}
-              disabled={aiRegenerating || updateTemplate.isPending}
+              onClick={() => editDocType && handleAiRegenerate(editDocType === "loa" ? "loa_document" : editDocType)}
+              disabled={aiRegenerating || isSaving}
               className="gap-1.5"
             >
               {aiRegenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
               {aiRegenerating ? "AI Regenerating..." : "Regenerate with AI"}
             </Button>
             <div className="flex gap-2 ml-auto">
-              <Button variant="outline" size="sm" onClick={() => setEditTemplate(null)}>Cancel</Button>
-              <Button size="sm" disabled={!editName.trim() || updateTemplate.isPending} onClick={handleUpdateTemplate}>
-                {updateTemplate.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Pencil className="w-4 h-4 mr-1" />}
+              <Button variant="outline" size="sm" onClick={() => { setEditDoc(null); setEditDocType(null); }}>Cancel</Button>
+              <Button size="sm" disabled={isSaving} onClick={handleUpdateDoc}>
+                {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Pencil className="w-4 h-4 mr-1" />}
                 Save Changes
               </Button>
             </div>
@@ -496,7 +580,7 @@ function EmptyState({ icon: Icon, title, description, action, actionLabel }: { i
   );
 }
 
-function DocumentTable({ items, type, onView, onDownload }: { items: any[]; type: string; onView?: (item: any) => void; onDownload?: (item: any) => void }) {
+function DocumentTable({ items, type, onView, onDownload, onEdit }: { items: any[]; type: string; onView?: (item: any) => void; onDownload?: (item: any) => void; onEdit?: (item: any) => void }) {
   return (
     <div className="bg-card rounded-xl border border-border overflow-hidden">
       <table className="w-full text-sm">
@@ -532,13 +616,24 @@ function DocumentTable({ items, type, onView, onDownload }: { items: any[]; type
               <td className="px-5 py-3.5 text-muted-foreground text-xs">{format(new Date(item.created_at), "MMM d, yyyy")}</td>
               <td className="px-5 py-3.5">
                 <div className="flex items-center gap-1">
-                  <button
-                    className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                    title="View"
-                    onClick={(e) => { e.stopPropagation(); onView?.(item); }}
-                  >
-                    <Eye className="w-3.5 h-3.5" />
-                  </button>
+                  {onEdit && (
+                    <button
+                      className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                      title="Edit"
+                      onClick={(e) => { e.stopPropagation(); onEdit(item); }}
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  {onView && (
+                    <button
+                      className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                      title="View"
+                      onClick={(e) => { e.stopPropagation(); onView(item); }}
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                   {onDownload && (
                     <button
                       className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"

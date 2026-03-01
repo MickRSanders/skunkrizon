@@ -485,6 +485,62 @@ const UPDATE_LOA_TEMPLATE_TOOL = {
   },
 };
 
+const UPDATE_LOA_DOCUMENT_TOOL = {
+  type: "function",
+  function: {
+    name: "update_loa_document",
+    description:
+      "Update an existing LOA document's content or source snapshot. Use this to improve or regenerate the document content. Requires the document id.",
+    parameters: {
+      type: "object",
+      properties: {
+        document_id: { type: "string", description: "UUID of the loa_document to update" },
+        content: { type: "object", description: "Updated content JSON (optional)", additionalProperties: true },
+        source_snapshot: { type: "object", description: "Updated source snapshot JSON (optional)", additionalProperties: true },
+      },
+      required: ["document_id"],
+      additionalProperties: false,
+    },
+  },
+};
+
+const UPDATE_BALANCE_SHEET_TOOL = {
+  type: "function",
+  function: {
+    name: "update_balance_sheet",
+    description:
+      "Update an existing balance sheet's line items or policy explanations. Use this to improve or regenerate the document. Requires the document id.",
+    parameters: {
+      type: "object",
+      properties: {
+        document_id: { type: "string", description: "UUID of the balance_sheet to update" },
+        line_items: { type: "array", description: "Updated line items array (optional)", items: { type: "object", additionalProperties: true } },
+        policy_explanations: { type: "array", description: "Updated policy explanations array (optional)", items: { type: "object", additionalProperties: true } },
+      },
+      required: ["document_id"],
+      additionalProperties: false,
+    },
+  },
+};
+
+const UPDATE_PAY_INSTRUCTION_TOOL = {
+  type: "function",
+  function: {
+    name: "update_pay_instruction",
+    description:
+      "Update an existing pay instruction's line items. Use this to improve or regenerate the document. Requires the document id.",
+    parameters: {
+      type: "object",
+      properties: {
+        document_id: { type: "string", description: "UUID of the pay_instruction to update" },
+        line_items: { type: "array", description: "Updated line items array (optional)", items: { type: "object", additionalProperties: true } },
+      },
+      required: ["document_id"],
+      additionalProperties: false,
+    },
+  },
+};
+
 const CREATE_TRIP_TOOL = {
   type: "function",
   function: {
@@ -816,6 +872,11 @@ You also have tools to manage policies (admin only):
 You also have a tool to manage LOA templates (admin only):
 - \`update_loa_template\`: Update an LOA template's name, description, content sections, placeholders, or conditional rules. When asked to regenerate or improve a template, create professional, comprehensive Letter of Assignment content with proper sections (heading, paragraphs, sections for assignment details/compensation/benefits/relocation/tax, signature blocks). Always preserve and expand the placeholders using {{key}} syntax.
 
+You also have tools to manage generated documents (admin only):
+- \`update_loa_document\`: Update an LOA document's content or source snapshot. Improve structure, wording, and completeness.
+- \`update_balance_sheet\`: Update a balance sheet's line items or policy explanations. Ensure professional formatting with clear categories.
+- \`update_pay_instruction\`: Update a pay instruction's line items. Ensure clear payment breakdowns with proper categories.
+
 When modifying data, confirm the action with the user before calling the tool. Each item in the context includes its id for reference.
 
 When the user asks about a specific location or country corridor:
@@ -842,6 +903,9 @@ ${contextBlock}`;
       CREATE_REMOTE_WORK_REQUEST_TOOL,
       CREATE_TRIP_TOOL,
       UPDATE_LOA_TEMPLATE_TOOL,
+      UPDATE_LOA_DOCUMENT_TOOL,
+      UPDATE_BALANCE_SHEET_TOOL,
+      UPDATE_PAY_INSTRUCTION_TOOL,
     ];
 
     // Step 1: Non-streaming call with tools to check for tool usage
@@ -1086,7 +1150,7 @@ ${contextBlock}`;
               }),
             });
           }
-        } else if (tc.function.name === "add_lookup_table_row" || tc.function.name === "update_lookup_table_row" || tc.function.name === "update_calculation" || tc.function.name === "update_calculation_field" || tc.function.name === "create_policy" || tc.function.name === "update_policy" || tc.function.name === "update_loa_template") {
+        } else if (tc.function.name === "add_lookup_table_row" || tc.function.name === "update_lookup_table_row" || tc.function.name === "update_calculation" || tc.function.name === "update_calculation_field" || tc.function.name === "create_policy" || tc.function.name === "update_policy" || tc.function.name === "update_loa_template" || tc.function.name === "update_loa_document" || tc.function.name === "update_balance_sheet" || tc.function.name === "update_pay_instruction") {
           // Admin-level check
           const { data: userRoles, error: roleErr } = await supabase
             .from("user_roles")
@@ -1272,6 +1336,50 @@ ${contextBlock}`;
             } else {
               toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: true, template_id: args.template_id, updated_fields: Object.keys(updateData) }) });
             }
+          } else if (tc.function.name === "update_loa_document") {
+            const args = JSON.parse(tc.function.arguments);
+            const updateData: Record<string, any> = {};
+            if (args.content && typeof args.content === "object") updateData.content = args.content;
+            if (args.source_snapshot && typeof args.source_snapshot === "object") updateData.source_snapshot = args.source_snapshot;
+            if (Object.keys(updateData).length === 0) {
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: false, error: "No fields to update." }) });
+              continue;
+            }
+            const { error: docErr } = await adminClient.from("loa_documents").update(updateData).eq("id", args.document_id);
+            if (docErr) {
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: false, error: docErr.message }) });
+            } else {
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: true, document_id: args.document_id, updated_fields: Object.keys(updateData) }) });
+            }
+          } else if (tc.function.name === "update_balance_sheet") {
+            const args = JSON.parse(tc.function.arguments);
+            const updateData: Record<string, any> = {};
+            if (args.line_items && Array.isArray(args.line_items)) updateData.line_items = args.line_items;
+            if (args.policy_explanations && Array.isArray(args.policy_explanations)) updateData.policy_explanations = args.policy_explanations;
+            if (Object.keys(updateData).length === 0) {
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: false, error: "No fields to update." }) });
+              continue;
+            }
+            const { error: bsErr } = await adminClient.from("balance_sheets").update(updateData).eq("id", args.document_id);
+            if (bsErr) {
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: false, error: bsErr.message }) });
+            } else {
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: true, document_id: args.document_id, updated_fields: Object.keys(updateData) }) });
+            }
+          } else if (tc.function.name === "update_pay_instruction") {
+            const args = JSON.parse(tc.function.arguments);
+            const updateData: Record<string, any> = {};
+            if (args.line_items && Array.isArray(args.line_items)) updateData.line_items = args.line_items;
+            if (Object.keys(updateData).length === 0) {
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: false, error: "No fields to update." }) });
+              continue;
+            }
+            const { error: piErr } = await adminClient.from("pay_instructions").update(updateData).eq("id", args.document_id);
+            if (piErr) {
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: false, error: piErr.message }) });
+            } else {
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: true, document_id: args.document_id, updated_fields: Object.keys(updateData) }) });
+            }
           }
         }
       }
@@ -1351,6 +1459,14 @@ ${contextBlock}`;
           customEvents.push(
             `event: template_updated\ndata: ${JSON.stringify({
               id: parsed.template_id,
+              updated_fields: parsed.updated_fields,
+            })}\n\n`
+          );
+        }
+        if (parsed.success && parsed.document_id && parsed.updated_fields) {
+          customEvents.push(
+            `event: document_updated\ndata: ${JSON.stringify({
+              id: parsed.document_id,
               updated_fields: parsed.updated_fields,
             })}\n\n`
           );
