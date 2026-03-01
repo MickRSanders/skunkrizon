@@ -691,6 +691,17 @@ export default function Documents() {
                   name: lt.name,
                   columns: Array.isArray(lt.columns) ? lt.columns : [],
                 }))}
+                previewDataSources={(costEstimates ?? []).map((ce: any) => ({
+                  id: ce.id,
+                  label: `${ce.employee_name} — ${ce.display_currency} ${ce.total_cost?.toLocaleString() ?? "N/A"} (${new Date(ce.created_at).toLocaleDateString()})`,
+                  values: {
+                    ...((ce.source_snapshot as Record<string, any>) ?? {}),
+                    ...((ce.details_snapshot as Record<string, any>) ?? {}),
+                    employee_name: ce.employee_name,
+                    total_cost: ce.total_cost,
+                    display_currency: ce.display_currency,
+                  },
+                }))}
               />
             ) : (
               <>

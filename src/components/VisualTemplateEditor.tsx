@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import {
   Plus, Trash2, GripVertical, Type, AlignLeft, List, BarChart3,
   User, Table2, Database, ChevronDown, ChevronRight, Bold, Italic,
   Underline, DollarSign, Calendar, Hash, Percent, Code2, Move,
+  Search, Eye, EyeOff,
 } from "lucide-react";
 import type { PlaceholderMapping } from "@/components/DocumentTemplateFieldEditor";
 
@@ -28,12 +29,19 @@ interface TemplateSection {
   taxable?: string;
 }
 
+interface PreviewData {
+  id: string;
+  label: string;
+  values: Record<string, any>;
+}
+
 interface Props {
   content: TemplateSection[];
   placeholders: PlaceholderMapping[];
   onContentChange: (content: TemplateSection[]) => void;
   onPlaceholdersChange: (placeholders: PlaceholderMapping[]) => void;
   lookupTables?: { id: string; name: string; columns: { name: string }[] }[];
+  previewDataSources?: PreviewData[];
 }
 
 // ─── Available fields for drag/drop ─────────────────────────
@@ -98,6 +106,33 @@ const SOURCE_DRAG_COLORS: Record<string, string> = {
   employee: "border-primary/40 bg-primary/5",
 };
 
+// ─── Format a value for preview ─────────────────────────────
+function formatPreviewValue(value: any, format?: string): string {
+  if (value === null || value === undefined) return "—";
+  const str = String(value);
+  if (!format || format === "none") return str;
+  if (format === "currency") {
+    const num = Number(value);
+    return isNaN(num) ? str : num.toLocaleString("en-US", { style: "currency", currency: "USD" });
+  }
+  if (format === "percent") {
+    const num = Number(value);
+    return isNaN(num) ? str : `${num}%`;
+  }
+  if (format === "date") {
+    try {
+      return new Date(value).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+    } catch { return str; }
+  }
+  if (format === "uppercase") return str.toUpperCase();
+  if (format === "capitalize") return str.replace(/\b\w/g, (c) => c.toUpperCase());
+  if (format === "number") {
+    const num = Number(value);
+    return isNaN(num) ? str : num.toLocaleString("en-US");
+  }
+  return str;
+}
+
 // ─── Component ──────────────────────────────────────────────
 export default function VisualTemplateEditor({
   content,
@@ -105,12 +140,35 @@ export default function VisualTemplateEditor({
   onContentChange,
   onPlaceholdersChange,
   lookupTables = [],
+  previewDataSources = [],
 }: Props) {
   const [expandedPalette, setExpandedPalette] = useState<string | null>("simulation");
   const [draggedField, setDraggedField] = useState<{ value: string; source: string } | null>(null);
   const [editingSection, setEditingSection] = useState<number | null>(null);
   const [selectedPlaceholder, setSelectedPlaceholder] = useState<string | null>(null);
+  const [fieldSearch, setFieldSearch] = useState("");
+  const [previewMode, setPreviewMode] = useState(false);
+  const [selectedPreviewId, setSelectedPreviewId] = useState<string>("");
   const documentRef = useRef<HTMLDivElement>(null);
+
+  // Get preview data values
+  const previewValues = useMemo(() => {
+    if (!previewMode || !selectedPreviewId) return null;
+    return previewDataSources.find((d) => d.id === selectedPreviewId)?.values ?? null;
+  }, [previewMode, selectedPreviewId, previewDataSources]);
+
+  // Filter fields by search
+  const filteredSimFields = useMemo(() => {
+    if (!fieldSearch) return SIMULATION_FIELDS;
+    const q = fieldSearch.toLowerCase();
+    return SIMULATION_FIELDS.filter((f) => f.label.toLowerCase().includes(q) || f.value.toLowerCase().includes(q));
+  }, [fieldSearch]);
+
+  const filteredEmpFields = useMemo(() => {
+    if (!fieldSearch) return EMPLOYEE_FIELDS;
+    const q = fieldSearch.toLowerCase();
+    return EMPLOYEE_FIELDS.filter((f) => f.label.toLowerCase().includes(q) || f.value.toLowerCase().includes(q));
+  }, [fieldSearch]);
 
   // ─── Section CRUD ───────────────────────────────────────
   const updateSection = (index: number, updates: Partial<TemplateSection>) => {
@@ -160,7 +218,6 @@ export default function VisualTemplateEditor({
       updateSection(sectionIndex, { text: updatedText });
     }
 
-    // Add placeholder mapping if not exists
     if (!placeholders.some((p) => p.key === key)) {
       onPlaceholdersChange([
         ...placeholders,
@@ -189,7 +246,7 @@ export default function VisualTemplateEditor({
     e.dataTransfer.dropEffect = "copy";
   };
 
-  // ─── Update placeholder format ─────────────────────────
+  // ─── Update placeholder ────────────────────────────────
   const updatePlaceholderFormat = (key: string, format: string) => {
     const updated = placeholders.map((p) =>
       p.key === key ? { ...p, format: format === "none" ? undefined : format } : p
@@ -215,8 +272,35 @@ export default function VisualTemplateEditor({
     onPlaceholdersChange(placeholders.filter((p) => p.key !== key));
   };
 
+  // ─── Resolve placeholder to preview value or token ─────
+  const resolveValue = (key: string): string | null => {
+    if (!previewValues) return null;
+    const mapping = placeholders.find((p) => p.key === key);
+    const fieldName = mapping?.field || key;
+    const val = previewValues[fieldName];
+    return val !== undefined ? formatPreviewValue(val, mapping?.format) : null;
+  };
+
   // ─── Render placeholder token ──────────────────────────
   const renderPlaceholderToken = (key: string) => {
+    // In preview mode, show resolved value
+    if (previewMode) {
+      const resolved = resolveValue(key);
+      if (resolved !== null) {
+        return (
+          <span key={key} className="font-semibold text-foreground underline decoration-accent/40 decoration-dotted underline-offset-2">
+            {resolved}
+          </span>
+        );
+      }
+      return (
+        <span key={key} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium border border-dashed border-destructive/40 bg-destructive/5 text-destructive mx-0.5">
+          <Code2 className="w-3 h-3" />
+          {key} (no data)
+        </span>
+      );
+    }
+
     const mapping = placeholders.find((p) => p.key === key);
     const source = mapping?.source || "simulation";
     const colorClass = SOURCE_COLORS[source] || SOURCE_COLORS.simulation;
@@ -346,7 +430,7 @@ export default function VisualTemplateEditor({
 
   // ─── Render section ────────────────────────────────────
   const renderSection = (section: TemplateSection, index: number) => {
-    const isEditing = editingSection === index;
+    const isEditing = editingSection === index && !previewMode;
     const isDragTarget = !!draggedField;
 
     return (
@@ -355,47 +439,33 @@ export default function VisualTemplateEditor({
         className={`group relative rounded-lg border transition-all ${
           isDragTarget ? "border-dashed border-accent/50 bg-accent/5" : "border-transparent hover:border-border"
         } ${isEditing ? "border-accent/30 bg-accent/5" : ""}`}
-        onDrop={(e) => handleDrop(e, index)}
-        onDragOver={handleDragOver}
+        onDrop={(e) => !previewMode && handleDrop(e, index)}
+        onDragOver={!previewMode ? handleDragOver : undefined}
       >
-        {/* Section toolbar */}
-        <div className="absolute -left-10 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-0.5">
-          <button
-            className="p-1 rounded hover:bg-muted text-muted-foreground"
-            onClick={() => moveSection(index, index - 1)}
-            title="Move up"
-          >
-            <ChevronDown className="w-3.5 h-3.5 rotate-180" />
-          </button>
-          <button className="p-1 text-muted-foreground cursor-grab" title="Drag to reorder">
-            <GripVertical className="w-3.5 h-3.5" />
-          </button>
-          <button
-            className="p-1 rounded hover:bg-muted text-muted-foreground"
-            onClick={() => moveSection(index, index + 1)}
-            title="Move down"
-          >
-            <ChevronDown className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
-        {/* Right toolbar */}
-        <div className="absolute -right-9 top-1 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-0.5">
-          <button
-            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-            onClick={() => setEditingSection(isEditing ? null : index)}
-            title="Edit"
-          >
-            <Type className="w-3.5 h-3.5" />
-          </button>
-          <button
-            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
-            onClick={() => removeSection(index)}
-            title="Remove"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
+        {/* Section toolbar - hidden in preview */}
+        {!previewMode && (
+          <>
+            <div className="absolute -left-10 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-0.5">
+              <button className="p-1 rounded hover:bg-muted text-muted-foreground" onClick={() => moveSection(index, index - 1)} title="Move up">
+                <ChevronDown className="w-3.5 h-3.5 rotate-180" />
+              </button>
+              <button className="p-1 text-muted-foreground cursor-grab" title="Drag to reorder">
+                <GripVertical className="w-3.5 h-3.5" />
+              </button>
+              <button className="p-1 rounded hover:bg-muted text-muted-foreground" onClick={() => moveSection(index, index + 1)} title="Move down">
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <div className="absolute -right-9 top-1 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-0.5">
+              <button className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground" onClick={() => setEditingSection(isEditing ? null : index)} title="Edit">
+                <Type className="w-3.5 h-3.5" />
+              </button>
+              <button className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive" onClick={() => removeSection(index)} title="Remove">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </>
+        )}
 
         <div className="px-4 py-2">
           {section.type === "heading" && (
@@ -410,7 +480,7 @@ export default function VisualTemplateEditor({
             ) : (
               <h2
                 className="text-xl font-bold text-foreground cursor-text"
-                onClick={() => setEditingSection(index)}
+                onClick={() => !previewMode && setEditingSection(index)}
               >
                 {renderTextWithPlaceholders(section.text || "Untitled")}
               </h2>
@@ -429,7 +499,7 @@ export default function VisualTemplateEditor({
             ) : (
               <p
                 className="text-sm text-foreground/80 leading-relaxed cursor-text whitespace-pre-wrap"
-                onClick={() => setEditingSection(index)}
+                onClick={() => !previewMode && setEditingSection(index)}
               >
                 {renderTextWithPlaceholders(section.text || "Click to edit...")}
               </p>
@@ -449,7 +519,7 @@ export default function VisualTemplateEditor({
               ) : (
                 <h3
                   className="text-base font-semibold text-foreground border-b border-border/50 pb-1 cursor-text"
-                  onClick={() => setEditingSection(index)}
+                  onClick={() => !previewMode && setEditingSection(index)}
                 >
                   {renderTextWithPlaceholders(section.title || "Section")}
                 </h3>
@@ -471,24 +541,9 @@ export default function VisualTemplateEditor({
             <div className="flex items-center gap-4 px-3 py-2 bg-muted/30 rounded-md border border-border/50">
               {isEditing ? (
                 <div className="flex-1 grid grid-cols-4 gap-2">
-                  <Input
-                    value={section.label || ""}
-                    onChange={(e) => updateSection(index, { label: e.target.value })}
-                    placeholder="Benefit name"
-                    className="h-7 text-xs"
-                  />
-                  <Input
-                    value={section.calc_method || ""}
-                    onChange={(e) => updateSection(index, { calc_method: e.target.value })}
-                    placeholder="Calc method"
-                    className="h-7 text-xs"
-                  />
-                  <Input
-                    value={section.amount || ""}
-                    onChange={(e) => updateSection(index, { amount: e.target.value })}
-                    placeholder="Amount"
-                    className="h-7 text-xs"
-                  />
+                  <Input value={section.label || ""} onChange={(e) => updateSection(index, { label: e.target.value })} placeholder="Benefit name" className="h-7 text-xs" />
+                  <Input value={section.calc_method || ""} onChange={(e) => updateSection(index, { calc_method: e.target.value })} placeholder="Calc method" className="h-7 text-xs" />
+                  <Input value={section.amount || ""} onChange={(e) => updateSection(index, { amount: e.target.value })} placeholder="Amount" className="h-7 text-xs" />
                   <Select value={section.taxable || "N/A"} onValueChange={(v) => updateSection(index, { taxable: v })}>
                     <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -501,7 +556,7 @@ export default function VisualTemplateEditor({
               ) : (
                 <div
                   className="flex-1 flex items-center justify-between cursor-text"
-                  onClick={() => setEditingSection(index)}
+                  onClick={() => !previewMode && setEditingSection(index)}
                 >
                   <div className="flex items-center gap-3">
                     <DollarSign className="w-4 h-4 text-muted-foreground" />
@@ -524,30 +579,32 @@ export default function VisualTemplateEditor({
           )}
         </div>
 
-        {/* Insert buttons between sections */}
-        <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Popover>
-            <PopoverTrigger asChild>
-              <button className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent text-accent-foreground text-[10px] font-medium shadow-sm hover:shadow-md transition-shadow">
-                <Plus className="w-3 h-3" /> Add
-              </button>
-            </PopoverTrigger>
-            <PopoverContent className="w-44 p-1.5" align="center">
-              <button className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-muted transition-colors" onClick={() => addSection("heading", index)}>
-                <Type className="w-3.5 h-3.5" /> Heading
-              </button>
-              <button className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-muted transition-colors" onClick={() => addSection("paragraph", index)}>
-                <AlignLeft className="w-3.5 h-3.5" /> Paragraph
-              </button>
-              <button className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-muted transition-colors" onClick={() => addSection("section", index)}>
-                <List className="w-3.5 h-3.5" /> Section
-              </button>
-              <button className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-muted transition-colors" onClick={() => addSection("benefit_row", index)}>
-                <DollarSign className="w-3.5 h-3.5" /> Benefit Row
-              </button>
-            </PopoverContent>
-          </Popover>
-        </div>
+        {/* Insert buttons between sections - hidden in preview */}
+        {!previewMode && (
+          <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+            <Popover>
+              <PopoverTrigger asChild>
+                <button className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent text-accent-foreground text-[10px] font-medium shadow-sm hover:shadow-md transition-shadow">
+                  <Plus className="w-3 h-3" /> Add
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-44 p-1.5" align="center">
+                <button className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-muted transition-colors" onClick={() => addSection("heading", index)}>
+                  <Type className="w-3.5 h-3.5" /> Heading
+                </button>
+                <button className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-muted transition-colors" onClick={() => addSection("paragraph", index)}>
+                  <AlignLeft className="w-3.5 h-3.5" /> Paragraph
+                </button>
+                <button className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-muted transition-colors" onClick={() => addSection("section", index)}>
+                  <List className="w-3.5 h-3.5" /> Section
+                </button>
+                <button className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-muted transition-colors" onClick={() => addSection("benefit_row", index)}>
+                  <DollarSign className="w-3.5 h-3.5" /> Benefit Row
+                </button>
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
       </div>
     );
   };
@@ -561,6 +618,7 @@ export default function VisualTemplateEditor({
     source: string,
   ) => {
     const isOpen = expandedPalette === id;
+    if (fields.length === 0 && fieldSearch) return null;
     return (
       <div key={id} className="border-b border-border/50 last:border-0">
         <button
@@ -569,6 +627,7 @@ export default function VisualTemplateEditor({
         >
           {icon}
           <span className="flex-1 text-left">{label}</span>
+          <span className="text-[10px] text-muted-foreground mr-1">{fields.length}</span>
           <ChevronRight className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`} />
         </button>
         {isOpen && (
@@ -605,14 +664,33 @@ export default function VisualTemplateEditor({
       <div className="flex-1 min-w-0">
         <div className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
           <AlignLeft className="w-3.5 h-3.5" />
-          Document Preview
+          {previewMode ? "Document Preview" : "Document Editor"}
           <span className="text-[10px] text-muted-foreground/60 ml-auto">
-            Click to edit · Drag fields from palette
+            {previewMode ? "Showing live data" : "Click to edit · Drag fields from palette"}
           </span>
         </div>
+
+        {/* Preview mode banner */}
+        {previewMode && (
+          <div className="mb-2 flex items-center gap-2 px-3 py-2 rounded-lg border border-accent/30 bg-accent/5 text-xs">
+            <Eye className="w-3.5 h-3.5 text-accent shrink-0" />
+            <span className="text-muted-foreground">Preview with:</span>
+            <Select value={selectedPreviewId} onValueChange={setSelectedPreviewId}>
+              <SelectTrigger className="h-7 text-xs flex-1 max-w-xs">
+                <SelectValue placeholder="Select a cost estimate..." />
+              </SelectTrigger>
+              <SelectContent>
+                {previewDataSources.map((ds) => (
+                  <SelectItem key={ds.id} value={ds.id}>{ds.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         <div
           ref={documentRef}
-          className="bg-card border border-border rounded-xl p-8 space-y-1 shadow-sm relative min-h-[350px]"
+          className={`bg-card border border-border rounded-xl p-8 space-y-1 shadow-sm relative min-h-[350px] ${previewMode ? "ring-2 ring-accent/20" : ""}`}
           style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}
         >
           {content.length === 0 ? (
@@ -640,20 +718,49 @@ export default function VisualTemplateEditor({
         <div className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
           <Database className="w-3.5 h-3.5" />
           Field Palette
+          {/* Preview toggle */}
+          {previewDataSources.length > 0 && (
+            <button
+              className={`ml-auto p-1 rounded transition-colors ${previewMode ? "bg-accent/20 text-accent" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
+              onClick={() => {
+                setPreviewMode(!previewMode);
+                if (!previewMode && previewDataSources.length > 0 && !selectedPreviewId) {
+                  setSelectedPreviewId(previewDataSources[0].id);
+                }
+              }}
+              title={previewMode ? "Exit preview" : "Preview with data"}
+            >
+              {previewMode ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
+          )}
         </div>
         <div className="bg-card border border-border rounded-xl overflow-hidden sticky top-4">
+          {/* Search input */}
+          <div className="px-2 pt-2 pb-1">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+              <input
+                type="text"
+                value={fieldSearch}
+                onChange={(e) => setFieldSearch(e.target.value)}
+                placeholder="Search fields..."
+                className="w-full h-7 pl-7 pr-2 rounded-md border border-border bg-background text-xs text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-accent/30"
+              />
+            </div>
+          </div>
+
           {renderPaletteCategory(
             "simulation",
             "Simulation",
             <BarChart3 className="w-3.5 h-3.5 text-accent" />,
-            SIMULATION_FIELDS,
+            filteredSimFields,
             "simulation",
           )}
           {renderPaletteCategory(
             "employee",
             "Employee",
             <User className="w-3.5 h-3.5 text-primary" />,
-            EMPLOYEE_FIELDS,
+            filteredEmpFields,
             "employee",
           )}
           {lookupTables.length > 0 && (
