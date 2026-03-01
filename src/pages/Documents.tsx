@@ -80,7 +80,10 @@ export default function Documents() {
       if (!session?.access_token) { toast.error("You must be logged in"); return null; }
 
       // Upload file to storage
-      const filePath = `templates/${Date.now()}_${file.name}`;
+      const { data: { session: sess } } = await supabase.auth.getSession();
+      const userId = sess?.user?.id;
+      if (!userId) { toast.error("You must be logged in"); return null; }
+      const filePath = `${userId}/templates/${Date.now()}_${file.name}`;
       const { error: uploadErr } = await supabase.storage
         .from("policy-documents")
         .upload(filePath, file);
@@ -548,9 +551,9 @@ export default function Documents() {
 
       {/* New Template Dialog */}
       <Dialog open={showNewTemplate} onOpenChange={(open) => { if (!open) { setShowNewTemplate(false); setTemplateFile(null); } else setShowNewTemplate(true); }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>New LOA Template</DialogTitle></DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-hidden">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Template Name *</Label>
               <Input value={templateName} onChange={(e) => setTemplateName(e.target.value)} placeholder="e.g. Standard Long-Term Assignment" />
