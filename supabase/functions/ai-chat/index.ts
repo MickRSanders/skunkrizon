@@ -414,6 +414,77 @@ const CREATE_REMOTE_WORK_REQUEST_TOOL = {
   },
 };
 
+const UPDATE_LOA_TEMPLATE_TOOL = {
+  type: "function",
+  function: {
+    name: "update_loa_template",
+    description:
+      "Update an existing LOA (Letter of Assignment) template's name, description, content sections, placeholders, or conditional rules. Use this when the user wants to modify, improve, or regenerate a template. Requires the template id from context.",
+    parameters: {
+      type: "object",
+      properties: {
+        template_id: {
+          type: "string",
+          description: "UUID of the loa_template to update",
+        },
+        name: {
+          type: "string",
+          description: "New template name (optional)",
+        },
+        description: {
+          type: "string",
+          description: "New description (optional)",
+        },
+        content: {
+          type: "array",
+          description: "Array of content sections. Each section has a type (heading, paragraph, section) and relevant fields like text, title, fields array.",
+          items: {
+            type: "object",
+            properties: {
+              type: { type: "string", description: "Section type: heading, paragraph, section, signature_block, date_field" },
+              text: { type: "string", description: "Text content for heading/paragraph types" },
+              title: { type: "string", description: "Section title for section type" },
+              fields: {
+                type: "array",
+                items: { type: "string" },
+                description: "Field keys for section type",
+              },
+            },
+            required: ["type"],
+          },
+        },
+        placeholders: {
+          type: "array",
+          description: "Array of placeholder definitions mapping template variables to data sources.",
+          items: {
+            type: "object",
+            properties: {
+              key: { type: "string", description: "Placeholder key used in content as {{key}}" },
+              source: { type: "string", description: "Data source: simulation, employee, custom" },
+              field: { type: "string", description: "Field name in the source" },
+            },
+            required: ["key", "source", "field"],
+          },
+        },
+        conditional_rules: {
+          type: "array",
+          description: "Array of conditional rules for dynamic content (optional)",
+          items: {
+            type: "object",
+            properties: {
+              condition: { type: "string" },
+              action: { type: "string" },
+              target: { type: "string" },
+            },
+          },
+        },
+      },
+      required: ["template_id"],
+      additionalProperties: false,
+    },
+  },
+};
+
 const CREATE_TRIP_TOOL = {
   type: "function",
   function: {
@@ -525,7 +596,7 @@ serve(async (req) => {
     let contextBlock = "";
     let policiesData: any[] = [];
     if (includeContext) {
-      const [policiesRes, simulationsRes, calculationsRes, lookupTablesRes, remoteWorkRes, tripsRes] = await Promise.all([
+      const [policiesRes, simulationsRes, calculationsRes, lookupTablesRes, remoteWorkRes, tripsRes, loaTemplatesRes] = await Promise.all([
         supabase
           .from("policies")
           .select("id, name, status, tier, tax_approach, description")
@@ -554,6 +625,11 @@ serve(async (req) => {
           .select("id, trip_code, traveler_name, status, purpose, created_at")
           .order("created_at", { ascending: false })
           .limit(30),
+        supabase
+          .from("loa_templates")
+          .select("id, name, description, status, version, content, placeholders, conditional_rules")
+          .order("created_at", { ascending: false })
+          .limit(30),
       ]);
 
       policiesData = policiesRes.data ?? [];
@@ -562,6 +638,7 @@ serve(async (req) => {
       const lookupTables = lookupTablesRes.data ?? [];
       const remoteWorkRequests = remoteWorkRes.data ?? [];
       const trips = tripsRes.data ?? [];
+      const loaTemplates = loaTemplatesRes.data ?? [];
 
       // Fetch trip segments for context
       let tripSegmentsBlock = "";
@@ -682,6 +759,13 @@ ${remoteWorkRequests.length ? rwRiskBlock : "No remote work requests found."}
 
 ### Pre-Travel Trips (${trips.length})
 ${trips.length ? tripSegmentsBlock : "No trips found."}
+
+### LOA Templates (${loaTemplates.length})
+${loaTemplates.length ? loaTemplates.map((t: any) => {
+  const cs = Array.isArray(t.content) ? t.content.length : 0;
+  const pc = Array.isArray(t.placeholders) ? t.placeholders.length : 0;
+  return '- "' + t.name + '" (id=' + t.id + ') [' + t.status + '] v' + t.version + ', ' + cs + ' sections, ' + pc + ' placeholders' + (t.description ? ', desc: ' + t.description : '');
+}).join("\n") : "No LOA templates found."}
 `;
     }
 
@@ -729,6 +813,9 @@ You also have tools to manage policies (admin only):
 - \`create_policy\`: Create a new draft policy.
 - \`update_policy\`: Update an existing policy.
 
+You also have a tool to manage LOA templates (admin only):
+- \`update_loa_template\`: Update an LOA template's name, description, content sections, placeholders, or conditional rules. When asked to regenerate or improve a template, create professional, comprehensive Letter of Assignment content with proper sections (heading, paragraphs, sections for assignment details/compensation/benefits/relocation/tax, signature blocks). Always preserve and expand the placeholders using {{key}} syntax.
+
 When modifying data, confirm the action with the user before calling the tool. Each item in the context includes its id for reference.
 
 When the user asks about a specific location or country corridor:
@@ -754,6 +841,7 @@ ${contextBlock}`;
       UPDATE_POLICY_TOOL,
       CREATE_REMOTE_WORK_REQUEST_TOOL,
       CREATE_TRIP_TOOL,
+      UPDATE_LOA_TEMPLATE_TOOL,
     ];
 
     // Step 1: Non-streaming call with tools to check for tool usage
@@ -998,7 +1086,7 @@ ${contextBlock}`;
               }),
             });
           }
-        } else if (tc.function.name === "add_lookup_table_row" || tc.function.name === "update_lookup_table_row" || tc.function.name === "update_calculation" || tc.function.name === "update_calculation_field" || tc.function.name === "create_policy" || tc.function.name === "update_policy") {
+        } else if (tc.function.name === "add_lookup_table_row" || tc.function.name === "update_lookup_table_row" || tc.function.name === "update_calculation" || tc.function.name === "update_calculation_field" || tc.function.name === "create_policy" || tc.function.name === "update_policy" || tc.function.name === "update_loa_template") {
           // Admin-level check
           const { data: userRoles, error: roleErr } = await supabase
             .from("user_roles")
@@ -1166,6 +1254,24 @@ ${contextBlock}`;
             } else {
               toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: true, policy_id: args.policy_id, updated_fields: updateData }) });
             }
+          } else if (tc.function.name === "update_loa_template") {
+            const args = JSON.parse(tc.function.arguments);
+            const updateData: Record<string, any> = {};
+            if (args.name) updateData.name = String(args.name).slice(0, 300);
+            if (args.description !== undefined) updateData.description = args.description ? String(args.description).slice(0, 2000) : null;
+            if (args.content && Array.isArray(args.content)) updateData.content = args.content.slice(0, 100);
+            if (args.placeholders && Array.isArray(args.placeholders)) updateData.placeholders = args.placeholders.slice(0, 100);
+            if (args.conditional_rules && Array.isArray(args.conditional_rules)) updateData.conditional_rules = args.conditional_rules.slice(0, 50);
+            if (Object.keys(updateData).length === 0) {
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: false, error: "No fields to update." }) });
+              continue;
+            }
+            const { error: tmplErr } = await adminClient.from("loa_templates").update(updateData).eq("id", args.template_id);
+            if (tmplErr) {
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: false, error: tmplErr.message }) });
+            } else {
+              toolResults.push({ tool_call_id: tc.id, role: "tool", content: JSON.stringify({ success: true, template_id: args.template_id, updated_fields: Object.keys(updateData) }) });
+            }
           }
         }
       }
@@ -1238,6 +1344,14 @@ ${contextBlock}`;
               id: parsed.trip_id,
               trip_code: parsed.trip_code,
               traveler_name: parsed.traveler_name,
+            })}\n\n`
+          );
+        }
+        if (parsed.success && parsed.template_id && parsed.updated_fields) {
+          customEvents.push(
+            `event: template_updated\ndata: ${JSON.stringify({
+              id: parsed.template_id,
+              updated_fields: parsed.updated_fields,
             })}\n\n`
           );
         }
