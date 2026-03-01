@@ -220,7 +220,7 @@ export default function Documents() {
         ];
       }
 
-      await createTemplate.mutateAsync({
+      const newTemplate = await createTemplate.mutateAsync({
         name: templateName,
         description: templateDesc || undefined,
         content,
@@ -231,6 +231,14 @@ export default function Documents() {
       setTemplateDesc("");
       setTemplateFile(null);
       toast.success(templateFile ? "Template created from uploaded document" : "LOA template created");
+      // Redirect into the editor for the newly created template
+      if (newTemplate && typeof newTemplate === 'object') {
+        openEditDialog({
+          ...(newTemplate as Record<string, any>),
+          content,
+          placeholders,
+        });
+      }
     } catch (err: any) {
       toast.error(err.message || "Failed to create template");
     }
