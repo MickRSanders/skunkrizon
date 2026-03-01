@@ -177,10 +177,28 @@ const sections: WalkthroughSection[] = [
     color: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400",
   },
   {
+    icon: ClipboardList,
+    title: "Audit Log",
+    description:
+      "A comprehensive, system-wide audit trail that automatically tracks every data change across the platform. Database triggers on 20+ tables capture INSERT, UPDATE, DELETE, and status-transition events with full before/after snapshots and field-level diffs. Superadmins and admins have global visibility; tenant-scoped filtering is available.",
+    features: [
+      "Automatic tracking via database triggers on all key tables",
+      "Category filtering: Data, Config, Status, Auth, Admin",
+      "Action filtering: INSERT, UPDATE, DELETE, STATUS_CHANGE",
+      "Field-level diff viewer with before/after comparison",
+      "Full JSON inspection for created and deleted records",
+      "Search by summary, table, user, or record ID",
+      "Date range filtering and infinite scroll",
+      "CSV export of filtered audit data",
+      "Activity stats bar with real-time counts",
+    ],
+    color: "bg-slate-500/10 text-slate-600 dark:text-slate-400",
+  },
+  {
     icon: Settings,
     title: "Configuration",
     description:
-      "Platform-wide settings including general organization config, document templates (LOA, Balance Sheet, Pay Instructions, Cost Estimates), cost estimate template versioning with compensation items and tax settings, role & permission matrices, tax engine settings, organization (tenant) management, and a full audit log.",
+      "Platform-wide settings including general organization config, document templates (LOA, Balance Sheet, Pay Instructions, Cost Estimates), cost estimate template versioning with compensation items and tax settings, role & permission matrices, tax engine settings, and organization (tenant) management.",
     features: [
       "General organization settings",
       "Document template management (LOA, Balance Sheet, etc.)",
@@ -189,7 +207,6 @@ const sections: WalkthroughSection[] = [
       "Tax Engine with hypo-tax and gross-up configuration",
       "Multi-tenant organization management with sub-tenants",
       "SSO configuration per tenant/sub-tenant",
-      "Comprehensive audit log",
     ],
     color: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
   },
