@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import StatusBadge from "@/components/StatusBadge";
 import CostEstimateDetailViewer from "@/components/CostEstimateDetailViewer";
+import DocumentTemplateFieldEditor, { type PlaceholderMapping } from "@/components/DocumentTemplateFieldEditor";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -29,6 +30,7 @@ import {
 } from "@/hooks/useDocuments";
 import { useCostEstimates } from "@/hooks/useCostEstimates";
 import { useSimulations } from "@/hooks/useSimulations";
+import { useLookupTables } from "@/hooks/useCalculations";
 import { supabase } from "@/integrations/supabase/client";
 
 export default function Documents() {
@@ -44,7 +46,7 @@ export default function Documents() {
   const [editName, setEditName] = useState("");
   const [editDesc, setEditDesc] = useState("");
   const [editContent, setEditContent] = useState("");
-  const [editPlaceholders, setEditPlaceholders] = useState("");
+  const [editPlaceholders, setEditPlaceholders] = useState<PlaceholderMapping[]>([]);
   const [aiRegenerating, setAiRegenerating] = useState(false);
 
   // Generic document edit state
@@ -59,6 +61,7 @@ export default function Documents() {
   const { data: payInstructions, isLoading: loadingPI } = usePayInstructions();
   const { data: costEstimates, isLoading: loadingCE } = useCostEstimates();
   const { data: simulations } = useSimulations();
+  const { data: lookupTables } = useLookupTables();
   const createTemplate = useCreateLoaTemplate();
   const updateTemplate = useUpdateLoaTemplate();
   const updateLoaDoc = useUpdateLoaDocument();
@@ -111,22 +114,20 @@ export default function Documents() {
     setEditName(t.name);
     setEditDesc(t.description || "");
     setEditContent(JSON.stringify(t.content, null, 2));
-    setEditPlaceholders(JSON.stringify(t.placeholders, null, 2));
+    setEditPlaceholders(Array.isArray(t.placeholders) ? t.placeholders : []);
   };
 
   const handleUpdateTemplate = async () => {
     if (!editTemplate || !editName.trim()) return;
     try {
       let parsedContent: any;
-      let parsedPlaceholders: any;
       try { parsedContent = JSON.parse(editContent); } catch { toast.error("Invalid JSON in content"); return; }
-      try { parsedPlaceholders = JSON.parse(editPlaceholders); } catch { toast.error("Invalid JSON in placeholders"); return; }
       await updateTemplate.mutateAsync({
         id: editTemplate.id,
         name: editName,
         description: editDesc || null,
         content: parsedContent,
-        placeholders: parsedPlaceholders,
+        placeholders: editPlaceholders,
       });
       setEditTemplate(null);
       toast.success("Template updated");
@@ -196,7 +197,7 @@ export default function Documents() {
       let toolName = "";
       if (type === "loa_template") {
         toolName = "update_loa_template";
-        prompt = `Please regenerate and improve this LOA template called "${editName}". Description: "${editDesc}". Current content: ${editContent}. Current placeholders: ${editPlaceholders}. Use the update_loa_template tool with template id "${targetId}" to save the improved version. Make the letter more professional while preserving placeholders.`;
+        prompt = `Please regenerate and improve this LOA template called "${editName}". Description: "${editDesc}". Current content: ${editContent}. Current placeholders: ${JSON.stringify(editPlaceholders)}. Use the update_loa_template tool with template id "${targetId}" to save the improved version. Make the letter more professional while preserving placeholders.`;
       } else if (type === "loa_document") {
         toolName = "update_loa_document";
         prompt = `Please improve this LOA document for employee "${targetName}". Current content: ${editDocJson}. Current source snapshot: ${editDocJson2}. Use the update_loa_document tool with document id "${targetId}" to save improvements. Make it more professional and comprehensive.`;
@@ -243,7 +244,7 @@ export default function Documents() {
           const { data: refreshed } = await (supabase.from("loa_templates" as any) as any).select("*").eq("id", targetId).single();
           if (refreshed) {
             setEditContent(JSON.stringify(refreshed.content, null, 2));
-            setEditPlaceholders(JSON.stringify(refreshed.placeholders, null, 2));
+            setEditPlaceholders(Array.isArray(refreshed.placeholders) ? refreshed.placeholders : []);
             setEditName(refreshed.name);
             setEditDesc(refreshed.description || "");
           }
@@ -469,10 +470,16 @@ export default function Documents() {
               <Label className="text-xs text-muted-foreground">Content (JSON)</Label>
               <Textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={12} className="font-mono text-xs" />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Placeholders (JSON)</Label>
-              <Textarea value={editPlaceholders} onChange={(e) => setEditPlaceholders(e.target.value)} rows={8} className="font-mono text-xs" />
-            </div>
+            <DocumentTemplateFieldEditor
+              placeholders={editPlaceholders}
+              onChange={setEditPlaceholders}
+              lookupTables={(lookupTables ?? []).map((lt: any) => ({
+                id: lt.id,
+                name: lt.name,
+                columns: Array.isArray(lt.columns) ? lt.columns : [],
+              }))}
+              templateContent={(() => { try { return JSON.parse(editContent); } catch { return undefined; } })()}
+            />
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button variant="outline" size="sm" onClick={() => handleAiRegenerate("loa_template")} disabled={aiRegenerating || isSaving} className="gap-1.5">
