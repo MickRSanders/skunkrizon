@@ -115,21 +115,33 @@ If a field cannot be determined from the document, use null. Always return valid
           { role: "user", content: `Parse this policy document (filename: ${sanitizedFileName}):\n\n${textContent.slice(0, 50000)}` },
         ];
       } else if (mimeType === "application/pdf") {
-        // PDF: Gemini supports this via inline data
+        // Extract readable text from PDF binary
+        const rawText = new TextDecoder("utf-8", { fatal: false }).decode(uint8);
+        // Extract text between BT...ET blocks and parenthesized strings
+        let extractedText = "";
+        const textMatches = rawText.match(/\(([^)]{1,500})\)/g);
+        if (textMatches && textMatches.length > 10) {
+          extractedText = textMatches
+            .map((m: string) => m.slice(1, -1))
+            .filter((t: string) => /[a-zA-Z]{2,}/.test(t))
+            .join(" ");
+        }
+        if (!extractedText || extractedText.length < 50) {
+          // Fallback: grab any readable ASCII sequences
+          extractedText = rawText
+            .replace(/[^\x20-\x7E\n\r\t]/g, " ")
+            .replace(/\s{3,}/g, " ")
+            .trim();
+        }
+        if (extractedText.length < 50) {
+          return new Response(JSON.stringify({ error: "Could not extract text from PDF. Please try a text-based format (.txt, .docx)." }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
         messages = [
           { role: "system", content: systemPrompt },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: `Parse this policy document (filename: ${sanitizedFileName}).` },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:${mimeType};base64,${b64}`,
-                },
-              },
-            ],
-          },
+          { role: "user", content: `Parse this policy document (filename: ${sanitizedFileName}):\n\n${extractedText.slice(0, 50000)}` },
         ];
       } else {
         // DOCX and other binary formats: extract raw text content
