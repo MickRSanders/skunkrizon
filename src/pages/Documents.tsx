@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import StatusBadge from "@/components/StatusBadge";
 import CostEstimateDetailViewer from "@/components/CostEstimateDetailViewer";
 import DocumentTemplateFieldEditor, { type PlaceholderMapping } from "@/components/DocumentTemplateFieldEditor";
+import VisualTemplateEditor from "@/components/VisualTemplateEditor";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -17,7 +18,7 @@ import {
 import {
   FileText, Plus, ScrollText, CreditCard, Receipt, Search,
   FileCheck, Loader2, Download, Eye, ArrowRight, FileSpreadsheet,
-  Pencil, Sparkles, Upload,
+  Pencil, Sparkles, Upload, Code2, LayoutTemplate,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -50,6 +51,7 @@ export default function Documents() {
   const [editContent, setEditContent] = useState("");
   const [editPlaceholders, setEditPlaceholders] = useState<PlaceholderMapping[]>([]);
   const [aiRegenerating, setAiRegenerating] = useState(false);
+  const [editorMode, setEditorMode] = useState<"visual" | "json">("visual");
 
   // Generic document edit state
   const [editDoc, setEditDoc] = useState<any>(null);
@@ -628,11 +630,43 @@ export default function Documents() {
 
       {/* Edit LOA Template Dialog */}
       <Dialog open={!!editTemplate} onOpenChange={(open) => { if (!open) setEditTemplate(null); }}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Pencil className="w-4 h-4" /> Edit LOA Template
-            </DialogTitle>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="flex items-center gap-2">
+                <Pencil className="w-4 h-4" /> Edit LOA Template
+              </DialogTitle>
+              <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
+                <button
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    editorMode === "visual" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  onClick={() => {
+                    if (editorMode === "json") {
+                      // Sync JSON back to structured data
+                      try {
+                        const parsed = JSON.parse(editContent);
+                        setEditorMode("visual");
+                      } catch {
+                        // keep in json mode if invalid
+                      }
+                    } else {
+                      setEditorMode("visual");
+                    }
+                  }}
+                >
+                  <LayoutTemplate className="w-3.5 h-3.5" /> Visual
+                </button>
+                <button
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    editorMode === "json" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  onClick={() => setEditorMode("json")}
+                >
+                  <Code2 className="w-3.5 h-3.5" /> JSON
+                </button>
+              </div>
+            </div>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -645,20 +679,37 @@ export default function Documents() {
                 <Input value={editDesc} onChange={(e) => setEditDesc(e.target.value)} placeholder="Optional description" />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Content (JSON)</Label>
-              <Textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={12} className="font-mono text-xs" />
-            </div>
-            <DocumentTemplateFieldEditor
-              placeholders={editPlaceholders}
-              onChange={setEditPlaceholders}
-              lookupTables={(lookupTables ?? []).map((lt: any) => ({
-                id: lt.id,
-                name: lt.name,
-                columns: Array.isArray(lt.columns) ? lt.columns : [],
-              }))}
-              templateContent={(() => { try { return JSON.parse(editContent); } catch { return undefined; } })()}
-            />
+
+            {editorMode === "visual" ? (
+              <VisualTemplateEditor
+                content={(() => { try { return JSON.parse(editContent); } catch { return []; } })()}
+                placeholders={editPlaceholders}
+                onContentChange={(c) => setEditContent(JSON.stringify(c, null, 2))}
+                onPlaceholdersChange={setEditPlaceholders}
+                lookupTables={(lookupTables ?? []).map((lt: any) => ({
+                  id: lt.id,
+                  name: lt.name,
+                  columns: Array.isArray(lt.columns) ? lt.columns : [],
+                }))}
+              />
+            ) : (
+              <>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Content (JSON)</Label>
+                  <Textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={12} className="font-mono text-xs" />
+                </div>
+                <DocumentTemplateFieldEditor
+                  placeholders={editPlaceholders}
+                  onChange={setEditPlaceholders}
+                  lookupTables={(lookupTables ?? []).map((lt: any) => ({
+                    id: lt.id,
+                    name: lt.name,
+                    columns: Array.isArray(lt.columns) ? lt.columns : [],
+                  }))}
+                  templateContent={(() => { try { return JSON.parse(editContent); } catch { return undefined; } })()}
+                />
+              </>
+            )}
           </div>
           <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button variant="outline" size="sm" onClick={() => handleAiRegenerate("loa_template")} disabled={aiRegenerating || isSaving} className="gap-1.5">
