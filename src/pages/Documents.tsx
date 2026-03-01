@@ -16,13 +16,15 @@ import {
 import {
   FileText, Plus, ScrollText, CreditCard, Receipt, Search,
   FileCheck, Loader2, Download, Eye, ArrowRight, FileSpreadsheet,
+  Pencil, Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { downloadCostEstimatePdf } from "@/lib/generateCostEstimatePdf";
-import { useLoaTemplates, useCreateLoaTemplate, useLoaDocuments, useBalanceSheets, usePayInstructions } from "@/hooks/useDocuments";
+import { useLoaTemplates, useCreateLoaTemplate, useUpdateLoaTemplate, useLoaDocuments, useBalanceSheets, usePayInstructions } from "@/hooks/useDocuments";
 import { useCostEstimates } from "@/hooks/useCostEstimates";
 import { useSimulations } from "@/hooks/useSimulations";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function Documents() {
   const [tab, setTab] = useState("loa-templates");
@@ -32,6 +34,14 @@ export default function Documents() {
   const [search, setSearch] = useState("");
   const [selectedEstimate, setSelectedEstimate] = useState<any>(null);
 
+  // Edit template state
+  const [editTemplate, setEditTemplate] = useState<any>(null);
+  const [editName, setEditName] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [editPlaceholders, setEditPlaceholders] = useState("");
+  const [aiRegenerating, setAiRegenerating] = useState(false);
+
   const { data: templates, isLoading: loadingTemplates } = useLoaTemplates();
   const { data: loaDocs, isLoading: loadingDocs } = useLoaDocuments();
   const { data: balanceSheets, isLoading: loadingBS } = useBalanceSheets();
@@ -39,6 +49,7 @@ export default function Documents() {
   const { data: costEstimates, isLoading: loadingCE } = useCostEstimates();
   const { data: simulations } = useSimulations();
   const createTemplate = useCreateLoaTemplate();
+  const updateTemplate = useUpdateLoaTemplate();
 
   const approvedSims = simulations?.filter((s) => s.status === "approved") ?? [];
 
@@ -77,6 +88,132 @@ export default function Documents() {
       toast.success("LOA template created");
     } catch (err: any) {
       toast.error(err.message || "Failed to create template");
+    }
+  };
+
+  const openEditDialog = (t: any) => {
+    setEditTemplate(t);
+    setEditName(t.name);
+    setEditDesc(t.description || "");
+    setEditContent(JSON.stringify(t.content, null, 2));
+    setEditPlaceholders(JSON.stringify(t.placeholders, null, 2));
+  };
+
+  const handleUpdateTemplate = async () => {
+    if (!editTemplate || !editName.trim()) return;
+    try {
+      let parsedContent: any;
+      let parsedPlaceholders: any;
+      try {
+        parsedContent = JSON.parse(editContent);
+      } catch {
+        toast.error("Invalid JSON in content");
+        return;
+      }
+      try {
+        parsedPlaceholders = JSON.parse(editPlaceholders);
+      } catch {
+        toast.error("Invalid JSON in placeholders");
+        return;
+      }
+      await updateTemplate.mutateAsync({
+        id: editTemplate.id,
+        name: editName,
+        description: editDesc || null,
+        content: parsedContent,
+        placeholders: parsedPlaceholders,
+      });
+      setEditTemplate(null);
+      toast.success("Template updated");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update template");
+    }
+  };
+
+  const handleAiRegenerate = async () => {
+    if (!editTemplate) return;
+    setAiRegenerating(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("You must be logged in");
+        return;
+      }
+
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({
+          messages: [
+            {
+              role: "user",
+              content: `Please regenerate and improve this LOA template called "${editName}". Description: "${editDesc}". Current content: ${editContent}. Current placeholders: ${editPlaceholders}. 
+              
+Return a better structured LOA template content and placeholders. Use the update_loa_template tool with the template id "${editTemplate.id}" to save the improved version. Make the letter more professional, comprehensive, and well-structured while preserving the existing placeholders and adding any useful ones.`,
+            },
+          ],
+          includeContext: true,
+        }),
+      });
+
+      if (!resp.ok) {
+        toast.error("AI request failed");
+        return;
+      }
+
+      // Read SSE stream to completion
+      const reader = resp.body?.getReader();
+      const decoder = new TextDecoder();
+      let fullText = "";
+      let templateUpdated = false;
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          
+          // Check for template_updated event
+          if (chunk.includes("event: template_updated")) {
+            templateUpdated = true;
+          }
+
+          // Parse SSE for text content
+          for (const line of chunk.split("\n")) {
+            if (!line.startsWith("data: ") || line.includes("[DONE]")) continue;
+            try {
+              const parsed = JSON.parse(line.slice(6));
+              const content = parsed.choices?.[0]?.delta?.content;
+              if (content) fullText += content;
+            } catch { /* skip */ }
+          }
+        }
+      }
+
+      if (templateUpdated) {
+        toast.success("Template regenerated by AI!");
+        // Refresh the template data from DB
+        const { data: refreshed } = await (supabase.from("loa_templates" as any) as any)
+          .select("*")
+          .eq("id", editTemplate.id)
+          .single();
+        if (refreshed) {
+          setEditContent(JSON.stringify(refreshed.content, null, 2));
+          setEditPlaceholders(JSON.stringify(refreshed.placeholders, null, 2));
+          setEditName(refreshed.name);
+          setEditDesc(refreshed.description || "");
+        }
+      } else {
+        toast.info("AI provided suggestions. Review and save manually if needed.");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "AI regeneration failed");
+    } finally {
+      setAiRegenerating(false);
     }
   };
 
@@ -152,7 +289,16 @@ export default function Documents() {
                   </div>
                   <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
                     <StatusBadge status={t.status === "active" ? "active" : "draft"} />
-                    <span className="text-[10px] text-muted-foreground">{format(new Date(t.created_at), "MMM d, yyyy")}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-muted-foreground">{format(new Date(t.created_at), "MMM d, yyyy")}</span>
+                      <button
+                        onClick={() => openEditDialog(t)}
+                        className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                        title="Edit template"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -239,6 +385,69 @@ export default function Documents() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Template Dialog */}
+      <Dialog open={!!editTemplate} onOpenChange={(open) => { if (!open) setEditTemplate(null); }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-4 h-4" /> Edit LOA Template
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Template Name *</Label>
+                <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Description</Label>
+                <Input value={editDesc} onChange={(e) => setEditDesc(e.target.value)} placeholder="Optional description" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Content (JSON)</Label>
+              <Textarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                rows={12}
+                className="font-mono text-xs"
+                placeholder="Template content as JSON..."
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Placeholders (JSON)</Label>
+              <Textarea
+                value={editPlaceholders}
+                onChange={(e) => setEditPlaceholders(e.target.value)}
+                rows={8}
+                className="font-mono text-xs"
+                placeholder="Placeholders as JSON..."
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAiRegenerate}
+              disabled={aiRegenerating || updateTemplate.isPending}
+              className="gap-1.5"
+            >
+              {aiRegenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              {aiRegenerating ? "AI Regenerating..." : "Regenerate with AI"}
+            </Button>
+            <div className="flex gap-2 ml-auto">
+              <Button variant="outline" size="sm" onClick={() => setEditTemplate(null)}>Cancel</Button>
+              <Button size="sm" disabled={!editName.trim() || updateTemplate.isPending} onClick={handleUpdateTemplate}>
+                {updateTemplate.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Pencil className="w-4 h-4 mr-1" />}
+                Save Changes
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Cost Estimate Detail Viewer */}
       <CostEstimateDetailViewer
         estimate={selectedEstimate}
