@@ -95,6 +95,23 @@ export function useCreateLoaDocument() {
   });
 }
 
+export function useUpdateLoaDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string } & Record<string, any>) => {
+      const { data, error } = await supabase
+        .from("loa_documents" as any)
+        .update(updates as any)
+        .eq("id", id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["loa_documents"] }),
+  });
+}
+
 // ─── Balance Sheets ─────────────────────────────────────────
 export function useBalanceSheets(simulationId?: string) {
   const { activeTenant } = useTenantContext();
@@ -137,6 +154,23 @@ export function useCreateBalanceSheet() {
   });
 }
 
+export function useUpdateBalanceSheet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string } & Record<string, any>) => {
+      const { data, error } = await supabase
+        .from("balance_sheets" as any)
+        .update(updates as any)
+        .eq("id", id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["balance_sheets"] }),
+  });
+}
+
 // ─── Pay Instructions ───────────────────────────────────────
 export function usePayInstructions(simulationId?: string) {
   const { activeTenant } = useTenantContext();
@@ -169,6 +203,23 @@ export function useCreatePayInstruction() {
       const { data, error } = await supabase
         .from("pay_instructions" as any)
         .insert({ ...instruction, tenant_id: activeTenant.tenant_id, generated_by: user.id } as any)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["pay_instructions"] }),
+  });
+}
+
+export function useUpdatePayInstruction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...updates }: { id: string } & Record<string, any>) => {
+      const { data, error } = await supabase
+        .from("pay_instructions" as any)
+        .update(updates as any)
+        .eq("id", id)
         .select()
         .single();
       if (error) throw error;
