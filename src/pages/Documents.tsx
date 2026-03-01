@@ -17,7 +17,7 @@ import {
 import {
   FileText, Plus, ScrollText, CreditCard, Receipt, Search,
   FileCheck, Loader2, Download, Eye, ArrowRight, FileSpreadsheet,
-  Pencil, Sparkles,
+  Pencil, Sparkles, Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -38,6 +38,8 @@ export default function Documents() {
   const [showNewTemplate, setShowNewTemplate] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [templateDesc, setTemplateDesc] = useState("");
+  const [templateFile, setTemplateFile] = useState<File | null>(null);
+  const [uploadParsing, setUploadParsing] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedEstimate, setSelectedEstimate] = useState<any>(null);
 
@@ -70,14 +72,128 @@ export default function Documents() {
 
   const approvedSims = simulations?.filter((s) => s.status === "approved") ?? [];
 
+  // ─── Upload & parse document template ──────────────────────
+  const handleUploadAndParse = async (file: File) => {
+    setUploadParsing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) { toast.error("You must be logged in"); return null; }
+
+      // Upload file to storage
+      const filePath = `templates/${Date.now()}_${file.name}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("policy-documents")
+        .upload(filePath, file);
+      if (uploadErr) throw uploadErr;
+
+      // Parse via edge function
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/parse-policy`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({ filePath, fileName: file.name }),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to parse document");
+      }
+
+      const { parsed } = await resp.json();
+      return parsed;
+    } catch (err: any) {
+      toast.error(err.message || "Upload failed");
+      return null;
+    } finally {
+      setUploadParsing(false);
+    }
+  };
+
   // ─── LOA Template handlers ────────────────────────────────
   const handleCreateTemplate = async () => {
     if (!templateName.trim()) return;
     try {
-      await createTemplate.mutateAsync({
-        name: templateName,
-        description: templateDesc || undefined,
-        content: [
+      let content: any;
+      let placeholders: any;
+
+      if (templateFile) {
+        // Parse uploaded file
+        const parsed = await handleUploadAndParse(templateFile);
+        if (!parsed) return;
+
+        // Convert parsed policy data into template content & placeholders
+        const sections: any[] = [];
+        const phs: any[] = [];
+
+        sections.push({ type: "heading", text: parsed.policyName || templateName });
+        if (parsed.description) {
+          sections.push({ type: "paragraph", text: parsed.description });
+        }
+        sections.push({ type: "paragraph", text: "Dear {{employee_name}}," });
+        phs.push({ key: "employee_name", source: "simulation", field: "employee_name" });
+
+        if (parsed.eligibility) {
+          sections.push({ type: "section", title: "Eligibility", text: parsed.eligibility });
+        }
+        if (parsed.duration) {
+          sections.push({ type: "section", title: "Assignment Duration", text: parsed.duration });
+        }
+        sections.push({
+          type: "paragraph",
+          text: "This assignment is from {{origin_country}} to {{destination_country}}, commencing {{start_date}}.",
+        });
+        phs.push(
+          { key: "origin_country", source: "simulation", field: "origin_country" },
+          { key: "destination_country", source: "simulation", field: "destination_country" },
+          { key: "start_date", source: "simulation", field: "start_date" },
+        );
+
+        if (parsed.benefitComponents?.length) {
+          const benefitSection: any = {
+            type: "section",
+            title: "Compensation & Benefits",
+            fields: [],
+          };
+          parsed.benefitComponents.forEach((bc: any) => {
+            const key = bc.name?.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/_+$/, "") || "benefit";
+            benefitSection.fields.push(key);
+            sections.push({
+              type: "benefit_row",
+              label: bc.name,
+              calc_method: bc.calcMethod || "",
+              amount: bc.amount || "",
+              taxable: bc.taxable || "N/A",
+            });
+          });
+          sections.splice(sections.length - parsed.benefitComponents.length, 0, benefitSection);
+        }
+
+        if (parsed.taxApproach) {
+          sections.push({ type: "section", title: "Tax Approach", text: `Tax approach: ${parsed.taxApproach}` });
+        }
+        if (parsed.notes) {
+          sections.push({ type: "section", title: "Additional Notes", text: parsed.notes });
+        }
+
+        // Standard closing
+        sections.push({ type: "paragraph", text: "This letter supersedes all previous agreements regarding this assignment." });
+
+        // Add standard simulation placeholders
+        const standardKeys = ["assignment_type", "duration_months", "base_salary", "currency", "cola_percent", "housing_cap"];
+        standardKeys.forEach((k) => {
+          if (!phs.some((p: any) => p.key === k)) {
+            phs.push({ key: k, source: "simulation", field: k });
+          }
+        });
+
+        content = sections;
+        placeholders = phs;
+      } else {
+        // Default template
+        content = [
           { type: "heading", text: "Letter of Assignment" },
           { type: "paragraph", text: "Dear {{employee_name}}," },
           { type: "paragraph", text: "We are pleased to confirm your assignment from {{origin_country}} to {{destination_country}}." },
@@ -85,8 +201,8 @@ export default function Documents() {
           { type: "section", title: "Compensation", fields: ["base_salary", "currency", "cola_percent"] },
           { type: "section", title: "Benefits", fields: ["housing_cap", "relocation_lump_sum"] },
           { type: "paragraph", text: "This letter supersedes all previous agreements regarding this assignment." },
-        ],
-        placeholders: [
+        ];
+        placeholders = [
           { key: "employee_name", source: "simulation", field: "employee_name" },
           { key: "origin_country", source: "simulation", field: "origin_country" },
           { key: "destination_country", source: "simulation", field: "destination_country" },
@@ -98,12 +214,20 @@ export default function Documents() {
           { key: "cola_percent", source: "simulation", field: "cola_percent" },
           { key: "housing_cap", source: "simulation", field: "housing_cap" },
           { key: "relocation_lump_sum", source: "simulation", field: "relocation_lump_sum" },
-        ],
+        ];
+      }
+
+      await createTemplate.mutateAsync({
+        name: templateName,
+        description: templateDesc || undefined,
+        content,
+        placeholders,
       });
       setShowNewTemplate(false);
       setTemplateName("");
       setTemplateDesc("");
-      toast.success("LOA template created");
+      setTemplateFile(null);
+      toast.success(templateFile ? "Template created from uploaded document" : "LOA template created");
     } catch (err: any) {
       toast.error(err.message || "Failed to create template");
     }
@@ -423,8 +547,8 @@ export default function Documents() {
       </Tabs>
 
       {/* New Template Dialog */}
-      <Dialog open={showNewTemplate} onOpenChange={setShowNewTemplate}>
-        <DialogContent>
+      <Dialog open={showNewTemplate} onOpenChange={(open) => { if (!open) { setShowNewTemplate(false); setTemplateFile(null); } else setShowNewTemplate(true); }}>
+        <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>New LOA Template</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
@@ -433,15 +557,59 @@ export default function Documents() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Description</Label>
-              <Textarea value={templateDesc} onChange={(e) => setTemplateDesc(e.target.value)} placeholder="Optional description..." rows={3} />
+              <Textarea value={templateDesc} onChange={(e) => setTemplateDesc(e.target.value)} placeholder="Optional description..." rows={2} />
             </div>
-            <p className="text-xs text-muted-foreground">A default template structure with common sections and placeholders will be generated. You can customize it after creation.</p>
+
+            {/* File Upload */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Upload Document (optional)</Label>
+              <div className="relative">
+                {templateFile ? (
+                  <div className="flex items-center gap-3 p-3 rounded-lg border border-accent/30 bg-accent/5">
+                    <FileText className="w-5 h-5 text-accent shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{templateFile.name}</p>
+                      <p className="text-[10px] text-muted-foreground">{(templateFile.size / 1024).toFixed(1)} KB</p>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setTemplateFile(null)} className="text-xs h-7 px-2">
+                      Remove
+                    </Button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center gap-2 p-6 rounded-lg border-2 border-dashed border-border hover:border-accent/40 bg-muted/30 cursor-pointer transition-colors">
+                    <Upload className="w-6 h-6 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">
+                      Drop a <strong>DOCX</strong> or <strong>PDF</strong> file here, or click to browse
+                    </span>
+                    <input
+                      type="file"
+                      accept=".pdf,.docx,.doc,.txt"
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) {
+                          setTemplateFile(f);
+                          if (!templateName.trim()) {
+                            setTemplateName(f.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " "));
+                          }
+                        }
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+              <p className="text-[10px] text-muted-foreground">
+                {templateFile
+                  ? "The AI will parse this document and extract sections, benefits, and placeholders automatically."
+                  : "Upload an existing document to auto-populate the template, or leave empty for a default structure."}
+              </p>
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setShowNewTemplate(false)}>Cancel</Button>
-            <Button size="sm" disabled={!templateName.trim() || createTemplate.isPending} onClick={handleCreateTemplate}>
-              {createTemplate.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
-              Create Template
+            <Button variant="outline" size="sm" onClick={() => { setShowNewTemplate(false); setTemplateFile(null); }}>Cancel</Button>
+            <Button size="sm" disabled={!templateName.trim() || createTemplate.isPending || uploadParsing} onClick={handleCreateTemplate}>
+              {(createTemplate.isPending || uploadParsing) ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : templateFile ? <Upload className="w-4 h-4 mr-1" /> : <Plus className="w-4 h-4 mr-1" />}
+              {uploadParsing ? "Parsing Document..." : templateFile ? "Upload & Create" : "Create Template"}
             </Button>
           </DialogFooter>
         </DialogContent>
