@@ -203,15 +203,15 @@ export default function Simulations() {
   return (
     <div className="space-y-8">
       {/* Hero Header */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary/90 to-accent/60 p-8">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary via-primary/90 to-accent/60 p-5 sm:p-8">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,hsl(var(--accent)/0.15),transparent_70%)]" />
-        <div className="relative z-10 flex items-end justify-between">
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-primary-foreground tracking-tight">Cost Simulations</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-primary-foreground tracking-tight">Cost Simulations</h1>
             <p className="text-primary-foreground/70 mt-2 max-w-lg text-sm">
               Model relocation cost scenarios, compare side-by-side, and optimize your global mobility spend.
             </p>
-            <div className="flex items-center gap-6 mt-5">
+            <div className="flex items-center gap-4 sm:gap-6 mt-5 flex-wrap">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-primary-foreground/10 flex items-center justify-center">
                   <TrendingUp className="w-4 h-4 text-primary-foreground" />
@@ -243,7 +243,7 @@ export default function Simulations() {
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="lg" className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 shadow-lg">
+              <Button size="lg" className="bg-primary-foreground text-primary hover:bg-primary-foreground/90 shadow-lg w-full sm:w-auto">
                 <Plus className="w-4 h-4 mr-2" />
                 New Simulation
                 <ChevronDown className="w-3.5 h-3.5 ml-1.5" />
@@ -262,8 +262,8 @@ export default function Simulations() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="relative flex-1 sm:max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             type="text"
@@ -273,7 +273,7 @@ export default function Simulations() {
             className="w-full h-10 pl-10 pr-4 rounded-lg border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
           />
         </div>
-        <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
+        <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5 self-end">
           <button
             onClick={() => setViewMode("grid")}
             className={`p-2 rounded-md transition-colors ${viewMode === "grid" ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}

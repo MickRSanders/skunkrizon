@@ -104,14 +104,14 @@ export default function Policies() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Policy Agent</h1>
           <p className="text-sm text-muted-foreground mt-1">AI-powered policy ingestion, configuration, and management</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setShowUpload(true)}>
-            <Upload className="w-4 h-4 mr-1" /> Upload Policy Doc
+            <Upload className="w-4 h-4 mr-1" /> <span className="hidden sm:inline">Upload Policy Doc</span><span className="sm:hidden">Upload</span>
           </Button>
           <Button size="sm">
             <Plus className="w-4 h-4 mr-1" /> New Policy
@@ -121,8 +121,8 @@ export default function Policies() {
 
       {/* Policy List */}
       <div className="bg-card rounded-lg border border-border">
-        <div className="p-4 border-b border-border flex items-center gap-3">
-          <div className="flex items-center gap-2 flex-1 max-w-sm bg-background border border-border rounded-md px-3 py-2">
+        <div className="p-4 border-b border-border flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="flex items-center gap-2 flex-1 sm:max-w-sm bg-background border border-border rounded-md px-3 py-2">
             <Search className="w-4 h-4 text-muted-foreground" />
             <input
               type="text"
@@ -132,7 +132,7 @@ export default function Policies() {
               className="bg-transparent text-sm outline-none w-full text-foreground placeholder:text-muted-foreground"
             />
           </div>
-          <div className="flex items-center gap-1 ml-auto">
+          <div className="flex items-center gap-1 sm:ml-auto">
             {(["all", "draft", "published"] as const).map((s) => (
               <button
                 key={s}

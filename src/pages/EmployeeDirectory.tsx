@@ -112,7 +112,7 @@ export default function EmployeeDirectory() {
     <PageTransition>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Employee Directory</h1>
             <p className="text-sm text-muted-foreground mt-1">
@@ -260,7 +260,7 @@ export default function EmployeeDirectory() {
 
             {/* Pagination Footer */}
             {!isLoading && filtered.length > 0 && (
-              <div className="flex items-center justify-between border-t px-4 py-3">
+              <div className="flex flex-col sm:flex-row items-center justify-between border-t px-4 py-3 gap-3">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <span>Rows per page</span>
                   <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1); }}>

@@ -214,17 +214,19 @@ export default function Dashboard() {
       </div>
 
       {activeSubTenant && (
-        <div className="flex items-center gap-3 rounded-lg border border-accent/20 bg-accent/5 px-4 py-3">
-          <Building2 className="w-5 h-5 text-accent shrink-0" />
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-foreground">{activeSubTenant.name}</span>
-            <Badge variant="outline" className="text-xs">Active Sub-organization</Badge>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 rounded-lg border border-accent/20 bg-accent/5 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Building2 className="w-5 h-5 text-accent shrink-0" />
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-semibold text-foreground">{activeSubTenant.name}</span>
+              <Badge variant="outline" className="text-xs">Active Sub-organization</Badge>
+            </div>
           </div>
           {subCounts && (
-            <div className="ml-auto flex items-center gap-4 text-xs text-muted-foreground">
-              <span><strong className="text-foreground">{subCounts.simulations}</strong> Simulations</span>
+            <div className="sm:ml-auto flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+              <span><strong className="text-foreground">{subCounts.simulations}</strong> Sims</span>
               <span><strong className="text-foreground">{subCounts.policies}</strong> Policies</span>
-              <span><strong className="text-foreground">{subCounts.calculations}</strong> Calculations</span>
+              <span><strong className="text-foreground">{subCounts.calculations}</strong> Calcs</span>
             </div>
           )}
         </div>
