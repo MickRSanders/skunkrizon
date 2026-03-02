@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import PageTransition from "@/components/PageTransition";
+import AvatarCropDialog from "@/components/AvatarCropDialog";
 
 export default function ProfilePage() {
   const { user, profile, refreshProfile } = useAuth();
@@ -20,6 +21,8 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const [cropOpen, setCropOpen] = useState(false);
 
   const initials = (displayName || user?.email || "U")
     .split(" ")
@@ -49,9 +52,9 @@ export default function ProfilePage() {
     }
   };
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user) return;
+    if (!file) return;
 
     const allowed = ["image/jpeg", "image/png"];
     if (!allowed.includes(file.type)) {
@@ -63,13 +66,21 @@ export default function ProfilePage() {
       return;
     }
 
+    setCropFile(file);
+    setCropOpen(true);
+    // Reset input so the same file can be re-selected
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const handleCroppedSave = async (blob: Blob) => {
+    if (!user) return;
     setUploading(true);
-    const ext = file.name.split(".").pop();
-    const path = `${user.id}/avatar.${ext}`;
+
+    const path = `${user.id}/avatar.png`;
 
     const { error: uploadError } = await supabase.storage
       .from("avatars")
-      .upload(path, file, { upsert: true });
+      .upload(path, blob, { upsert: true, contentType: "image/png" });
 
     if (uploadError) {
       setUploading(false);
@@ -85,6 +96,8 @@ export default function ProfilePage() {
       .eq("id", user.id);
 
     setUploading(false);
+    setCropOpen(false);
+    setCropFile(null);
     if (updateError) {
       toast.error("Failed to save avatar URL");
     } else {
@@ -137,7 +150,7 @@ export default function ProfilePage() {
               type="file"
               accept="image/jpeg,image/png"
               className="hidden"
-              onChange={handleAvatarUpload}
+              onChange={handleFileSelect}
             />
             <div>
               <p className="text-sm font-medium text-foreground">{displayName || "Your Name"}</p>
@@ -213,6 +226,14 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       </div>
+
+      <AvatarCropDialog
+        open={cropOpen}
+        file={cropFile}
+        onClose={() => { setCropOpen(false); setCropFile(null); }}
+        onSave={handleCroppedSave}
+        saving={uploading}
+      />
     </PageTransition>
   );
 }
