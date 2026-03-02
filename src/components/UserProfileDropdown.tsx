@@ -81,24 +81,6 @@ export default function UserProfileDropdown() {
 
       {open && (
         <div className="absolute right-0 top-full mt-2 w-64 bg-popover border border-border rounded-xl shadow-xl z-50 overflow-hidden animate-fade-in">
-          {/* User info header */}
-          <div className="px-4 py-3 border-b border-border bg-muted/30">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center shrink-0">
-                {profile?.avatar_url ? (
-                  <img src={profile.avatar_url} alt={displayName} className="w-10 h-10 rounded-full object-cover" />
-                ) : (
-                  <span className="text-sm font-semibold text-primary-foreground">{initials}</span>
-                )}
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-foreground truncate">{displayName}</p>
-                <p className="text-[11px] text-muted-foreground truncate">{profile?.job_title || "Administrator"}</p>
-                <p className="text-[10px] text-muted-foreground/60 truncate">{tenantName}</p>
-              </div>
-            </div>
-          </div>
-
           {/* Menu items */}
           <div className="py-1">
             {menuItems.map((item) => (
