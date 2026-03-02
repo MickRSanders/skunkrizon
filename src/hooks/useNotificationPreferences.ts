@@ -12,6 +12,10 @@ export interface NotificationPreference {
 const NOTIFICATION_TYPES = [
   { key: "simulation", label: "Simulation Updates", description: "Status changes and completions" },
   { key: "policy", label: "Policy Changes", description: "New policies and modifications" },
+  { key: "cost_estimate", label: "Cost Projects", description: "Cost estimate generation and updates" },
+  { key: "calculation", label: "Calculation Updates", description: "Formula and benefit changes" },
+  { key: "remote_work", label: "Remote Work", description: "Remote work request activity" },
+  { key: "trip", label: "Pre-Travel", description: "Trip assessments and outcomes" },
 ] as const;
 
 export { NOTIFICATION_TYPES };
