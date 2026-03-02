@@ -119,7 +119,7 @@ export default function ProfilePage() {
                 <img
                   src={profile.avatar_url}
                   alt="Avatar"
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain bg-muted"
                 />
               ) : (
                 <span className="text-xl font-bold text-primary-foreground">{initials}</span>
