@@ -18,6 +18,7 @@ import {
   ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
 import { formatDistanceToNow } from "date-fns";
+import { useDisabledNotificationTypes } from "@/hooks/useNotificationPreferences";
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -99,6 +100,14 @@ export default function Dashboard() {
       return data || [];
     },
   });
+
+  const disabledTypes = useDisabledNotificationTypes();
+  const filteredActivity = useMemo(() => {
+    if (!recentActivity) return [];
+    return recentActivity.filter(
+      (n: any) => !n.entity_type || !disabledTypes.has(n.entity_type)
+    );
+  }, [recentActivity, disabledTypes]);
 
   // ─── Derived stats ──────────────────────────────────────────
   const totalSims = simStats?.length ?? 0;
@@ -298,14 +307,14 @@ export default function Dashboard() {
             <Activity className="w-4 h-4 text-accent" />
             Recent Activity
           </h3>
-          {!recentActivity || recentActivity.length === 0 ? (
+          {filteredActivity.length === 0 ? (
             <div className="py-6 text-center">
               <Clock className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
               <p className="text-sm text-muted-foreground">No recent activity yet.</p>
             </div>
           ) : (
             <div className="space-y-1">
-              {recentActivity.map((n) => {
+              {filteredActivity.map((n: any) => {
                 const linkMap: Record<string, string> = {
                   simulation: `/simulations?sim=${n.entity_id}`,
                   trip: `/pre-travel/${n.entity_id}`,
