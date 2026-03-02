@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   DollarSign,
   Plus,
@@ -11,6 +11,8 @@ import {
   Calculator,
   Gauge,
   Database,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,6 +56,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { read, utils } from "@e965/xlsx";
+import { supabase } from "@/integrations/supabase/client";
 
 const TYPE_ICONS: Record<string, any> = {
   estimate_service: Globe,
@@ -146,6 +149,177 @@ function CreateRateTableDialog({
   );
 }
 
+function ImportStagingDialog({
+  open,
+  onOpenChange,
+  rawRows,
+  rateTableId,
+  columns,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  rawRows: Record<string, any>[];
+  rateTableId: string;
+  columns: string[];
+}) {
+  const bulkInsert = useBulkInsertRateEntries();
+  const [instructions, setInstructions] = useState("");
+  const [previewRows, setPreviewRows] = useState<Record<string, any>[]>(rawRows);
+  const [isTransforming, setIsTransforming] = useState(false);
+  const [applied, setApplied] = useState(false);
+
+  const mapToEntries = useCallback((rows: Record<string, any>[]): Partial<RateTableEntry>[] => {
+    const fieldMap: Record<string, keyof RateTableEntry> = {
+      amount: "amount", cost: "amount", percentage: "percentage",
+      customer_code: "customer_code", customercode: "customer_code",
+      origin_location_id: "origin_location_id", origin_location_type: "origin_location_type",
+      destination_location_id: "destination_location_id", destination_location_type: "destination_location_type",
+      location_id: "location_id", location_type: "location_type",
+      time_span: "time_span", timespan: "time_span",
+      valid_from: "valid_from", validfromdate: "valid_from",
+      valid_to: "valid_to", validtodate: "valid_to",
+      frequency: "frequency", scope_option_code: "scope_option_code",
+      scope_group: "scope_group", source_profile_item: "source_profile_item",
+      source_currency_profile_item: "source_currency_profile_item", not_required: "not_required",
+    };
+    const standardKeys = new Set([...Object.keys(fieldMap), "status", "currency"]);
+
+    return rows.map((row) => {
+      const entry: Partial<RateTableEntry> = {
+        status: String(row.status || row.Status || "ACTIVE"),
+        currency: String(row.currency || row.Currency || "USD"),
+      };
+      const dimensions: Record<string, any> = {};
+      for (const [key, val] of Object.entries(row)) {
+        const lk = key.toLowerCase().replace(/\s+/g, "_");
+        if (fieldMap[lk]) {
+          (entry as any)[fieldMap[lk]] = val === "*" ? null : val;
+        } else if (!standardKeys.has(lk)) {
+          dimensions[key] = val === "*" ? null : val;
+        }
+      }
+      entry.dimensions = dimensions;
+      return entry;
+    });
+  }, []);
+
+  const handleApplyTransform = async () => {
+    if (!instructions.trim()) return;
+    setIsTransforming(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("rate-transform", {
+        body: { rows: rawRows, instructions: instructions.trim(), columns },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setPreviewRows(data.transformed);
+      setApplied(true);
+      toast.success("Transform applied — review the preview below");
+    } catch (err: any) {
+      toast.error(err.message || "Transform failed");
+    } finally {
+      setIsTransforming(false);
+    }
+  };
+
+  const handleImport = async () => {
+    try {
+      const mapped = mapToEntries(previewRows);
+      await bulkInsert.mutateAsync({ rateTableId, entries: mapped });
+      toast.success(`Imported ${mapped.length} rate entries`);
+      onOpenChange(false);
+    } catch (err: any) {
+      toast.error(`Import failed: ${err.message}`);
+    }
+  };
+
+  const displayRows = previewRows.slice(0, 50);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-4xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Import Rate Data</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
+          {/* AI transform section */}
+          <div className="bg-muted/30 border border-border rounded-lg p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-accent" />
+              <span className="text-sm font-medium text-foreground">AI Data Transform (optional)</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Describe any transformations to apply before importing. E.g. "increase all amounts by 10%", "convert EUR amounts to USD at 1.08", "remove rows where status is INACTIVE", "add a column 'region' set to 'EMEA' for all European countries".
+            </p>
+            <Textarea
+              value={instructions}
+              onChange={(e) => { setInstructions(e.target.value); setApplied(false); }}
+              placeholder="Type your transformation logic here…"
+              rows={3}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleApplyTransform}
+              disabled={isTransforming || !instructions.trim()}
+            >
+              {isTransforming ? (
+                <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Transforming…</>
+              ) : (
+                <><Sparkles className="w-4 h-4 mr-1" /> Apply Transform</>
+              )}
+            </Button>
+            {applied && (
+              <p className="text-xs text-accent">✓ Transform applied. Review the data below before importing.</p>
+            )}
+          </div>
+
+          {/* Preview table */}
+          <div className="text-xs text-muted-foreground">
+            Preview: {displayRows.length} of {previewRows.length} rows
+          </div>
+          <div className="border border-border rounded-lg overflow-auto flex-1 min-h-0">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/50 sticky top-0">
+                <tr>
+                  {columns.map((col) => (
+                    <th key={col} className="text-left px-2 py-1.5 font-medium text-muted-foreground whitespace-nowrap">
+                      {col}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {displayRows.map((row, i) => (
+                  <tr key={i} className="hover:bg-muted/30">
+                    {columns.map((col) => (
+                      <td key={col} className="px-2 py-1.5 whitespace-nowrap">
+                        {row[col] === null || row[col] === undefined ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : (
+                          String(row[col])
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleImport} disabled={bulkInsert.isPending}>
+            {bulkInsert.isPending ? "Importing…" : `Import ${previewRows.length} Rows`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function RateTableDetail({
   table,
   onBack,
@@ -157,6 +331,7 @@ function RateTableDetail({
   const bulkInsert = useBulkInsertRateEntries();
   const deleteEntries = useDeleteRateEntries();
   const [search, setSearch] = useState("");
+  const [stagingData, setStagingData] = useState<{ rows: Record<string, any>[]; columns: string[] } | null>(null);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -173,63 +348,10 @@ function RateTableDetail({
         return;
       }
 
-      // Map spreadsheet columns to entry fields
-      const mapped: Partial<RateTableEntry>[] = rows.map((row) => {
-        const entry: Partial<RateTableEntry> = {
-          status: String(row.status || row.Status || "ACTIVE"),
-          currency: String(row.currency || row.Currency || "USD"),
-        };
-
-        // Standard fields mapping (case-insensitive)
-        const fieldMap: Record<string, keyof RateTableEntry> = {
-          amount: "amount",
-          cost: "amount",
-          percentage: "percentage",
-          customer_code: "customer_code",
-          customercode: "customer_code",
-          origin_location_id: "origin_location_id",
-          origin_location_type: "origin_location_type",
-          destination_location_id: "destination_location_id",
-          destination_location_type: "destination_location_type",
-          location_id: "location_id",
-          location_type: "location_type",
-          time_span: "time_span",
-          timespan: "time_span",
-          valid_from: "valid_from",
-          validfromdate: "valid_from",
-          valid_to: "valid_to",
-          validtodate: "valid_to",
-          frequency: "frequency",
-          scope_option_code: "scope_option_code",
-          scope_group: "scope_group",
-          source_profile_item: "source_profile_item",
-          source_currency_profile_item: "source_currency_profile_item",
-          not_required: "not_required",
-        };
-
-        const dimensions: Record<string, any> = {};
-        const standardKeys = new Set(Object.keys(fieldMap));
-        standardKeys.add("status");
-        standardKeys.add("currency");
-
-        for (const [key, val] of Object.entries(row)) {
-          const lk = key.toLowerCase().replace(/\s+/g, "_");
-          if (fieldMap[lk]) {
-            (entry as any)[fieldMap[lk]] = val === "*" ? null : val;
-          } else if (!standardKeys.has(lk)) {
-            // Treat as dimension — wildcards become null
-            dimensions[key] = val === "*" ? null : val;
-          }
-        }
-
-        entry.dimensions = dimensions;
-        return entry;
-      });
-
-      await bulkInsert.mutateAsync({ rateTableId: table.id, entries: mapped });
-      toast.success(`Imported ${mapped.length} rate entries`);
+      const columns = Object.keys(rows[0]);
+      setStagingData({ rows, columns });
     } catch (err: any) {
-      toast.error(`Import failed: ${err.message}`);
+      toast.error(`Failed to read file: ${err.message}`);
     }
 
     e.target.value = "";
@@ -413,6 +535,16 @@ function RateTableDetail({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {stagingData && (
+        <ImportStagingDialog
+          open={!!stagingData}
+          onOpenChange={(v) => !v && setStagingData(null)}
+          rawRows={stagingData.rows}
+          rateTableId={table.id}
+          columns={stagingData.columns}
+        />
+      )}
     </div>
   );
 }
