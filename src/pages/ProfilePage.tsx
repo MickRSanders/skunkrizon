@@ -53,8 +53,9 @@ export default function ProfilePage() {
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please select an image file");
+    const allowed = ["image/jpeg", "image/png"];
+    if (!allowed.includes(file.type)) {
+      toast.error("Please select a JPEG or PNG image");
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
@@ -134,7 +135,7 @@ export default function ProfilePage() {
             <input
               ref={fileRef}
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png"
               className="hidden"
               onChange={handleAvatarUpload}
             />
