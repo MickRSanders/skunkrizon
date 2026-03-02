@@ -62,6 +62,7 @@ export const RATE_TABLE_TYPES = [
   { value: "factor_cash_percentage", label: "Policy Percentage Factor", description: "Percentage-based calculations on profile items" },
   { value: "factor_cash_scope", label: "Policy Scope", description: "Scope options for non-cash benefits" },
   { value: "data_provider", label: "Data Provider Rates", description: "COLA indices, hardship, per diem from providers" },
+  { value: "lookup", label: "Lookup Table", description: "Reference data tables for calculations and field sources" },
 ] as const;
 
 export function useRateTables() {

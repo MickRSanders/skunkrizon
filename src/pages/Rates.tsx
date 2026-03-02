@@ -61,6 +61,7 @@ const TYPE_ICONS: Record<string, any> = {
   factor_cash_percentage: Calculator,
   factor_cash_scope: Gauge,
   data_provider: Database,
+  lookup: FileSpreadsheet,
 };
 
 function CreateRateTableDialog({
@@ -465,7 +466,7 @@ export default function Rates() {
       </div>
 
       {/* Info cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <div className="bg-card border border-border rounded-lg p-4">
           <div className="flex items-center gap-2 mb-1">
             <Globe className="w-4 h-4 text-accent" />
@@ -491,6 +492,15 @@ export default function Rates() {
           </div>
           <p className="text-xs text-muted-foreground">
             Scope options like temp housing duration based on host city & employee level
+          </p>
+        </div>
+        <div className="bg-card border border-border rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <FileSpreadsheet className="w-4 h-4 text-accent" />
+            <span className="text-sm font-medium text-foreground">Lookup Tables</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Reference data tables for calculations, field sources, and exchange rates
           </p>
         </div>
       </div>
