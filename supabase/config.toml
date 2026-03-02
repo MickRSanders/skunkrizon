@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.provision-prospect]
 verify_jwt = false
+
+[functions.rate-lookup]
+verify_jwt = false
+
+[functions.run-assessment]
+verify_jwt = false

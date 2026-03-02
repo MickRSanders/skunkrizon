@@ -1484,6 +1484,196 @@ export type Database = {
           },
         ]
       }
+      rate_table_columns: {
+        Row: {
+          column_key: string
+          column_label: string
+          column_type: string
+          created_at: string
+          id: string
+          is_dimension: boolean
+          rate_table_id: string
+          sort_order: number
+        }
+        Insert: {
+          column_key: string
+          column_label: string
+          column_type?: string
+          created_at?: string
+          id?: string
+          is_dimension?: boolean
+          rate_table_id: string
+          sort_order?: number
+        }
+        Update: {
+          column_key?: string
+          column_label?: string
+          column_type?: string
+          created_at?: string
+          id?: string
+          is_dimension?: boolean
+          rate_table_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rate_table_columns_rate_table_id_fkey"
+            columns: ["rate_table_id"]
+            isOneToOne: false
+            referencedRelation: "rate_tables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rate_table_entries: {
+        Row: {
+          amount: number | null
+          created_at: string
+          currency: string | null
+          customer_code: string | null
+          destination_location_id: string | null
+          destination_location_type: string | null
+          dimensions: Json
+          frequency: string | null
+          id: string
+          location_id: string | null
+          location_type: string | null
+          not_required: boolean
+          origin_location_id: string | null
+          origin_location_type: string | null
+          percentage: number | null
+          rate_table_id: string
+          scope_group: string | null
+          scope_option_code: string | null
+          source_currency_profile_item: string | null
+          source_profile_item: string | null
+          status: string
+          time_span: string | null
+          updated_at: string
+          valid_from: string | null
+          valid_to: string | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          currency?: string | null
+          customer_code?: string | null
+          destination_location_id?: string | null
+          destination_location_type?: string | null
+          dimensions?: Json
+          frequency?: string | null
+          id?: string
+          location_id?: string | null
+          location_type?: string | null
+          not_required?: boolean
+          origin_location_id?: string | null
+          origin_location_type?: string | null
+          percentage?: number | null
+          rate_table_id: string
+          scope_group?: string | null
+          scope_option_code?: string | null
+          source_currency_profile_item?: string | null
+          source_profile_item?: string | null
+          status?: string
+          time_span?: string | null
+          updated_at?: string
+          valid_from?: string | null
+          valid_to?: string | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          currency?: string | null
+          customer_code?: string | null
+          destination_location_id?: string | null
+          destination_location_type?: string | null
+          dimensions?: Json
+          frequency?: string | null
+          id?: string
+          location_id?: string | null
+          location_type?: string | null
+          not_required?: boolean
+          origin_location_id?: string | null
+          origin_location_type?: string | null
+          percentage?: number | null
+          rate_table_id?: string
+          scope_group?: string | null
+          scope_option_code?: string | null
+          source_currency_profile_item?: string | null
+          source_profile_item?: string | null
+          status?: string
+          time_span?: string | null
+          updated_at?: string
+          valid_from?: string | null
+          valid_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rate_table_entries_rate_table_id_fkey"
+            columns: ["rate_table_id"]
+            isOneToOne: false
+            referencedRelation: "rate_tables"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rate_tables: {
+        Row: {
+          created_at: string
+          created_by: string
+          customer_code: string | null
+          description: string | null
+          id: string
+          name: string
+          status: string
+          sub_tenant_id: string | null
+          table_type: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          customer_code?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          status?: string
+          sub_tenant_id?: string | null
+          table_type?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          customer_code?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          status?: string
+          sub_tenant_id?: string | null
+          table_type?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rate_tables_sub_tenant_id_fkey"
+            columns: ["sub_tenant_id"]
+            isOneToOne: false
+            referencedRelation: "sub_tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rate_tables_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       remote_work_approvals: {
         Row: {
           approval_type: string

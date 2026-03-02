@@ -26,6 +26,7 @@ import {
   Contact,
   Link2,
   BookOpenCheck,
+  DollarSign,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -49,9 +50,19 @@ const navItems: { to: string; icon: any; label: string; moduleKey?: ModuleKey }[
   { to: "/analytics", icon: BarChart3, label: "Analytics", moduleKey: "analytics" },
 ];
 
-const dataMenuItems: { to: string; icon: any; label: string; moduleKey: ModuleKey }[] = [
+interface DataMenuItem {
+  to: string;
+  icon: any;
+  label: string;
+  moduleKey: ModuleKey;
+  children?: { to: string; icon: any; label: string; moduleKey: ModuleKey }[];
+}
+
+const dataMenuItems: DataMenuItem[] = [
   { to: "/calculations", icon: FunctionSquare, label: "Calculations", moduleKey: "calculations" },
-  { to: "/lookup-tables", icon: Table2, label: "Lookup Tables", moduleKey: "lookup_tables" },
+  { to: "/rates", icon: DollarSign, label: "Rates", moduleKey: "rates", children: [
+    { to: "/lookup-tables", icon: Table2, label: "Lookup Tables", moduleKey: "lookup_tables" },
+  ] },
   { to: "/field-library", icon: BookOpen, label: "Field Library", moduleKey: "field_library" },
   { to: "/field-mappings", icon: Link2, label: "Field Mappings", moduleKey: "field_mappings" },
   { to: "/data-sources", icon: Cable, label: "Data Sources", moduleKey: "data_sources" },
@@ -91,8 +102,9 @@ export default function AppSidebar() {
   const filteredDataItems = isEmployee ? [] : dataMenuItems.filter((item) => isModEnabled(item.moduleKey));
   const filteredSettingsItems = isEmployee ? [] : settingsMenuItems.filter((item) => isModEnabled(item.moduleKey));
   const [tenantMenuOpen, setTenantMenuOpen] = useState(false);
+  const allDataPaths = dataMenuItems.flatMap((item) => [item.to, ...(item.children?.map((c) => c.to) || [])]);
   const [dataMenuOpen, setDataMenuOpen] = useState(
-    dataMenuItems.some((item) => location.pathname.startsWith(item.to))
+    allDataPaths.some((p) => location.pathname.startsWith(p))
   );
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(
     settingsMenuItems.some((item) => location.pathname === item.to || (item.to !== "/" && location.pathname.startsWith(item.to)))
@@ -282,7 +294,7 @@ export default function AppSidebar() {
 
         {/* Data menu */}
         {filteredDataItems.length > 0 && (() => {
-          const isDataActive = filteredDataItems.some((d) => location.pathname.startsWith(d.to));
+          const isDataActive = allDataPaths.some((p) => location.pathname.startsWith(p));
           return (
             <div>
               <button
@@ -310,21 +322,45 @@ export default function AppSidebar() {
               {dataMenuOpen && !collapsed && (
                 <div className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border pl-2">
                   {filteredDataItems.map((sub) => {
-                    const subActive = location.pathname.startsWith(sub.to);
+                    const subActive = location.pathname.startsWith(sub.to) ||
+                      (sub.children?.some((c) => location.pathname.startsWith(c.to)) ?? false);
                     return (
-                      <NavLink
-                        key={sub.to}
-                        to={sub.to}
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
-                          subActive
-                            ? "bg-sidebar-accent text-sidebar-primary"
-                            : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+                      <div key={sub.to}>
+                        <NavLink
+                          to={sub.to}
+                          className={cn(
+                            "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                            subActive
+                              ? "bg-sidebar-accent text-sidebar-primary"
+                              : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+                          )}
+                        >
+                          <sub.icon className="w-4 h-4 shrink-0" />
+                          <span>{sub.label}</span>
+                        </NavLink>
+                        {sub.children && subActive && (
+                          <div className="ml-4 mt-0.5 space-y-0.5 border-l border-sidebar-border/50 pl-2">
+                            {sub.children.filter((c) => isModEnabled(c.moduleKey)).map((child) => {
+                              const childActive = location.pathname.startsWith(child.to);
+                              return (
+                                <NavLink
+                                  key={child.to}
+                                  to={child.to}
+                                  className={cn(
+                                    "flex items-center gap-3 px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+                                    childActive
+                                      ? "bg-sidebar-accent text-sidebar-primary"
+                                      : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+                                  )}
+                                >
+                                  <child.icon className="w-3.5 h-3.5 shrink-0" />
+                                  <span>{child.label}</span>
+                                </NavLink>
+                              );
+                            })}
+                          </div>
                         )}
-                      >
-                        <sub.icon className="w-4 h-4 shrink-0" />
-                        <span>{sub.label}</span>
-                      </NavLink>
+                      </div>
                     );
                   })}
                 </div>
