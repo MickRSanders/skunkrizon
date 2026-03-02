@@ -15,7 +15,7 @@ import {
   FunctionSquare,
   LogOut,
   Building2,
-  Table2,
+  
   BookOpen,
   ChevronsUpDown,
   Check,
@@ -60,9 +60,7 @@ interface DataMenuItem {
 
 const dataMenuItems: DataMenuItem[] = [
   { to: "/calculations", icon: FunctionSquare, label: "Calculations", moduleKey: "calculations" },
-  { to: "/rates", icon: DollarSign, label: "Rates", moduleKey: "rates", children: [
-    { to: "/lookup-tables", icon: Table2, label: "Lookup Tables", moduleKey: "lookup_tables" },
-  ] },
+  { to: "/rates", icon: DollarSign, label: "Rates", moduleKey: "rates" },
   { to: "/field-library", icon: BookOpen, label: "Field Library", moduleKey: "field_library" },
   { to: "/field-mappings", icon: Link2, label: "Field Mappings", moduleKey: "field_mappings" },
   { to: "/data-sources", icon: Cable, label: "Data Sources", moduleKey: "data_sources" },

@@ -58,7 +58,7 @@ export const ROUTE_TO_MODULE: Record<string, ModuleKey> = {
   "/policies": "policies",
   "/analytics": "analytics",
   "/calculations": "calculations",
-  "/lookup-tables": "lookup_tables",
+  "/lookup-tables": "rates",
   "/rates": "rates",
   "/field-library": "field_library",
   "/field-mappings": "field_mappings",

@@ -19,7 +19,7 @@ import Analytics from "./pages/Analytics";
 import UserManagement from "./pages/UserManagement";
 import SettingsPage from "./pages/SettingsPage";
 import TenantManagement from "./pages/TenantManagement";
-import LookupTables from "./pages/LookupTables";
+import { Navigate } from "react-router-dom";
 import FieldLibrary from "./pages/FieldLibrary";
 import DataSources from "./pages/DataSources";
 import Auth from "./pages/Auth";
@@ -69,7 +69,7 @@ const App = () => (
               <Route path="/analytics" element={<ModuleGuard><Analytics /></ModuleGuard>} />
               <Route path="/users" element={<ModuleGuard><UserManagement /></ModuleGuard>} />
               <Route path="/tenants" element={<ModuleGuard><TenantManagement /></ModuleGuard>} />
-              <Route path="/lookup-tables" element={<ModuleGuard><LookupTables /></ModuleGuard>} />
+              <Route path="/lookup-tables" element={<Navigate to="/rates" replace />} />
               <Route path="/field-library" element={<ModuleGuard><FieldLibrary /></ModuleGuard>} />
               <Route path="/data-sources" element={<ModuleGuard><DataSources /></ModuleGuard>} />
               <Route path="/settings" element={<ModuleGuard><SettingsPage /></ModuleGuard>} />
