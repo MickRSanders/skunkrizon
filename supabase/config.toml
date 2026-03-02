@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.run-assessment]
 verify_jwt = false
+
+[functions.rate-transform]
+verify_jwt = false
